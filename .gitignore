@@ -1,0 +1,20 @@
+# Portable local PostgreSQL (binaries + data) - do not commit
+.pg/
+.pgdata/
+.pg-download.zip
+.pgtmp/
+
+# Node
+node_modules/
+
+# Env
+.env
+
+# Build output
+dist/
+
+# Project planning documents - not for the repo
+Active24_Project_Plan.md
+Active24_Project_Plan.docx
+Active24_Project_Plan.pdf
+build_plan_docx.py

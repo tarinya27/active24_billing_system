@@ -1,0 +1,437 @@
+// Active24 Billing & Inventory - data model
+// Serialized inventory: every physical unit is a ProductUnit row with its own barcode.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  MANAGER
+  ADMIN
+  CASHIER
+}
+
+enum Company {
+  GENIUS
+  ACTIVE24
+  BOTH
+}
+
+enum CustomerType {
+  WALK_IN
+  INDIVIDUAL
+  BUSINESS
+  CORPORATE
+}
+
+enum PoStatus {
+  PENDING
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+
+enum GrnStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum CreditStatus {
+  OUTSTANDING
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum UnitStatus {
+  IN_STOCK
+  SOLD
+  RETURNED
+  VOID
+}
+
+enum SellingPriceMode {
+  MANUAL
+  AUTO
+}
+
+enum MovementType {
+  GRN_IN
+  SALE_OUT
+  ADJUSTMENT
+  RETURN
+}
+
+// ---------- Auth / Users ----------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CASHIER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  invoices         Invoice[]         @relation("InvoiceCashier")
+  grns             Grn[]             @relation("GrnReceivedBy")
+  purchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreatedBy")
+  stockMovements   StockMovement[]
+  activities       Activity[]
+  invoicePayments  InvoicePayment[]  @relation("PaymentReceivedBy")
+
+  @@map("users")
+}
+
+// ---------- Masters ----------
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+  grnItems GrnItem[]
+
+  @@map("categories")
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  code          String?  @unique
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  company       Company  @default(ACTIVE24)
+  createdAt     DateTime @default(now())
+
+  products         Product[]
+  purchaseOrders   PurchaseOrder[]
+  purchaseInvoices PurchaseInvoice[]
+  grns             Grn[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id        String       @id @default(cuid())
+  name      String
+  mobile    String?
+  address   String?
+  email     String?
+  type      CustomerType @default(WALK_IN)
+  createdAt DateTime     @default(now())
+
+  invoices Invoice[]
+
+  @@map("customers")
+}
+
+model Product {
+  id                  String    @id @default(cuid())
+  code                String    @unique
+  name                String
+  description         String?
+  categoryId          String?
+  category            Category? @relation(fields: [categoryId], references: [id])
+  company             Company   @default(ACTIVE24)
+  defaultSellingPrice Decimal   @db.Decimal(12, 2)
+  reorderLevel        Int       @default(10)
+  supplierId          String?
+  supplier            Supplier? @relation(fields: [supplierId], references: [id])
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  units                ProductUnit[]
+  poItems              PoItem[]
+  purchaseInvoiceItems PurchaseInvoiceItem[]
+  grnItems             GrnItem[]
+  invoiceItems         InvoiceItem[]
+  stockMovements       StockMovement[]
+
+  @@index([categoryId])
+  @@index([supplierId])
+  @@map("products")
+}
+
+// ---------- Purchase Orders (mirror of external PO system) ----------
+
+model PurchaseOrder {
+  id               String    @id @default(cuid())
+  poNumber         String    @unique
+  externalRef      String?
+  company          Company   @default(ACTIVE24)
+  supplierId       String
+  supplier         Supplier  @relation(fields: [supplierId], references: [id])
+  orderDate        DateTime  @default(now())
+  expectedDelivery DateTime?
+  status           PoStatus  @default(PENDING)
+  notes            String?
+  totalAmount      Decimal   @default(0) @db.Decimal(14, 2)
+  syncedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  items            PoItem[]
+  purchaseInvoices PurchaseInvoice[]
+  grns             Grn[]
+
+  @@index([supplierId])
+  @@map("purchase_orders")
+}
+
+model PoItem {
+  id        String        @id @default(cuid())
+  poId      String
+  po        PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product       @relation(fields: [productId], references: [id])
+  quantity  Int
+  costPrice Decimal       @db.Decimal(12, 2)
+
+  @@index([poId])
+  @@map("po_items")
+}
+
+// ---------- Purchase Invoices (supplier invoice entry) ----------
+
+model PurchaseInvoice {
+  id                String         @id @default(cuid())
+  supplierInvoiceNo String?
+  poId              String?
+  po                PurchaseOrder? @relation(fields: [poId], references: [id])
+  supplierId        String
+  supplier          Supplier       @relation(fields: [supplierId], references: [id])
+  company           Company        @default(ACTIVE24)
+  purchaseWithVat   Boolean        @default(false)
+  vatRate           Decimal        @default(0) @db.Decimal(5, 2)
+  subtotal          Decimal        @default(0) @db.Decimal(14, 2)
+  vatAmount         Decimal        @default(0) @db.Decimal(14, 2)
+  total             Decimal        @default(0) @db.Decimal(14, 2)
+  createdById       String?
+  createdBy         User?          @relation("PurchaseInvoiceCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime       @default(now())
+
+  items PurchaseInvoiceItem[]
+  grn   Grn?
+  units ProductUnit[]
+
+  @@index([poId])
+  @@index([supplierId])
+  @@map("purchase_invoices")
+}
+
+model PurchaseInvoiceItem {
+  id                String          @id @default(cuid())
+  purchaseInvoiceId String
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  unitPrice         Decimal         @db.Decimal(12, 2)
+  units             Int
+  vatAmount         Decimal         @default(0) @db.Decimal(12, 2)
+  lineTotal         Decimal         @db.Decimal(14, 2)
+
+  @@index([purchaseInvoiceId])
+  @@map("purchase_invoice_items")
+}
+
+// ---------- GRN ----------
+
+model Grn {
+  id                String           @id @default(cuid())
+  grnNumber         String           @unique
+  poId              String?
+  po                PurchaseOrder?   @relation(fields: [poId], references: [id])
+  purchaseInvoiceId String?          @unique
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id])
+  supplierId        String
+  supplier          Supplier         @relation(fields: [supplierId], references: [id])
+  purchaseWithVat   Boolean          @default(false)
+  receivedDate      DateTime         @default(now())
+  status            GrnStatus        @default(DRAFT)
+  receivedById      String?
+  receivedBy        User?            @relation("GrnReceivedBy", fields: [receivedById], references: [id])
+  notes             String?
+  createdAt         DateTime         @default(now())
+
+  items GrnItem[]
+
+  @@index([supplierId])
+  @@map("grns")
+}
+
+model GrnItem {
+  id               String           @id @default(cuid())
+  grnId            String
+  grn              Grn              @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product          @relation(fields: [productId], references: [id])
+  categoryId       String?
+  category         Category?        @relation(fields: [categoryId], references: [id])
+  description      String?
+  purchasePrice    Decimal          @db.Decimal(12, 2)
+  costExVat        Decimal          @db.Decimal(12, 2)
+  sellingPrice     Decimal          @db.Decimal(12, 2)
+  sellingPriceMode SellingPriceMode @default(AUTO)
+  units            Int
+
+  productUnits ProductUnit[]
+
+  @@index([grnId])
+  @@map("grn_items")
+}
+
+// ---------- Serialized stock ----------
+
+model ProductUnit {
+  id                String           @id @default(cuid())
+  productId         String
+  product           Product          @relation(fields: [productId], references: [id])
+  barcode           String           @unique
+  grnItemId         String?
+  grnItem           GrnItem?         @relation(fields: [grnItemId], references: [id])
+  purchaseInvoiceId String?
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id])
+  costPrice         Decimal          @db.Decimal(12, 2)
+  sellingPrice      Decimal          @db.Decimal(12, 2)
+  status            UnitStatus       @default(IN_STOCK)
+  createdAt         DateTime         @default(now())
+
+  invoiceItem    InvoiceItem?
+  stockMovements StockMovement[]
+
+  @@index([productId])
+  @@index([status])
+  @@map("product_units")
+}
+
+// ---------- Sales invoices ----------
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  cashierId     String?
+  cashier       User?         @relation("InvoiceCashier", fields: [cashierId], references: [id])
+  paymentMethod PaymentMethod @default(CASH)
+  status        InvoiceStatus @default(COMPLETED)
+  creditStatus  CreditStatus?
+  dueDate       DateTime?
+  subtotal      Decimal       @default(0) @db.Decimal(14, 2)
+  totalDiscount Decimal       @default(0) @db.Decimal(14, 2)
+  vatAmount     Decimal       @default(0) @db.Decimal(14, 2)
+  grandTotal    Decimal       @default(0) @db.Decimal(14, 2)
+  createdAt     DateTime      @default(now())
+
+  items    InvoiceItem[]
+  payments InvoicePayment[]
+
+  @@index([customerId])
+  @@index([cashierId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id            String      @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productUnitId String      @unique
+  productUnit   ProductUnit @relation(fields: [productUnitId], references: [id])
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  unitPrice     Decimal     @db.Decimal(12, 2)
+  discount      Decimal     @default(0) @db.Decimal(12, 2)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model InvoicePayment {
+  id           String        @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount       Decimal       @db.Decimal(14, 2)
+  method       PaymentMethod @default(CASH)
+  paidAt       DateTime      @default(now())
+  receivedById String?
+  receivedBy   User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_payments")
+}
+
+// ---------- Movements & activity ----------
+
+model StockMovement {
+  id            String       @id @default(cuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  productUnitId String?
+  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id])
+  type          MovementType
+  quantity      Int
+  reference     String?
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id])
+  createdAt     DateTime     @default(now())
+
+  @@index([productId])
+  @@map("stock_movements")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  type        String
+  title       String
+  description String?
+  amount      Decimal? @db.Decimal(14, 2)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@map("activities")
+}
+
+// ---------- Settings (single row) ----------
+
+model Settings {
+  id                   Int           @id @default(1)
+  companyName          String        @default("Active24 (Pvt) Ltd")
+  companyAddress       String        @default("")
+  companyPhone         String        @default("")
+  companyEmail         String        @default("")
+  invoicePrefix        String        @default("INV-2026-")
+  defaultPaymentMethod PaymentMethod @default(CASH)
+  vatRate              Decimal       @default(0) @db.Decimal(5, 2)
+  vatEnabled           Boolean       @default(true)
+  currency             String        @default("LKR")
+  lowStockThreshold    Int           @default(10)
+  autoPrint            Boolean       @default(false)
+  notificationsEnabled Boolean       @default(true)
+  updatedAt            DateTime      @updatedAt
+
+  @@map("settings")
+}
