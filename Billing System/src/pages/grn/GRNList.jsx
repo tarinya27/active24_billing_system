@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, Archive } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
@@ -42,7 +42,10 @@ export default function GRNList() {
   return (
     <div>
       <PageHeader title="Goods Received Notes" subtitle="Serialized inventory receiving" actions={
-        <Link to="/grn/new" className="btn-primary"><Plus className="h-4 w-4" /> Create GRN</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/grn/new?type=opening" className="btn-secondary"><Archive className="h-4 w-4" /> Opening Stock</Link>
+          <Link to="/grn/new" className="btn-primary"><Plus className="h-4 w-4" /> Create GRN</Link>
+        </div>
       } />
       <div className="glass-card mb-6 p-4">
         <div className="flex flex-col gap-4 sm:flex-row">

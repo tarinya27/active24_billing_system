@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, PackageCheck, Wand2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, PackageCheck, Wand2, Trash2, Plus } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import BarcodeInput from '../../components/ui/BarcodeInput';
-import { grnsApi } from '../../api/procurement';
-import { categoriesApi, suppliersApi } from '../../api/masters';
+import { grnsApi, purchaseInvoicesApi } from '../../api/procurement';
+import { categoriesApi, productsApi, suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency } from '../../utils/helpers';
+
+const OPENING_STOCK_NOTE = 'Previous stock available — opening balance';
 
 function calcCostExVat(purchasePrice, purchaseWithVat, vatRate) {
   const p = Number(purchasePrice) || 0;
@@ -24,7 +26,7 @@ function generateBarcode() {
   return `A24${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`.slice(0, 32);
 }
 
-function emptyLine(product, unitPrice = 0) {
+function emptyLine(product, unitPrice = 0, expectedUnits = 0) {
   return {
     productId: product?.id || '',
     product,
@@ -34,7 +36,8 @@ function emptyLine(product, unitPrice = 0) {
     sellingPriceMode: 'AUTO',
     sellingPrice: calcAutoSell(calcCostExVat(unitPrice, false, 0)),
     barcodes: [],
-    activeLine: true,
+    expectedUnits,
+    qtyToGenerate: expectedUnits || 1,
   };
 }
 
@@ -42,17 +45,22 @@ export default function GRNForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prefillPoRef = searchParams.get('poRef');
+  const prefillPurchaseInvoiceId = searchParams.get('purchaseInvoiceId');
+  const isOpeningStock = searchParams.get('type') === 'opening';
 
   const [suppliers, setSuppliers] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [purchaseInvoiceId, setPurchaseInvoiceId] = useState(prefillPurchaseInvoiceId || '');
   const [saving, setSaving] = useState(false);
   const [scanTarget, setScanTarget] = useState(null);
+  const [addProductId, setAddProductId] = useState('');
   const [form, setForm] = useState({
     supplierId: '',
     poRef: prefillPoRef || '',
     purchaseWithVat: false,
     vatRate: 0,
-    notes: '',
+    notes: isOpeningStock ? OPENING_STOCK_NOTE : '',
     lines: [],
   });
 
@@ -60,11 +68,32 @@ export default function GRNForm() {
     Promise.all([
       suppliersApi.list({ pageSize: 200 }),
       categoriesApi.list(),
-    ]).then(([s, c]) => {
+      productsApi.list({ pageSize: 500, isActive: 'true' }),
+    ]).then(([s, c, p]) => {
       setSuppliers(s.items || []);
       setCategories(c);
+      setProducts(p.items || []);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!prefillPurchaseInvoiceId) return;
+    purchaseInvoicesApi.get(prefillPurchaseInvoiceId).then((pi) => {
+      if (pi.grn) {
+        toast.warning('This purchase invoice already has a GRN');
+        return;
+      }
+      setPurchaseInvoiceId(pi.id);
+      setForm((f) => ({
+        ...f,
+        supplierId: pi.supplierId,
+        purchaseWithVat: pi.purchaseWithVat,
+        vatRate: Number(pi.vatRate),
+        poRef: pi.po?.poNumber || f.poRef,
+        lines: pi.items.map((item) => emptyLine(item.product, Number(item.unitPrice), item.units)),
+      }));
+    }).catch(() => toast.error('Failed to load purchase invoice'));
+  }, [prefillPurchaseInvoiceId]);
 
   const enrichedLines = useMemo(
     () => form.lines.map((line) => {
@@ -75,6 +104,18 @@ export default function GRNForm() {
     }),
     [form.lines, form.purchaseWithVat, form.vatRate]
   );
+
+  const addProductLine = () => {
+    if (!addProductId) { toast.error('Select a product'); return; }
+    if (form.lines.some((l) => l.productId === addProductId)) {
+      toast.warning('Product already on this GRN');
+      return;
+    }
+    const product = products.find((p) => p.id === addProductId);
+    if (!product) return;
+    setForm({ ...form, lines: [...form.lines, emptyLine(product, Number(product.defaultSellingPrice) * 0.65)] });
+    setAddProductId('');
+  };
 
   const handleBarcodeForLine = (lineIndex, barcode) => {
     const allBarcodes = form.lines.flatMap((l) => l.barcodes);
@@ -89,6 +130,7 @@ export default function GRNForm() {
   };
 
   const generateBarcodesForLine = (lineIndex, count) => {
+    if (count < 1) return;
     const lines = [...form.lines];
     const newCodes = Array.from({ length: count }, () => generateBarcode());
     lines[lineIndex] = { ...lines[lineIndex], barcodes: [...lines[lineIndex].barcodes, ...newCodes] };
@@ -130,14 +172,14 @@ export default function GRNForm() {
 
     setSaving(true);
     try {
-      const notes = [form.notes, form.poRef ? `PO ref: ${form.poRef}` : ''].filter(Boolean).join('\n');
+      const noteParts = [form.notes, form.poRef ? `PO ref: ${form.poRef}` : ''].filter(Boolean);
       await grnsApi.complete({
         supplierId: form.supplierId,
         poId: null,
-        purchaseInvoiceId: null,
+        purchaseInvoiceId: purchaseInvoiceId || null,
         purchaseWithVat: form.purchaseWithVat,
         vatRate: Number(form.vatRate),
-        notes,
+        notes: noteParts.join('\n'),
         lines: form.lines.map((l) => ({
           productId: l.productId,
           categoryId: l.categoryId || null,
@@ -157,11 +199,24 @@ export default function GRNForm() {
     }
   };
 
+  const pageTitle = isOpeningStock ? 'Opening Stock GRN' : 'Create GRN';
+  const pageSubtitle = isOpeningStock
+    ? 'Add previous stock available — one barcode per physical unit'
+    : purchaseInvoiceId
+      ? 'Receive stock against purchase invoice'
+      : 'Scan one barcode per physical unit (serialized inventory)';
+
   return (
     <div>
-      <PageHeader title="Create GRN" subtitle="Scan one barcode per physical unit (serialized inventory)" actions={
+      <PageHeader title={pageTitle} subtitle={pageSubtitle} actions={
         <button onClick={() => navigate('/grn')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
       } />
+
+      {isOpeningStock && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          Use this when historical sales need stock that was not in the system. Add product lines, generate barcodes for each unit, then post sales in Billing.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="glass-card grid grid-cols-1 gap-4 p-6 md:grid-cols-2 lg:grid-cols-4">
@@ -192,9 +247,24 @@ export default function GRNForm() {
           </div>
         </div>
 
+        <div className="glass-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="label">Add product line</label>
+              <select className="select-field" value={addProductId} onChange={(e) => setAddProductId(e.target.value)}>
+                <option value="">Select product</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={addProductLine} className="btn-secondary shrink-0">
+              <Plus className="h-4 w-4" /> Add Line
+            </button>
+          </div>
+        </div>
+
         {enrichedLines.length === 0 ? (
           <div className="glass-card p-8 text-center text-sm text-slate-500">
-            Add product lines manually, or open with ?poRef=10001 if linking to a PO from the external PO system.
+            Add product lines above. From a purchase invoice, use <strong>Create GRN</strong> on the invoice detail page.
           </div>
         ) : (
           enrichedLines.map((line, lineIndex) => (
@@ -259,6 +329,22 @@ export default function GRNForm() {
                       Generate remaining ({line.expectedUnits - line.barcodes.length})
                     </button>
                   )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field !w-20 !py-1.5 !text-xs"
+                      value={line.qtyToGenerate ?? 1}
+                      onChange={(e) => updateLine(lineIndex, { qtyToGenerate: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => generateBarcodesForLine(lineIndex, Number(line.qtyToGenerate) || 1)}
+                      className="btn-secondary !py-2 !text-xs"
+                    >
+                      <Wand2 className="h-3.5 w-3.5" /> Generate N
+                    </button>
+                  </div>
                 </div>
                 {scanTarget === lineIndex && (
                   <BarcodeInput onScan={(code) => { handleBarcodeForLine(lineIndex, code); setScanTarget(null); }} placeholder="Scan barcode for this unit…" />

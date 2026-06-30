@@ -13,6 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.js",
     "db:clear": "node prisma/clear-data.js",
+    "db:zero-stock": "node scripts/zero-stock.mjs",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio"
   },

@@ -9,6 +9,10 @@ import CustomerList from '../pages/customers/CustomerList';
 import UserList from '../pages/users/UserList';
 import PurchaseOrderList from '../pages/purchaseOrders/PurchaseOrderList';
 import PurchaseOrderDetail from '../pages/purchaseOrders/PurchaseOrderDetail';
+import SupplierList from '../pages/suppliers/SupplierList';
+import PurchaseInvoiceList from '../pages/purchaseInvoices/PurchaseInvoiceList';
+import PurchaseInvoiceForm from '../pages/purchaseInvoices/PurchaseInvoiceForm';
+import PurchaseInvoiceDetail from '../pages/purchaseInvoices/PurchaseInvoiceDetail';
 import GRNList from '../pages/grn/GRNList';
 import GRNForm from '../pages/grn/GRNForm';
 import GRNDetail from '../pages/grn/GRNDetail';
@@ -41,6 +45,18 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute requiredPermission="purchase_orders.view" />}>
             <Route path="purchase-orders" element={<PurchaseOrderList />} />
             <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="suppliers.view" />}>
+            <Route path="suppliers" element={<SupplierList />} />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="purchase_invoices.view" />}>
+            <Route path="purchase-invoices" element={<PurchaseInvoiceList />} />
+            <Route path="purchase-invoices/:id" element={<PurchaseInvoiceDetail />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="purchase_invoices.create" />}>
+            <Route path="purchase-invoices/new" element={<PurchaseInvoiceForm />} />
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="grn.view" />}>
