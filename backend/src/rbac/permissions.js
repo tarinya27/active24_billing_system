@@ -94,7 +94,7 @@ const CASHIER_PERMISSIONS = [
   'invoices.create',
 ];
 
-// MANAGER has full access to everything.
+// MANAGER: full access. ADMIN: purchase orders view-only.
 export const ROLE_PERMISSIONS = {
   MANAGER: new Set(PERMISSIONS),
   ADMIN: new Set(ADMIN_PERMISSIONS),

@@ -9,23 +9,41 @@ const variants = {
 };
 
 export default function StatusBadge({ status, className }) {
+  const labels = {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    RECEIVED: 'Received',
+    CANCELLED: 'Cancelled',
+    DRAFT: 'Draft',
+    COMPLETED: 'Completed',
+    IN_STOCK: 'In Stock',
+    LOW_STOCK: 'Low Stock',
+    OUT_OF_STOCK: 'Out of Stock',
+    OUTSTANDING: 'Outstanding',
+    PAID: 'Paid',
+  };
+
+  const display = labels[status] || status;
+
   const colorMap = {
     Pending: 'warning',
+    Outstanding: 'warning',
     Approved: 'info',
     Received: 'success',
     Draft: 'neutral',
     Completed: 'success',
+    Paid: 'success',
     Cancelled: 'danger',
     'In Stock': 'success',
     'Low Stock': 'warning',
     'Out of Stock': 'danger',
   };
 
-  const variant = colorMap[status] || 'neutral';
+  const variant = colorMap[display] || 'neutral';
 
   return (
     <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', variants[variant], className)}>
-      {status}
+      {display}
     </span>
   );
 }

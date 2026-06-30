@@ -2,13 +2,25 @@ export const PO_STATUS = {
   PENDING: 'Pending',
   APPROVED: 'Approved',
   RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
 };
+
+export const PO_STATUS_API = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  RECEIVED: 'RECEIVED',
+  CANCELLED: 'CANCELLED',
+};
+
+export const poStatusLabel = (status) => PO_STATUS[status] || status;
 
 export const GRN_STATUS = {
   DRAFT: 'Draft',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };
+
+export const grnStatusLabel = (status) => GRN_STATUS[status] || status;
 
 export const INVOICE_STATUS = {
   DRAFT: 'Draft',
@@ -17,6 +29,13 @@ export const INVOICE_STATUS = {
 };
 
 export const PAYMENT_METHODS = ['Cash', 'Card', 'Bank Transfer', 'Credit'];
+
+export const PAYMENT_METHOD_API = {
+  Cash: 'CASH',
+  Card: 'CARD',
+  'Bank Transfer': 'BANK_TRANSFER',
+  Credit: 'CREDIT',
+};
 
 export const CREDIT_PAYMENT_TERM_DAYS = 30;
 

@@ -1,51 +1,123 @@
-import { useState } from 'react';
-import { History, Package } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { History, Package, AlertTriangle } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Drawer from '../../components/ui/Drawer';
 import Pagination from '../../components/ui/Pagination';
-import { useApp } from '../../context/AppContext';
-import { usePagination, useSearch } from '../../hooks/usePagination';
-import { formatCurrency, getStockStatus } from '../../utils/helpers';
+import { stockApi } from '../../api/ops';
+import { getErrorMessage } from '../../api/client';
+import { usePermission } from '../../hooks/usePermission';
+import { usePagination } from '../../hooks/usePagination';
+import { formatCurrency, formatDateTime } from '../../utils/helpers';
+import { toast } from 'react-toastify';
+
+const companyLabel = (c) => (c === 'GENIUS' ? 'Genius' : 'Active24');
 
 export default function StockManagement() {
-  const { products, stockTransfers } = useApp();
+  const { can } = usePermission();
+  const canAdjust = can('stock.adjust');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [sourceFilter, setSourceFilter] = useState('All');
+  const [companyFilter, setCompanyFilter] = useState('All');
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productUnits, setProductUnits] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  const { searchQuery, setSearchQuery, filteredItems: searched } = useSearch(products, ['name', 'code', 'barcode', 'category', 'source']);
+  const [movements, setMovements] = useState([]);
 
-  const enriched = searched.map((p) => ({ ...p, status: getStockStatus(p.quantity, p.reorderLevel) }));
-  const filtered = enriched.filter((p) => {
-    if (statusFilter !== 'All' && p.status !== statusFilter) return false;
-    if (sourceFilter !== 'All' && p.source !== sourceFilter) return false;
-    return true;
-  });
+  const loadSummary = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await stockApi.summary({
+        search: searchQuery || undefined,
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        company: companyFilter !== 'All' ? (companyFilter === 'Genius' ? 'GENIUS' : 'ACTIVE24') : undefined,
+      });
+      setItems(data);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, statusFilter, companyFilter]);
 
-  const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filtered);
+  useEffect(() => {
+    const t = setTimeout(loadSummary, 300);
+    return () => clearTimeout(t);
+  }, [loadSummary]);
+
+  const loadUnits = async (productId) => {
+    try {
+      const result = await stockApi.listUnits({ productId, status: 'IN_STOCK', pageSize: 100 });
+      setProductUnits(result.items || []);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  const loadMovements = async () => {
+    try {
+      const result = await stockApi.movements({ pageSize: 50 });
+      setMovements(result.items || []);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  const handleRowClick = (row) => {
+    setSelectedProduct(row);
+    loadUnits(row.productId);
+  };
+
+  const handleAdjust = async (unitId) => {
+    if (!window.confirm('Void this unit from stock? This cannot be undone.')) return;
+    try {
+      await stockApi.adjust(unitId, 'Manual stock adjustment');
+      toast.success('Unit voided');
+      if (selectedProduct) loadUnits(selectedProduct.productId);
+      loadSummary();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(items);
 
   const columns = [
     { key: 'code', label: 'Code', render: (row) => <span className="font-mono text-xs">{row.code}</span> },
-    { key: 'barcode', label: 'Barcode', render: (row) => <span className="font-mono text-xs text-slate-500">{row.barcode}</span> },
     { key: 'name', label: 'Product Name', render: (row) => <span className="font-medium">{row.name}</span> },
     { key: 'category', label: 'Category' },
-    { key: 'quantity', label: 'Qty', render: (row) => <span className="font-semibold">{row.quantity}</span> },
-    { key: 'costPrice', label: 'Cost', render: (row) => formatCurrency(row.costPrice) },
-    { key: 'sellingPrice', label: 'Sell', render: (row) => formatCurrency(row.sellingPrice) },
-    { key: 'source', label: 'Source', render: (row) => (
-      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${row.source === 'Genius' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400' : 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>{row.source}</span>
-    )},
+    { key: 'quantity', label: 'Units In Stock', render: (row) => <span className="font-semibold">{row.quantity}</span> },
+    {
+      key: 'company',
+      label: 'Source',
+      render: (row) => (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${row.company === 'GENIUS' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400' : 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
+          {companyLabel(row.company)}
+        </span>
+      ),
+    },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
   ];
 
   return (
     <div>
-      <PageHeader title="Stock Management" subtitle="Monitor inventory levels and stock movements" actions={
-        <button onClick={() => setShowHistory(true)} className="btn-secondary"><History className="h-4 w-4" /> Transfer History</button>
-      } />
+      <PageHeader
+        title="Stock Management"
+        subtitle="Serialized inventory — quantities are in-stock unit counts"
+        actions={
+          <button
+            type="button"
+            onClick={() => { setShowHistory(true); loadMovements(); }}
+            className="btn-secondary"
+          >
+            <History className="h-4 w-4" /> Movement History
+          </button>
+        }
+      />
 
       <div className="glass-card mb-6 p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -56,7 +128,7 @@ export default function StockManagement() {
             <option value="Low Stock">Low Stock</option>
             <option value="Out of Stock">Out of Stock</option>
           </select>
-          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="select-field !w-auto">
+          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="select-field !w-auto">
             <option value="All">All Sources</option>
             <option value="Genius">Genius</option>
             <option value="Active24">Active24</option>
@@ -65,63 +137,75 @@ export default function StockManagement() {
       </div>
 
       <div className="glass-card p-4">
-        <DataTable columns={columns} data={paginatedItems} onRowClick={setSelectedProduct} />
-        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={totalItems} itemsPerPage={itemsPerPage} />
-        </div>
+        {loading ? (
+          <p className="py-12 text-center text-sm text-slate-400">Loading stock…</p>
+        ) : (
+          <>
+            <DataTable columns={columns} data={paginatedItems} onRowClick={handleRowClick} />
+            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={totalItems} itemsPerPage={itemsPerPage} />
+            </div>
+          </>
+        )}
       </div>
 
-      <Drawer isOpen={Boolean(selectedProduct)} onClose={() => setSelectedProduct(null)} title="Product Details">
+      <Drawer isOpen={Boolean(selectedProduct)} onClose={() => setSelectedProduct(null)} title="Serialized Units">
         {selectedProduct && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-primary-50 p-3 dark:bg-primary-950"><Package className="h-6 w-6 text-primary-600" /></div>
               <div>
                 <h3 className="font-semibold">{selectedProduct.name}</h3>
-                <p className="text-xs text-slate-500">{selectedProduct.code}</p>
+                <p className="text-xs text-slate-500">{selectedProduct.code} • {selectedProduct.quantity} in stock</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                ['Barcode', selectedProduct.barcode],
-                ['Category', selectedProduct.category],
-                ['Quantity', selectedProduct.quantity],
-                ['Cost Price', formatCurrency(selectedProduct.costPrice)],
-                ['Selling Price', formatCurrency(selectedProduct.sellingPrice)],
-                ['Source', selectedProduct.source],
-                ['Reorder Level', selectedProduct.reorderLevel],
-                ['Status', selectedProduct.status || getStockStatus(selectedProduct.quantity, selectedProduct.reorderLevel)],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <p className="font-medium">{typeof value === 'string' && value.includes('Stock') ? <StatusBadge status={value} /> : value}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-slate-500">{selectedProduct.description}</p>
+            {productUnits.length === 0 ? (
+              <p className="text-sm text-slate-500">No in-stock units for this product.</p>
+            ) : (
+              <div className="space-y-2">
+                {productUnits.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+                    <div>
+                      <p className="font-mono text-xs">{u.barcode}</p>
+                      <p className="text-xs text-slate-500">Sell: {formatCurrency(Number(u.sellingPrice))}</p>
+                    </div>
+                    {canAdjust && (
+                      <button type="button" onClick={() => handleAdjust(u.id)} className="btn-secondary !px-2 !py-1 !text-xs text-red-600">
+                        <AlertTriangle className="h-3 w-3" /> Void
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Drawer>
 
-      <Drawer isOpen={showHistory} onClose={() => setShowHistory(false)} title="Stock Transfer History">
+      <Drawer isOpen={showHistory} onClose={() => setShowHistory(false)} title="Stock Movement History">
         <div className="space-y-3">
-          {stockTransfers.map((t) => (
-            <div key={t.id} className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium">{t.productName}</p>
-                  <p className="text-xs text-slate-500">{t.type} • {t.reference}</p>
+          {movements.length === 0 ? (
+            <p className="text-sm text-slate-500">No movements recorded yet.</p>
+          ) : (
+            movements.map((t) => (
+              <div key={t.id} className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{t.product?.name}</p>
+                    <p className="text-xs text-slate-500">{t.type} • {t.reference || '—'}</p>
+                    {t.productUnit?.barcode && <p className="font-mono text-[10px] text-slate-400">{t.productUnit.barcode}</p>}
+                  </div>
+                  <span className={`text-sm font-bold ${t.quantity > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {t.quantity > 0 ? '+' : ''}{t.quantity}
+                  </span>
                 </div>
-                <span className={`text-sm font-bold ${t.quantity > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {t.quantity > 0 ? '+' : ''}{t.quantity}
-                </span>
+                <div className="mt-2 flex justify-between text-[10px] text-slate-400">
+                  <span>{t.user?.name || 'System'}</span>
+                  <span>{formatDateTime(t.createdAt)}</span>
+                </div>
               </div>
-              <div className="mt-2 flex justify-between text-[10px] text-slate-400">
-                <span>{t.from} → {t.to}</span>
-                <span>{new Date(t.date).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Drawer>
     </div>

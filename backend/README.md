@@ -53,6 +53,28 @@ Express + Prisma + PostgreSQL API for the Active24 Billing & Inventory system.
 - `GET  /api/auth/me` — current user + resolved permissions (requires `Authorization: Bearer <token>`)
 - `GET  /api/health` — service check
 
+## External PO sync (po.geniuslanka.com)
+
+Purchase orders are mirrored from the **Genius PO System** at [https://po.geniuslanka.com](https://po.geniuslanka.com), which hosts both issuing companies:
+
+| External system | Query param | Billing system company |
+|---|---|---|
+| Genius Associates | `company=GENIUS` | `GENIUS` |
+| Active (Pvt) Ltd | `company=ACTIVE` | `ACTIVE24` |
+
+Configure in `backend/.env`:
+
+```env
+PO_USE_MOCK=false
+PO_SYSTEM_BASE_URL=https://po.geniuslanka.com
+PO_SYSTEM_USERNAME=your_po_username
+PO_SYSTEM_PASSWORD=your_po_password
+```
+
+While `PO_USE_MOCK=true` (default), sync uses local sample data for development.
+
+Sync endpoint: `POST /api/purchase-orders/sync` with body `{ "company": "GENIUS" | "ACTIVE24" | "BOTH" }`.
+
 ## RBAC
 The permission matrix lives in `src/rbac/permissions.js`. Protect any route with:
 ```js

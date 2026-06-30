@@ -77,5 +77,9 @@ api.interceptors.response.use(
 
 // Helper to surface backend error messages ({ data, error: { message } }).
 export function getErrorMessage(error, fallback = 'Something went wrong') {
+  const details = error?.response?.data?.error?.details;
+  if (Array.isArray(details) && details.length) {
+    return details.map((d) => d.message).join('; ');
+  }
   return error?.response?.data?.error?.message || error?.message || fallback;
 }

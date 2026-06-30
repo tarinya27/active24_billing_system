@@ -2,17 +2,22 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, PackageCheck, Warehouse,
   Receipt, BarChart3, Settings, ChevronLeft, ChevronRight, Zap,
+  Boxes, Tags, Contact, UserCog,
 } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 import { usePermission } from '../../hooks/usePermission';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
+  { path: '/products', label: 'Products', icon: Boxes, permission: 'products.view' },
+  { path: '/categories', label: 'Categories', icon: Tags, permission: 'categories.manage' },
+  { path: '/customers', label: 'Customers', icon: Contact, permission: 'customers.view' },
   { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, permission: 'purchase_orders.view' },
   { path: '/grn', label: 'Goods Received Notes', icon: PackageCheck, permission: 'grn.view' },
   { path: '/stock', label: 'Stock Management', icon: Warehouse, permission: 'stock.view' },
   { path: '/billing', label: 'Billing / Invoicing', icon: Receipt, permission: 'invoices.create' },
   { path: '/reports', label: 'Reports', icon: BarChart3, permission: 'reports.sales' },
+  { path: '/users', label: 'Users', icon: UserCog, permission: 'users.view_all' },
   { path: '/settings', label: 'Settings', icon: Settings, permission: 'settings.view' },
 ];
 

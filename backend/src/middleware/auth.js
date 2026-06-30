@@ -29,8 +29,10 @@ export function authMiddleware(req, _res, next) {
 export function requirePermission(permission) {
   return (req, _res, next) => {
     if (!req.user) return next(ApiError.unauthorized());
-    if (!roleHasPermission(req.user.role, permission)) {
-      return next(ApiError.forbidden(`You do not have permission: ${permission}`));
+    const keys = Array.isArray(permission) ? permission : [permission];
+    const allowed = keys.some((key) => roleHasPermission(req.user.role, key));
+    if (!allowed) {
+      return next(ApiError.forbidden(`You do not have permission: ${keys.join(' or ')}`));
     }
     return next();
   };

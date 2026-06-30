@@ -18,6 +18,9 @@ export function errorHandler(err, _req, res, _next) {
   } else if (err.code === 'P2025') {
     statusCode = 404;
     message = 'Record not found';
+  } else if (err.code === 'P2003') {
+    statusCode = 409;
+    message = 'Cannot delete: this record is still referenced by other data.';
   }
 
   if (statusCode >= 500 && !env.isProd) {

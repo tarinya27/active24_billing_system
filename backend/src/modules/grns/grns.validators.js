@@ -1,0 +1,25 @@
+import { z } from 'zod';
+
+const grnLineSchema = z.object({
+  productId: z.string().min(1),
+  categoryId: z.string().min(1).optional().nullable(),
+  description: z.string().trim().max(500).optional().or(z.literal('')),
+  purchasePrice: z.coerce.number().nonnegative(),
+  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
+  sellingPrice: z.coerce.number().nonnegative().optional(),
+  barcodes: z.array(z.string().trim().min(1).max(64)).min(1),
+});
+
+export const completeGrnSchema = z.object({
+  poId: z.string().min(1).optional().nullable(),
+  purchaseInvoiceId: z.string().min(1).optional().nullable(),
+  supplierId: z.string().min(1),
+  purchaseWithVat: z.boolean().default(false),
+  vatRate: z.coerce.number().nonnegative().optional(),
+  notes: z.string().trim().max(500).optional().or(z.literal('')),
+  lines: z.array(grnLineSchema).min(1),
+});
+
+export const cancelGrnSchema = z.object({
+  reason: z.string().trim().max(300).optional(),
+});
