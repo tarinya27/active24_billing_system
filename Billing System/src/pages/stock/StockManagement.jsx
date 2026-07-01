@@ -11,9 +11,8 @@ import { getErrorMessage } from '../../api/client';
 import { usePermission } from '../../hooks/usePermission';
 import { usePagination } from '../../hooks/usePagination';
 import { formatCurrency, formatDateTime } from '../../utils/helpers';
+import { PO_COMPANY, PO_COMPANY_LABEL } from '../../utils/poConstants';
 import { toast } from 'react-toastify';
-
-const companyLabel = (c) => (c === 'GENIUS' ? 'Genius' : 'Active24');
 
 export default function StockManagement() {
   const { can } = usePermission();
@@ -22,7 +21,6 @@ export default function StockManagement() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [companyFilter, setCompanyFilter] = useState('All');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productUnits, setProductUnits] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -34,7 +32,7 @@ export default function StockManagement() {
       const data = await stockApi.summary({
         search: searchQuery || undefined,
         status: statusFilter !== 'All' ? statusFilter : undefined,
-        company: companyFilter !== 'All' ? (companyFilter === 'Genius' ? 'GENIUS' : 'ACTIVE24') : undefined,
+        company: PO_COMPANY,
       });
       setItems(data);
     } catch (err) {
@@ -42,7 +40,7 @@ export default function StockManagement() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter, companyFilter]);
+  }, [searchQuery, statusFilter]);
 
   useEffect(() => {
     const t = setTimeout(loadSummary, 300);
@@ -91,15 +89,6 @@ export default function StockManagement() {
     { key: 'name', label: 'Product Name', render: (row) => <span className="font-medium">{row.name}</span> },
     { key: 'category', label: 'Category' },
     { key: 'quantity', label: 'Units In Stock', render: (row) => <span className="font-semibold">{row.quantity}</span> },
-    {
-      key: 'company',
-      label: 'Source',
-      render: (row) => (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${row.company === 'GENIUS' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400' : 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
-          {companyLabel(row.company)}
-        </span>
-      ),
-    },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
   ];
 
@@ -128,11 +117,9 @@ export default function StockManagement() {
             <option value="Low Stock">Low Stock</option>
             <option value="Out of Stock">Out of Stock</option>
           </select>
-          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="select-field !w-auto">
-            <option value="All">All Sources</option>
-            <option value="Genius">Genius</option>
-            <option value="Active24">Active24</option>
-          </select>
+          <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+            {PO_COMPANY_LABEL}
+          </span>
         </div>
       </div>
 

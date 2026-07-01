@@ -23,8 +23,8 @@ import ProductFormModal from './ProductFormModal';
 import ProductPrintView from './ProductPrintView';
 
 const SORT_OPTIONS = [
-  { value: 'name', label: 'Product Name' },
-  { value: 'code', label: 'Product Code' },
+  { value: 'name', label: 'Inventory Name' },
+  { value: 'code', label: 'Inventory Code' },
   { value: 'purchasePrice', label: 'Purchase Price' },
   { value: 'defaultSellingPrice', label: 'Selling Price' },
   { value: 'currentStock', label: 'Current Stock' },
@@ -99,7 +99,7 @@ export default function ProductList() {
   const handleToggleStatus = async (product) => {
     try {
       await productsApi.updateStatus(product.id, !product.isActive);
-      toast.success(product.isActive ? 'Product deactivated' : 'Product activated');
+      toast.success(product.isActive ? 'Inventory item deactivated' : 'Inventory item activated');
       reload();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to update status'));
@@ -110,10 +110,10 @@ export default function ProductList() {
     if (!deleteTarget) return;
     try {
       await productsApi.remove(deleteTarget.id);
-      toast.success('Product deactivated');
+      toast.success('Inventory item deactivated');
       reload();
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to deactivate product'));
+      toast.error(getErrorMessage(err, 'Failed to deactivate inventory item'));
     }
   };
 
@@ -126,7 +126,7 @@ export default function ProductList() {
     try {
       const rows = await fetchAllForExport();
       if (!rows.length) {
-        toast.warning('No products to export');
+        toast.warning('No inventory items to export');
         return;
       }
       if (format === 'excel') {
@@ -153,9 +153,9 @@ export default function ProductList() {
   const showActions = can('products.edit') || can('products.delete') || can('products.create');
 
   const columns = [
-    { key: 'code', label: 'Product Code', render: (r) => <span className="font-mono text-xs">{r.code}</span> },
+    { key: 'code', label: 'Inventory Code', render: (r) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'barcode', label: 'Barcode', render: (r) => <span className="font-mono text-xs">{r.barcode || '—'}</span> },
-    { key: 'name', label: 'Product Name', render: (r) => <span className="font-medium">{r.name}</span> },
+    { key: 'name', label: 'Inventory Name', render: (r) => <span className="font-medium">{r.name}</span> },
     { key: 'category', label: 'Category', render: (r) => r.category?.name || '—' },
     { key: 'brand', label: 'Brand', render: (r) => r.brand || '—' },
     { key: 'supplier', label: 'Supplier', render: (r) => r.supplier?.name || '—' },
@@ -229,7 +229,7 @@ export default function ProductList() {
   return (
     <div>
       <PageHeader
-        title="Products"
+        title="Inventory"
         subtitle="View catalog — stock increases only via GRN (PO → Invoice → GRN)"
         actions={
           <div className="flex flex-wrap gap-2">
@@ -244,14 +244,14 @@ export default function ProductList() {
       />
 
       <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-        Inventory stock is updated <strong>only from GRN</strong> after Purchase Order → Purchase Invoice. Use this page to view and edit product details — not to add stock.
+        Inventory stock is updated <strong>only from GRN</strong> after Purchase Order → Purchase Invoice. Use this page to view and edit inventory details — not to add stock.
       </div>
 
       <div className="glass-card mb-6 space-y-4 p-4">
         <SearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search by product code, barcode, or name…"
+          placeholder="Search by inventory code, barcode, or name…"
           className="w-full"
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
@@ -304,7 +304,7 @@ export default function ProductList() {
 
       <div className="glass-card p-4">
         {loading ? (
-          <p className="py-12 text-center text-sm text-slate-500">Loading products…</p>
+          <p className="py-12 text-center text-sm text-slate-500">Loading inventory…</p>
         ) : (
           <>
             <DataTable columns={columns} data={products} />
@@ -336,7 +336,7 @@ export default function ProductList() {
         isOpen={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Deactivate Product"
+        title="Deactivate Inventory Item"
         message={`Deactivate "${deleteTarget?.name}"? It will be hidden from active lists but kept for history.`}
         confirmText="Deactivate"
       />

@@ -55,7 +55,7 @@ export default function BarcodeInput({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className={`input-field pl-10 font-mono text-sm ${inputClassName}`}
+          className={`input-field !pl-10 font-mono text-sm ${inputClassName}`}
           autoComplete="off"
         />
       </div>

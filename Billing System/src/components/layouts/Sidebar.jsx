@@ -9,7 +9,7 @@ import { usePermission } from '../../hooks/usePermission';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
-  { path: '/products', label: 'Products', icon: Boxes, permission: 'products.view' },
+  { path: '/products', label: 'Inventory', icon: Boxes, permission: 'products.view' },
   { path: '/categories', label: 'Categories', icon: Tags, permission: 'categories.manage' },
   { path: '/customers', label: 'Customers', icon: Contact, permission: 'customers.view' },
   { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, permission: 'purchase_orders.view' },

@@ -23,8 +23,8 @@ export default function ProductPrintView({ products, settings, forPrint = false 
       `}</style>
       <div className="mb-6 border-b border-slate-300 pb-4">
         <h1 className="text-2xl font-bold">{companyName}</h1>
-        <p className="text-sm text-slate-600">Product Catalog — {new Date().toLocaleString('en-LK')}</p>
-        <p className="text-sm text-slate-600">Total products: {products.length}</p>
+        <p className="text-sm text-slate-600">Inventory Catalog — {new Date().toLocaleString('en-LK')}</p>
+        <p className="text-sm text-slate-600">Total inventory items: {products.length}</p>
       </div>
       <table className="w-full border-collapse text-xs">
         <thead>
