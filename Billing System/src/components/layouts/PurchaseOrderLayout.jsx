@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import {
-  Plus, History, Truck, Database, Building2,
+  Plus, History, Truck, Database,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
+import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
   { to: '/purchase-orders', label: 'PO History', icon: History, end: true },
@@ -23,8 +24,8 @@ export default function PurchaseOrderLayout() {
       <aside className="w-full shrink-0 lg:w-56 xl:w-60">
         <div className="rounded-2xl bg-slate-900 p-4 text-slate-100 shadow-xl dark:bg-slate-950">
           <div className="mb-5 flex items-center gap-3 border-b border-slate-700/80 pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-sm font-bold text-white">
-              <Building2 className="h-5 w-5" />
+            <div className="rounded-lg bg-white p-2">
+              <BrandLogo className="h-11 w-auto max-w-[8rem]" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">Active24 (Pvt) Ltd</p>

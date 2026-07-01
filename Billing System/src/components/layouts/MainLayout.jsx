@@ -11,7 +11,7 @@ export default function MainLayout() {
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <Topbar sidebarCollapsed={sidebarCollapsed} />
       <main
-        className={`min-h-screen pt-16 transition-all duration-300 ${sidebarCollapsed ? 'pl-[72px]' : 'pl-64'}`}
+        className={`min-h-screen pt-20 transition-all duration-300 ${sidebarCollapsed ? 'pl-[72px]' : 'pl-64'}`}
       >
         <div className="page-enter p-4 sm:p-6 lg:p-8">
           <Outlet />

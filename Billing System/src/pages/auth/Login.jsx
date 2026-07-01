@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Zap, Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../api/client';
+import BrandLogo from '../../components/ui/BrandLogo';
 
 export default function Login() {
   const { login, isAuthenticated, loading } = useAuth();
@@ -42,10 +43,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-white to-primary-50 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white shadow-lg">
-            <Zap className="h-7 w-7" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Active24</h1>
+          <BrandLogo className="mb-4 h-32 w-auto max-w-[300px]" />
           <p className="text-sm text-slate-500">Billing &amp; Inventory System</p>
         </div>
 

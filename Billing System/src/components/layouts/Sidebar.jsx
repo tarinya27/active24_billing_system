@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, PackageCheck, Warehouse,
-  Receipt, BarChart3, Settings, ChevronLeft, ChevronRight, Zap,
+  Receipt, BarChart3, Settings, ChevronLeft, ChevronRight,
   Boxes, Tags, Contact, UserCog, Truck, FileInput,
 } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 import { usePermission } from '../../hooks/usePermission';
+import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
@@ -33,14 +34,13 @@ export default function Sidebar({ collapsed, onToggle }) {
         collapsed ? 'w-[72px]' : 'w-64'
       )}
     >
-      <div className="flex h-16 items-center gap-3 border-b border-slate-200/60 px-4 dark:border-slate-700/60">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 text-white shadow-lg">
-          <Zap className="h-5 w-5" />
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <h1 className="truncate text-sm font-bold text-slate-800 dark:text-white">Active24</h1>
-            <p className="truncate text-[10px] text-slate-500">Billing System</p>
+      <div className={cn('flex items-center border-b border-slate-200/60 px-4 dark:border-slate-700/60', collapsed ? 'h-16' : 'h-20 py-2')}>
+        {collapsed ? (
+          <BrandLogo className="mx-auto h-12 w-12" />
+        ) : (
+          <div className="min-w-0 flex-1">
+            <BrandLogo className="h-14 w-auto max-w-full" />
+            <p className="mt-1 truncate text-[10px] text-slate-500">Billing System</p>
           </div>
         )}
       </div>
