@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { calcAutoSellingPrice, calcCostExVat } from '../../utils/pricing.js';
+import { calcCostExVat, calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextGrnNumber } from '../../utils/documentNumbers.js';
 
 const grnInclude = {
@@ -91,6 +91,10 @@ export async function getGrn(id) {
 }
 
 export async function completeGrn(data, userId) {
+  if (!data.purchaseInvoiceId) {
+    throw ApiError.badRequest('GRN must be linked to a purchase invoice');
+  }
+
   const vatRate = await getVatRate(data.vatRate);
   const allBarcodes = data.lines.flatMap((l) => l.barcodes);
   await assertUniqueBarcodes(allBarcodes);
@@ -107,13 +111,21 @@ export async function completeGrn(data, userId) {
     if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
     if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
 
-    const invoicedQty = Object.fromEntries(pi.items.map((i) => [i.productId, i.units]));
+    const invoicedByProduct = Object.fromEntries(
+      pi.items.map((i) => [i.productId, { units: i.units, unitPrice: Number(i.unitPrice) }])
+    );
     for (const line of data.lines) {
-      const max = invoicedQty[line.productId];
-      if (max != null && line.barcodes.length > max) {
+      const invoiced = invoicedByProduct[line.productId];
+      if (invoiced == null) {
+        throw ApiError.badRequest('Product is not on the linked purchase invoice');
+      }
+      if (line.barcodes.length > invoiced.units) {
         throw ApiError.badRequest(
-          `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${max}) for product`
+          `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${invoiced.units}) for product`
         );
+      }
+      if (Number(line.purchasePrice) !== invoiced.unitPrice) {
+        throw ApiError.badRequest('Purchase price must match purchase invoice unit price');
       }
     }
   }
@@ -153,7 +165,7 @@ export async function completeGrn(data, userId) {
         }
         sellingPrice = line.sellingPrice;
       } else {
-        sellingPrice = calcAutoSellingPrice(costExVat);
+        sellingPrice = calcGrnAutoSellingPrice(line.purchasePrice);
       }
 
       const grnItem = await tx.grnItem.create({

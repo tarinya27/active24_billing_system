@@ -32,6 +32,7 @@ router.post('/import', requirePermission('products.create'), validate(importSche
 router.post('/duplicate', requirePermission('products.create'), validate(duplicateSchema), controller.duplicate);
 
 router.get('/', requirePermission('products.view'), controller.list);
+router.get('/lookup/barcode/:barcode', requirePermission('products.view'), controller.lookupByBarcode);
 router.get('/:id/supplier-history', requirePermission('products.view'), controller.supplierHistory);
 router.get('/:id', requirePermission('products.view'), controller.getOne);
 router.post('/', requirePermission('products.create'), validateCreate, controller.create);

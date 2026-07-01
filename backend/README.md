@@ -87,7 +87,7 @@ router.post('/products', authMiddleware, requirePermission('products.create'), h
 ```
 prisma/
   schema.prisma          # all tables incl. serialized product_units & purchase_invoices
-  migrations/0_init/     # baseline migration SQL
+  migrations/            # incremental SQL migrations
   seed.js                # users, settings, masters catalog
 src/
   app.js / server.js     # Express app + bootstrap
@@ -95,9 +95,15 @@ src/
   middleware/            # auth, requirePermission, validate, error handling
   rbac/permissions.js    # role -> permission matrix
   routes/index.js        # /api router (mounts modules)
-  modules/auth/          # login / refresh / logout / me
-  utils/                 # jwt, ApiError, asyncHandler
+  modules/
+    auth/                # login / refresh / logout / me
+    purchase-invoices/   # PI CRUD + calculate
+    grns/                # GRN complete + stock transaction
+    products/            # masters + GET /lookup/barcode/:barcode
+  utils/pricing.js       # VAT + GRN selling price (purchase × 1.30)
 ```
+
+See **`docs/ERP_PURCHASE_GRN.md`** for the full purchase → GRN → stock specification.
 
 ## Frontend dev proxy
 The Vite frontend proxies `/api` to `http://localhost:4000` (see `vite.config.js`), so run both:

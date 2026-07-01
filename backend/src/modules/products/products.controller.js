@@ -11,6 +11,11 @@ export const getOne = asyncHandler(async (req, res) => {
   res.json({ data: product, error: null });
 });
 
+export const lookupByBarcode = asyncHandler(async (req, res) => {
+  const product = await service.lookupProductByBarcode(req.params.barcode);
+  res.json({ data: product, error: null });
+});
+
 export const create = asyncHandler(async (req, res) => {
   const product = await service.createProduct(req.body);
   res.status(201).json({ data: product, error: null });

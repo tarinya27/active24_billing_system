@@ -12,7 +12,7 @@ const grnLineSchema = z.object({
 
 export const completeGrnSchema = z.object({
   poId: z.string().min(1).optional().nullable(),
-  purchaseInvoiceId: z.string().min(1).optional().nullable(),
+  purchaseInvoiceId: z.string().min(1),
   supplierId: z.string().min(1),
   purchaseWithVat: z.boolean().default(false),
   vatRate: z.coerce.number().nonnegative().optional(),

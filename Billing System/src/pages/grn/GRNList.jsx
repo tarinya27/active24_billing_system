@@ -1,6 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
-import { Plus, Eye, Archive } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Eye, FileText } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
@@ -41,12 +40,14 @@ export default function GRNList() {
 
   return (
     <div>
-      <PageHeader title="Goods Received Notes" subtitle="Serialized inventory receiving" actions={
-        <div className="flex flex-wrap gap-2">
-          <Link to="/grn/new?type=opening" className="btn-secondary"><Archive className="h-4 w-4" /> Opening Stock</Link>
-          <Link to="/grn/new" className="btn-primary"><Plus className="h-4 w-4" /> Create GRN</Link>
-        </div>
+      <PageHeader title="Goods Received Notes" subtitle="View completed receipts — create GRN from a purchase invoice" actions={
+        <Link to="/purchase-invoices" className="btn-primary"><FileText className="h-4 w-4" /> Purchase Invoices</Link>
       } />
+
+      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+        GRN cannot be created directly. Create a <Link to="/purchase-invoices" className="font-medium underline">purchase invoice</Link> first, then use <strong>Create GRN</strong> on the invoice detail page.
+      </div>
+
       <div className="glass-card mb-6 p-4">
         <div className="flex flex-col gap-4 sm:flex-row">
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search GRNs..." className="flex-1" />

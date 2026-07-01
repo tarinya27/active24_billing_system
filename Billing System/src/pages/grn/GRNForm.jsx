@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, PackageCheck, Wand2, Trash2, Plus } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Save, PackageCheck, ScanLine, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import BarcodeInput from '../../components/ui/BarcodeInput';
@@ -8,154 +8,196 @@ import { grnsApi, purchaseInvoicesApi } from '../../api/procurement';
 import { categoriesApi, productsApi, suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency } from '../../utils/helpers';
+import { calcGrnAutoSellingPrice } from '../../utils/pricing';
 
-const OPENING_STOCK_NOTE = 'Previous stock available — opening balance';
-
-function calcCostExVat(purchasePrice, purchaseWithVat, vatRate) {
-  const p = Number(purchasePrice) || 0;
-  const r = Number(vatRate) || 0;
-  if (!purchaseWithVat || r <= 0) return p;
-  return Math.round((p / (1 + r / 100)) * 100) / 100;
-}
-
-function calcAutoSell(costExVat) {
-  return Math.round(Number(costExVat) * 1.3 * 100) / 100;
-}
-
-function generateBarcode() {
-  return `A24${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`.slice(0, 32);
-}
-
-function emptyLine(product, unitPrice = 0, expectedUnits = 0, description = '') {
+function buildLine(product, { unitPrice = 0, expectedUnits = 0, description = '', purchaseWithVat = false, vatRate = 0 } = {}) {
+  const purchasePrice = Number(unitPrice) || 0;
   return {
     productId: product?.id || '',
     product,
     categoryId: product?.category?.id || product?.categoryId || '',
     description: description || product?.description || product?.name || '',
-    purchasePrice: unitPrice,
+    purchasePrice,
+    purchasePriceLocked: false,
     sellingPriceMode: 'AUTO',
-    sellingPrice: calcAutoSell(calcCostExVat(unitPrice, false, 0)),
+    sellingPrice: calcGrnAutoSellingPrice(purchasePrice),
     barcodes: [],
     expectedUnits,
-    qtyToGenerate: expectedUnits || 1,
+    purchaseWithVat,
+    vatRate,
   };
 }
 
 export default function GRNForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const prefillPoRef = searchParams.get('poRef');
   const prefillPurchaseInvoiceId = searchParams.get('purchaseInvoiceId');
-  const isOpeningStock = searchParams.get('type') === 'opening';
 
   const [suppliers, setSuppliers] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
   const [purchaseInvoiceId, setPurchaseInvoiceId] = useState(prefillPurchaseInvoiceId || '');
+  const [poId, setPoId] = useState('');
+  const [invoiceItems, setInvoiceItems] = useState({});
+  const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [scanTarget, setScanTarget] = useState(null);
-  const [addProductId, setAddProductId] = useState('');
+  const [loadingInvoice, setLoadingInvoice] = useState(Boolean(prefillPurchaseInvoiceId));
   const [form, setForm] = useState({
     supplierId: '',
-    poRef: prefillPoRef || '',
+    poRef: '',
     purchaseWithVat: false,
     vatRate: 0,
-    notes: isOpeningStock ? OPENING_STOCK_NOTE : '',
+    notes: '',
     lines: [],
   });
 
   useEffect(() => {
+    if (prefillPurchaseInvoiceId) return;
+    toast.error('Create a purchase invoice first, then open GRN from the invoice.');
+    navigate('/purchase-invoices', { replace: true });
+  }, [prefillPurchaseInvoiceId, navigate]);
+
+  useEffect(() => {
     Promise.all([
-      suppliersApi.list({ pageSize: 200 }),
+      suppliersApi.list({ pageSize: 200, isActive: 'true' }),
       categoriesApi.list(),
-      productsApi.list({ pageSize: 500, isActive: 'true' }),
-    ]).then(([s, c, p]) => {
+    ]).then(([s, c]) => {
       setSuppliers(s.items || []);
       setCategories(c);
-      setProducts(p.items || []);
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!prefillPurchaseInvoiceId) return;
+    setLoadingInvoice(true);
     purchaseInvoicesApi.get(prefillPurchaseInvoiceId).then((pi) => {
       if (pi.grn) {
         toast.warning('This purchase invoice already has a GRN');
+        navigate(`/purchase-invoices/${pi.id}`, { replace: true });
         return;
       }
+      const itemMap = Object.fromEntries(
+        pi.items.map((item) => [item.productId, {
+          unitPrice: Number(item.unitPrice),
+          units: item.units,
+          description: item.description || item.product?.name || '',
+        }])
+      );
       setPurchaseInvoiceId(pi.id);
+      setPoId(pi.poId || '');
+      setInvoiceItems(itemMap);
       setForm((f) => ({
         ...f,
         supplierId: pi.supplierId,
         purchaseWithVat: false,
         vatRate: pi.vatEnabled ? Number(pi.vatRate) : 0,
         poRef: pi.po?.poNumber || f.poRef,
-        lines: pi.items.map((item) => emptyLine(
-          item.product,
-          Number(item.unitPrice),
-          item.units,
-          item.description || item.product?.name
-        )),
+        lines: pi.items.map((item) => ({
+          ...buildLine(item.product, {
+            unitPrice: Number(item.unitPrice),
+            expectedUnits: item.units,
+            description: item.description || item.product?.name,
+            purchaseWithVat: false,
+            vatRate: pi.vatEnabled ? Number(pi.vatRate) : 0,
+          }),
+          purchasePriceLocked: true,
+        })),
       }));
-    }).catch(() => toast.error('Failed to load purchase invoice'));
-  }, [prefillPurchaseInvoiceId]);
+    }).catch(() => {
+      toast.error('Failed to load purchase invoice');
+      navigate('/purchase-invoices', { replace: true });
+    }).finally(() => setLoadingInvoice(false));
+  }, [prefillPurchaseInvoiceId, navigate]);
 
   const enrichedLines = useMemo(
     () => form.lines.map((line) => {
-      const costExVat = calcCostExVat(line.purchasePrice, form.purchaseWithVat, form.vatRate);
-      const autoSell = calcAutoSell(costExVat);
+      const autoSell = calcGrnAutoSellingPrice(line.purchasePrice);
       const sellingPrice = line.sellingPriceMode === 'MANUAL' ? Number(line.sellingPrice) : autoSell;
-      return { ...line, costExVat, sellingPrice, autoSell };
+      return { ...line, sellingPrice, autoSell };
     }),
-    [form.lines, form.purchaseWithVat, form.vatRate]
+    [form.lines]
   );
 
-  const addProductLine = () => {
-    if (!addProductId) { toast.error('Select a product'); return; }
-    if (form.lines.some((l) => l.productId === addProductId)) {
-      toast.warning('Product already on this GRN');
-      return;
+  const allBarcodes = useMemo(() => form.lines.flatMap((l) => l.barcodes), [form.lines]);
+
+  const resolveUnitBarcode = (_product, scanned) => scanned.trim();
+
+  const appendBarcodeToLine = (lineIndex, barcode) => {
+    if (allBarcodes.includes(barcode)) {
+      toast.warning('Barcode already used on this GRN');
+      return false;
     }
-    const product = products.find((p) => p.id === addProductId);
-    if (!product) return;
-    setForm({ ...form, lines: [...form.lines, emptyLine(product, Number(product.defaultSellingPrice) * 0.65)] });
-    setAddProductId('');
+    const lines = [...form.lines];
+    const line = lines[lineIndex];
+    if (line.expectedUnits > 0 && line.barcodes.length >= line.expectedUnits) {
+      toast.warning(`Invoiced quantity (${line.expectedUnits}) already reached for this product`);
+      return false;
+    }
+    lines[lineIndex] = { ...line, barcodes: [...line.barcodes, barcode] };
+    setForm({ ...form, lines });
+    return true;
   };
 
-  const handleBarcodeForLine = (lineIndex, barcode) => {
-    const allBarcodes = form.lines.flatMap((l) => l.barcodes);
-    if (allBarcodes.includes(barcode)) {
+  const handleMasterBarcodeScan = async (scanned) => {
+    const code = scanned?.trim();
+    if (!code) return;
+
+    if (allBarcodes.includes(code)) {
       toast.warning('Barcode already scanned on this GRN');
       return;
     }
-    const lines = [...form.lines];
-    lines[lineIndex] = { ...lines[lineIndex], barcodes: [...lines[lineIndex].barcodes, barcode] };
-    setForm({ ...form, lines });
-    toast.success(`Unit barcode ${barcode} added`);
-  };
 
-  const generateBarcodesForLine = (lineIndex, count) => {
-    if (count < 1) return;
-    const lines = [...form.lines];
-    const newCodes = Array.from({ length: count }, () => generateBarcode());
-    lines[lineIndex] = { ...lines[lineIndex], barcodes: [...lines[lineIndex].barcodes, ...newCodes] };
-    setForm({ ...form, lines });
-    toast.success(`Generated ${count} barcode(s)`);
+    setScanning(true);
+    try {
+      const product = await productsApi.lookupByBarcode(code);
+      const invoiceLine = invoiceItems[product.id];
+      let lineIndex = form.lines.findIndex((l) => l.productId === product.id);
+
+      if (lineIndex < 0) {
+        if (!invoiceLine) {
+          toast.error('Product is not on the linked purchase invoice');
+          return;
+        }
+        const unitPrice = Number(invoiceLine.unitPrice ?? 0);
+        const newLine = {
+          ...buildLine(product, {
+            unitPrice,
+            expectedUnits: invoiceLine.units || 0,
+            description: invoiceLine.description || product.name,
+            purchaseWithVat: form.purchaseWithVat,
+            vatRate: form.vatRate,
+          }),
+          purchasePriceLocked: true,
+        };
+        const unitBarcode = resolveUnitBarcode(product, code);
+        setForm((f) => ({
+          ...f,
+          lines: [...f.lines, { ...newLine, barcodes: [unitBarcode] }],
+        }));
+        toast.success(`${product.code} — ${product.name}: auto-filled from barcode`);
+        return;
+      }
+
+      const unitBarcode = resolveUnitBarcode(product, code);
+      if (appendBarcodeToLine(lineIndex, unitBarcode)) {
+        toast.success(`Unit added for ${product.name}`);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Product lookup failed'));
+    } finally {
+      setScanning(false);
+    }
   };
 
   const updateLine = (index, patch) => {
     const lines = [...form.lines];
     lines[index] = { ...lines[index], ...patch };
     if (patch.purchasePrice !== undefined || patch.sellingPriceMode !== undefined) {
-      const costExVat = calcCostExVat(lines[index].purchasePrice, form.purchaseWithVat, form.vatRate);
       if (lines[index].sellingPriceMode === 'AUTO') {
-        lines[index].sellingPrice = calcAutoSell(costExVat);
+        lines[index].sellingPrice = calcGrnAutoSellingPrice(lines[index].purchasePrice);
       }
     }
     setForm({ ...form, lines });
   };
-
-  const removeLine = (index) => setForm({ ...form, lines: form.lines.filter((_, i) => i !== index) });
 
   const removeBarcode = (lineIndex, barcodeIndex) => {
     const lines = [...form.lines];
@@ -171,17 +213,17 @@ export default function GRNForm() {
     if (!form.supplierId) { toast.error('Select a supplier'); return; }
     if (form.lines.length === 0) { toast.error('Add at least one product line'); return; }
     if (form.lines.some((l) => l.barcodes.length === 0)) {
-      toast.error('Each line needs at least one unit barcode');
+      toast.error('Each line needs at least one scanned unit barcode');
       return;
     }
 
     setSaving(true);
     try {
-      const noteParts = [form.notes, form.poRef ? `PO ref: ${form.poRef}` : ''].filter(Boolean);
+      const noteParts = [form.notes, form.poRef ? `PO: ${form.poRef}` : ''].filter(Boolean);
       await grnsApi.complete({
         supplierId: form.supplierId,
-        poId: null,
-        purchaseInvoiceId: purchaseInvoiceId || null,
+        poId: poId || null,
+        purchaseInvoiceId,
         purchaseWithVat: form.purchaseWithVat,
         vatRate: Number(form.vatRate),
         notes: noteParts.join('\n'),
@@ -195,7 +237,7 @@ export default function GRNForm() {
           barcodes: l.barcodes,
         })),
       });
-      toast.success('GRN completed — serialized stock units created');
+      toast.success('GRN confirmed — stock updated');
       navigate('/grn');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to complete GRN'));
@@ -204,47 +246,42 @@ export default function GRNForm() {
     }
   };
 
-  const pageTitle = isOpeningStock ? 'Opening Stock GRN' : 'Create GRN';
-  const pageSubtitle = isOpeningStock
-    ? 'Add previous stock available — one barcode per physical unit'
-    : purchaseInvoiceId
-      ? 'Receive stock against purchase invoice'
-      : 'Scan one barcode per physical unit (serialized inventory)';
+  const supplierName = suppliers.find((s) => s.id === form.supplierId)?.name;
+
+  if (!prefillPurchaseInvoiceId) {
+    return (
+      <div className="py-20 text-center">
+        <FileText className="mx-auto mb-4 h-12 w-12 text-slate-400" />
+        <h2 className="text-lg font-semibold">Purchase invoice required</h2>
+        <p className="mt-2 text-sm text-slate-500">Create a purchase invoice first, then open GRN from the invoice detail page.</p>
+        <Link to="/purchase-invoices" className="btn-primary mt-6 inline-flex">Go to Purchase Invoices</Link>
+      </div>
+    );
+  }
+
+  if (loadingInvoice) {
+    return <p className="py-16 text-center text-slate-500">Loading purchase invoice…</p>;
+  }
 
   return (
     <div>
-      <PageHeader title={pageTitle} subtitle={pageSubtitle} actions={
-        <button onClick={() => navigate('/grn')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
+      <PageHeader title="GRN from Purchase Invoice" subtitle="Scan barcodes to receive stock — purchase price locked from invoice" actions={
+        <button type="button" onClick={() => navigate(`/purchase-invoices/${purchaseInvoiceId}`)} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back to Invoice</button>
       } />
-
-      {isOpeningStock && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-          Use this when historical sales need stock that was not in the system. Add product lines, generate barcodes for each unit, then post sales in Billing.
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="glass-card grid grid-cols-1 gap-4 p-6 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="label">Supplier *</label>
-            <select className="select-field" value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} required>
-              <option value="">Select supplier</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <p className="input-field bg-slate-50 font-medium dark:bg-slate-800/50">{supplierName || '—'}</p>
           </div>
           <div>
-            <label className="label">PO reference</label>
-            <input className="input-field" value={form.poRef} onChange={(e) => setForm({ ...form, poRef: e.target.value })} placeholder="Optional PO reference number" />
+            <label className="label">PO Number</label>
+            <p className="input-field bg-slate-50 dark:bg-slate-800/50">{form.poRef || '—'}</p>
           </div>
           <div>
-            <label className="label">VAT Rate (%)</label>
-            <input type="number" min="0" className="input-field" value={form.vatRate} onChange={(e) => setForm({ ...form, vatRate: e.target.value })} />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.purchaseWithVat} onChange={(e) => setForm({ ...form, purchaseWithVat: e.target.checked })} className="h-4 w-4 rounded" />
-              Purchase with VAT? (purchase price includes VAT — cost-ex-VAT used for markup)
-            </label>
+            <label className="label">Purchase Invoice</label>
+            <p className="input-field bg-slate-50 text-primary-600 dark:bg-slate-800/50">Linked</p>
           </div>
           <div className="lg:col-span-2">
             <label className="label">Notes</label>
@@ -252,110 +289,80 @@ export default function GRNForm() {
           </div>
         </div>
 
-        <div className="glass-card p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="label">Add product line</label>
-              <select className="select-field" value={addProductId} onChange={(e) => setAddProductId(e.target.value)}>
-                <option value="">Select product</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
-              </select>
-            </div>
-            <button type="button" onClick={addProductLine} className="btn-secondary shrink-0">
-              <Plus className="h-4 w-4" /> Add Line
-            </button>
+        <div className="glass-card space-y-3 border-2 border-primary-200 p-6 dark:border-primary-900/60">
+          <div className="flex items-center gap-2">
+            <ScanLine className="h-5 w-5 text-primary-600" />
+            <h3 className="font-semibold">Barcode Scanner</h3>
           </div>
+          <p className="text-xs text-slate-500">
+            Scan each physical unit barcode to add it to the matching invoice line. Quantity received updates automatically.
+          </p>
+          <BarcodeInput
+            onScan={handleMasterBarcodeScan}
+            placeholder={scanning ? 'Looking up product…' : 'Scan or enter barcode…'}
+          />
         </div>
 
         {enrichedLines.length === 0 ? (
           <div className="glass-card p-8 text-center text-sm text-slate-500">
-            Add product lines above. From a purchase invoice, use <strong>Create GRN</strong> on the invoice detail page.
+            Invoice lines are loaded. Scan unit barcodes above to receive stock.
           </div>
         ) : (
-          enrichedLines.map((line, lineIndex) => (
-            <div key={line.productId || lineIndex} className="glass-card space-y-4 p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="flex items-center gap-2 font-semibold"><PackageCheck className="h-4 w-4 text-primary-600" />{line.product?.name || line.productId}</h3>
-                  <p className="text-xs text-slate-500">{line.product?.code}{line.expectedUnits ? ` • Expected ${line.expectedUnits} units` : ''}</p>
-                </div>
-                <button type="button" onClick={() => removeLine(lineIndex)} className="text-red-500"><Trash2 className="h-4 w-4" /></button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="label">Category</label>
-                  <select className="select-field" value={line.categoryId || ''} onChange={(e) => updateLine(lineIndex, { categoryId: e.target.value })}>
-                    <option value="">—</option>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Purchase Price</label>
-                  <input type="number" min="0" step="0.01" className="input-field" value={line.purchasePrice} onChange={(e) => updateLine(lineIndex, { purchasePrice: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Cost ex-VAT</label>
-                  <p className="input-field bg-slate-50 dark:bg-slate-800/50">{formatCurrency(line.costExVat)}</p>
-                </div>
-                <div>
-                  <label className="label">Selling Price Mode</label>
-                  <select className="select-field" value={line.sellingPriceMode} onChange={(e) => updateLine(lineIndex, { sellingPriceMode: e.target.value })}>
-                    <option value="AUTO">Auto (cost-ex-VAT × 1.30)</option>
-                    <option value="MANUAL">Manual</option>
-                  </select>
-                </div>
-                <div className="lg:col-span-2">
-                  <label className="label">Description (editable)</label>
-                  <input className="input-field" value={line.description} onChange={(e) => updateLine(lineIndex, { description: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Selling Price</label>
-                  {line.sellingPriceMode === 'MANUAL' ? (
-                    <input type="number" min="0" step="0.01" className="input-field" value={line.sellingPrice} onChange={(e) => updateLine(lineIndex, { sellingPrice: e.target.value })} />
-                  ) : (
-                    <p className="input-field bg-emerald-50 font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">{formatCurrency(line.sellingPrice)}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="label">Units scanned</label>
-                  <p className="text-lg font-bold">{line.barcodes.length}{line.expectedUnits ? ` / ${line.expectedUnits}` : ''}</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-dashed border-primary-200 bg-primary-50/40 p-4 dark:border-primary-900 dark:bg-primary-950/20">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => setScanTarget(scanTarget === lineIndex ? null : lineIndex)} className="btn-secondary !py-2 !text-xs">
-                    {scanTarget === lineIndex ? 'Scanning this line…' : 'Scan unit barcode'}
-                  </button>
-                  <button type="button" onClick={() => generateBarcodesForLine(lineIndex, 1)} className="btn-secondary !py-2 !text-xs"><Wand2 className="h-3.5 w-3.5" /> Generate 1</button>
-                  {line.expectedUnits > line.barcodes.length && (
-                    <button type="button" onClick={() => generateBarcodesForLine(lineIndex, line.expectedUnits - line.barcodes.length)} className="btn-secondary !py-2 !text-xs">
-                      Generate remaining ({line.expectedUnits - line.barcodes.length})
-                    </button>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      className="input-field !w-20 !py-1.5 !text-xs"
-                      value={line.qtyToGenerate ?? 1}
-                      onChange={(e) => updateLine(lineIndex, { qtyToGenerate: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => generateBarcodesForLine(lineIndex, Number(line.qtyToGenerate) || 1)}
-                      className="btn-secondary !py-2 !text-xs"
-                    >
-                      <Wand2 className="h-3.5 w-3.5" /> Generate N
-                    </button>
+          enrichedLines.map((line, lineIndex) => {
+            const categoryName = categories.find((c) => c.id === line.categoryId)?.name
+              || line.product?.category?.name
+              || '—';
+            return (
+              <div key={`${line.productId}-${lineIndex}`} className="glass-card space-y-4 p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="flex items-center gap-2 font-semibold">
+                      <PackageCheck className="h-4 w-4 text-primary-600" />
+                      {line.product?.name || line.productId}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {line.product?.code}
+                      {line.expectedUnits ? ` • Invoiced: ${line.expectedUnits} units` : ''}
+                    </p>
                   </div>
                 </div>
-                {scanTarget === lineIndex && (
-                  <BarcodeInput onScan={(code) => { handleBarcodeForLine(lineIndex, code); setScanTarget(null); }} placeholder="Scan barcode for this unit…" />
-                )}
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <label className="label">Category</label>
+                    <p className="input-field bg-slate-50 dark:bg-slate-800/50">{categoryName}</p>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="label">Item Description</label>
+                    <input className="input-field" value={line.description} onChange={(e) => updateLine(lineIndex, { description: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Purchase Price</label>
+                    <p className="input-field bg-slate-50 font-medium dark:bg-slate-800/50">{formatCurrency(line.purchasePrice)}</p>
+                  </div>
+                  <div>
+                    <label className="label">Selling Price Mode</label>
+                    <select className="select-field" value={line.sellingPriceMode} onChange={(e) => updateLine(lineIndex, { sellingPriceMode: e.target.value })}>
+                      <option value="AUTO">Auto (purchase × 1.30)</option>
+                      <option value="MANUAL">Manual override</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Selling Price</label>
+                    {line.sellingPriceMode === 'MANUAL' ? (
+                      <input type="number" min="0" step="0.01" className="input-field" value={line.sellingPrice} onChange={(e) => updateLine(lineIndex, { sellingPrice: e.target.value })} />
+                    ) : (
+                      <p className="input-field bg-emerald-50 font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">{formatCurrency(line.sellingPrice)}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="label">Quantity Received</label>
+                    <p className="text-lg font-bold">{line.barcodes.length}{line.expectedUnits ? ` / ${line.expectedUnits}` : ''}</p>
+                  </div>
+                </div>
+
                 {line.barcodes.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
                     {line.barcodes.map((code, bi) => (
                       <span key={bi} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-mono text-xs shadow-sm dark:bg-slate-800">
                         {code}
@@ -365,13 +372,13 @@ export default function GRNForm() {
                   </div>
                 )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         <div className="flex justify-end">
           <button type="submit" disabled={saving || form.lines.length === 0} className="btn-primary disabled:opacity-60">
-            <Save className="h-4 w-4" /> {saving ? 'Posting GRN…' : 'Complete GRN & Create Stock Units'}
+            <Save className="h-4 w-4" /> {saving ? 'Confirming GRN…' : 'Confirm GRN & Update Stock'}
           </button>
         </div>
       </form>

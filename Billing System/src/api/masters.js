@@ -14,6 +14,7 @@ function createResource(base) {
 
 export const productsApi = {
   ...createResource('/products'),
+  lookupByBarcode: (barcode) => api.get(`/products/lookup/barcode/${encodeURIComponent(barcode)}`).then((r) => r.data.data),
   updateStatus: (id, isActive) => api.patch(`/products/${id}/status`, { isActive }).then((r) => r.data.data),
   duplicate: (id) => api.post('/products/duplicate', { id }).then((r) => r.data.data),
   importRows: (rows) => api.post('/products/import', { rows }).then((r) => r.data.data),

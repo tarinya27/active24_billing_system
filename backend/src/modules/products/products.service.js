@@ -176,6 +176,37 @@ export async function getProduct(id) {
   return enrichProduct(product, stockMap);
 }
 
+/** Lookup active product by master barcode or product code (GRN scan). */
+export async function lookupProductByBarcode(barcode) {
+  const trimmed = String(barcode || '').trim();
+  if (!trimmed) throw ApiError.badRequest('Barcode is required');
+
+  const existingUnit = await prisma.productUnit.findUnique({
+    where: { barcode: trimmed },
+    select: { id: true, status: true, product: { select: { code: true, name: true } } },
+  });
+  if (existingUnit) {
+    throw ApiError.conflict(
+      `Barcode already assigned to unit (${existingUnit.product.code}) — status: ${existingUnit.status}`
+    );
+  }
+
+  const product = await prisma.product.findFirst({
+    where: {
+      isActive: true,
+      OR: [
+        { barcode: { equals: trimmed, mode: 'insensitive' } },
+        { code: { equals: trimmed, mode: 'insensitive' } },
+      ],
+    },
+    include: includeRelations,
+  });
+  if (!product) throw ApiError.notFound(`No active product found for barcode: ${trimmed}`);
+
+  const stockMap = await getStockMap([product.id]);
+  return enrichProduct(product, stockMap);
+}
+
 export async function createProduct(data) {
   const payload = normalize(data);
   const maxVat = await getMaxVatRate();

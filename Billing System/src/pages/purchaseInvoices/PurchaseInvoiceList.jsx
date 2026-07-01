@@ -1,15 +1,26 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, PackageCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
+import StatusBadge from '../../components/ui/StatusBadge';
 import Pagination from '../../components/ui/Pagination';
 import Can from '../../components/auth/Can';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { purchaseInvoicesApi } from '../../api/procurement';
 import { formatCurrency, formatDate } from '../../utils/helpers';
+
+function isVatEnabled(invoice) {
+  return invoice.vatEnabled ?? (Number(invoice.vatRate) > 0 && !invoice.purchaseWithVat);
+}
+
+function formatVatLabel(invoice) {
+  if (!isVatEnabled(invoice)) return 'No';
+  const rate = Number(invoice.vatRate) || 0;
+  return rate > 0 ? `Yes (${rate}%)` : 'Yes';
+}
 
 export default function PurchaseInvoiceList() {
   const navigate = useNavigate();
@@ -22,12 +33,37 @@ export default function PurchaseInvoiceList() {
     { key: 'supplier', label: 'Supplier', render: (r) => r.supplier?.name || '—' },
     { key: 'po', label: 'PO', render: (r) => r.po?.poNumber || '—' },
     { key: 'company', label: 'Company', render: (r) => r.company },
-    { key: 'purchaseWithVat', label: 'VAT Incl.', render: (r) => (r.purchaseWithVat ? 'Yes' : 'No') },
+    { key: 'vat', label: 'VAT', render: (r) => formatVatLabel(r) },
     { key: 'total', label: 'Total', render: (r) => formatCurrency(Number(r.total)) },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
     {
-      key: 'grn', label: 'GRN', render: (r) => (
-        r.grn ? <span className="text-primary-600">{r.grn.grnNumber}</span> : <span className="text-slate-400">Pending</span>
+      key: 'grnStatus', label: 'GRN Status', render: (r) => (
+        r.grn ? (
+          <div className="flex flex-col gap-1">
+            <StatusBadge status={r.grn.status || 'COMPLETED'} />
+            <Link to={`/grn/${r.grn.id}`} onClick={(e) => e.stopPropagation()} className="text-xs font-medium text-primary-600 hover:underline">
+              {r.grn.grnNumber}
+            </Link>
+          </div>
+        ) : (
+          <StatusBadge status="PENDING" />
+        )
+      ),
+    },
+    {
+      key: 'grnAction', label: '',
+      render: (r) => (
+        !r.grn ? (
+          <Can permission="grn.create">
+            <Link
+              to={`/grn/new?purchaseInvoiceId=${r.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="btn-secondary !inline-flex !px-2.5 !py-1 !text-xs"
+            >
+              <PackageCheck className="h-3.5 w-3.5" /> Create GRN
+            </Link>
+          </Can>
+        ) : null
       ),
     },
     {

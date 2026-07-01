@@ -10,6 +10,11 @@ export function calcAutoSellingPrice(costExVat) {
   return round2(Number(costExVat) * 1.3);
 }
 
+/** GRN default: Selling Price = Purchase Price × 1.30 */
+export function calcGrnAutoSellingPrice(purchasePrice) {
+  return round2(Number(purchasePrice) * 1.3);
+}
+
 /** Per-line VAT on top: VAT = (unitPrice × units × rate) / 100 */
 export function calcPurchaseInvoiceLine(unitPrice, units, vatEnabled, vatRate = 0) {
   const price = Number(unitPrice) || 0;

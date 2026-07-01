@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import Modal from '../../components/ui/Modal';
+import BarcodeInput from '../../components/ui/BarcodeInput';
 import { productsApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency } from '../../utils/helpers';
@@ -152,9 +153,15 @@ export default function ProductFormModal({
               <input className="input-field font-mono text-sm" value={editing.code} readOnly disabled />
             </div>
           )}
-          <div>
+          <div className={editing ? '' : 'sm:col-span-2'}>
             <label className="label">Barcode</label>
-            <input className="input-field font-mono text-sm" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Optional unique barcode" />
+            <BarcodeInput
+              value={form.barcode}
+              onChange={(barcode) => setForm({ ...form, barcode })}
+              onScan={(barcode) => setForm({ ...form, barcode })}
+              placeholder="Scan or enter barcode…"
+            />
+            <p className="mt-1 text-xs text-slate-500">Type manually or use a scanner — press Enter or Scan to confirm.</p>
           </div>
           <div>
             <label className="label">Brand</label>

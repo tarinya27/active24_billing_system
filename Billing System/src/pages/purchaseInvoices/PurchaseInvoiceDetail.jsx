@@ -71,7 +71,18 @@ export default function PurchaseInvoiceDetail() {
           <div><p className="text-xs text-slate-500">Subtotal</p><p>{formatCurrency(Number(invoice.subtotal))}</p></div>
           <div><p className="text-xs text-slate-500">VAT Amount</p><p>{formatCurrency(Number(invoice.vatAmount))}</p></div>
           <div><p className="text-xs text-slate-500">Grand Total</p><p className="text-xl font-bold text-primary-600">{formatCurrency(Number(invoice.total))}</p></div>
-          {invoice.grn && <div><p className="text-xs text-slate-500">GRN</p><p className="text-primary-600">{invoice.grn.grnNumber}</p></div>}
+          {invoice.grn ? (
+            <div>
+              <p className="text-xs text-slate-500">GRN</p>
+              <Link to={`/grn/${invoice.grn.id}`} className="font-medium text-primary-600 hover:underline">{invoice.grn.grnNumber}</Link>
+            </div>
+          ) : (
+            <Can permission="grn.create">
+              <Link to={`/grn/new?purchaseInvoiceId=${invoice.id}`} className="btn-primary mt-2 w-full justify-center">
+                <PackageCheck className="h-4 w-4" /> Create GRN
+              </Link>
+            </Can>
+          )}
         </div>
 
         <div className="glass-card p-6 lg:col-span-2">

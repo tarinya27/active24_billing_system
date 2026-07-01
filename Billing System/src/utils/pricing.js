@@ -44,3 +44,8 @@ export function calcCostExVat(purchasePrice, vatEnabled, vatRate = 0) {
 export function calcAutoSellingPrice(costExVat) {
   return round2(Number(costExVat) * 1.3);
 }
+
+/** GRN default: Selling Price = Purchase Price × 1.30 */
+export function calcGrnAutoSellingPrice(purchasePrice) {
+  return round2(Number(purchasePrice) * 1.3);
+}

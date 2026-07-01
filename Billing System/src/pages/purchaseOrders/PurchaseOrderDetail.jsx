@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, PackageCheck } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -51,8 +51,8 @@ export default function PurchaseOrderDetail() {
         actions={
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate('/purchase-orders')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
-            <Can permission="grn.create">
-              <Link to={`/grn/new?poRef=${encodeURIComponent(po.poNumber)}`} className="btn-primary"><PackageCheck className="h-4 w-4" /> Create GRN</Link>
+            <Can permission="purchase_invoices.create">
+              <Link to={`/purchase-invoices/new?poId=${po.id}`} className="btn-primary"><FileText className="h-4 w-4" /> Create Purchase Invoice</Link>
             </Can>
           </div>
         }
