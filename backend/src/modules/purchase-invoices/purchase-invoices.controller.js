@@ -26,6 +26,11 @@ export const update = asyncHandler(async (req, res) => {
   res.json({ data: invoice, error: null });
 });
 
+export const calculate = asyncHandler(async (req, res) => {
+  const result = await service.calculatePurchaseInvoicePreview(req.body);
+  res.json({ data: result, error: null });
+});
+
 export const remove = asyncHandler(async (req, res) => {
   const result = await service.deletePurchaseInvoice(req.params.id);
   res.json({ data: result, error: null });

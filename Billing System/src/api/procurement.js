@@ -18,6 +18,7 @@ export const purchaseOrdersApi = {
 export const purchaseInvoicesApi = {
   ...createResource('/purchase-invoices'),
   tally: (id) => api.get(`/purchase-invoices/${id}/tally`).then((r) => r.data.data),
+  calculate: (payload) => api.post('/purchase-invoices/calculate', payload).then((r) => r.data.data),
 };
 
 export const grnsApi = {

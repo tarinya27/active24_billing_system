@@ -55,10 +55,13 @@ export default function AppRoutes() {
 
           <Route element={<ProtectedRoute requiredPermission="purchase_invoices.view" />}>
             <Route path="purchase-invoices" element={<PurchaseInvoiceList />} />
-            <Route path="purchase-invoices/:id" element={<PurchaseInvoiceDetail />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermission="purchase_invoices.create" />}>
             <Route path="purchase-invoices/new" element={<PurchaseInvoiceForm />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="purchase_invoices.view" />}>
+            <Route path="purchase-invoices/:id/edit" element={<PurchaseInvoiceForm />} />
+            <Route path="purchase-invoices/:id" element={<PurchaseInvoiceDetail />} />
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="grn.view" />}>

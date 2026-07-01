@@ -102,10 +102,20 @@ export async function completeGrn(data, userId) {
   if (data.purchaseInvoiceId) {
     const pi = await prisma.purchaseInvoice.findUnique({
       where: { id: data.purchaseInvoiceId },
-      include: { grn: true },
+      include: { grn: true, items: true },
     });
     if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
     if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
+
+    const invoicedQty = Object.fromEntries(pi.items.map((i) => [i.productId, i.units]));
+    for (const line of data.lines) {
+      const max = invoicedQty[line.productId];
+      if (max != null && line.barcodes.length > max) {
+        throw ApiError.badRequest(
+          `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${max}) for product`
+        );
+      }
+    }
   }
 
   const grnNumber = await nextGrnNumber();

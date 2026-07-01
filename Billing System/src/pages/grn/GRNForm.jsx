@@ -26,12 +26,12 @@ function generateBarcode() {
   return `A24${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`.slice(0, 32);
 }
 
-function emptyLine(product, unitPrice = 0, expectedUnits = 0) {
+function emptyLine(product, unitPrice = 0, expectedUnits = 0, description = '') {
   return {
     productId: product?.id || '',
     product,
     categoryId: product?.category?.id || product?.categoryId || '',
-    description: product?.description || product?.name || '',
+    description: description || product?.description || product?.name || '',
     purchasePrice: unitPrice,
     sellingPriceMode: 'AUTO',
     sellingPrice: calcAutoSell(calcCostExVat(unitPrice, false, 0)),
@@ -87,10 +87,15 @@ export default function GRNForm() {
       setForm((f) => ({
         ...f,
         supplierId: pi.supplierId,
-        purchaseWithVat: pi.purchaseWithVat,
-        vatRate: Number(pi.vatRate),
+        purchaseWithVat: false,
+        vatRate: pi.vatEnabled ? Number(pi.vatRate) : 0,
         poRef: pi.po?.poNumber || f.poRef,
-        lines: pi.items.map((item) => emptyLine(item.product, Number(item.unitPrice), item.units)),
+        lines: pi.items.map((item) => emptyLine(
+          item.product,
+          Number(item.unitPrice),
+          item.units,
+          item.description || item.product?.name
+        )),
       }));
     }).catch(() => toast.error('Failed to load purchase invoice'));
   }, [prefillPurchaseInvoiceId]);
