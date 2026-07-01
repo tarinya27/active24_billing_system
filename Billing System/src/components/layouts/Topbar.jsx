@@ -23,7 +23,7 @@ export default function Topbar({ sidebarCollapsed }) {
         <input
           type="text"
           placeholder="Search products, invoices, orders..."
-          className="input-field pl-10 !py-2"
+          className="input-field !pl-10 !py-2"
         />
       </div>
 

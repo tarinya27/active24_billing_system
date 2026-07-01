@@ -133,6 +133,7 @@ model Supplier {
   city          String?
   company       Company  @default(ACTIVE24)
   vatRate       Decimal  @default(0) @db.Decimal(5, 2)
+  vatRegistrationNo String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

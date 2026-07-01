@@ -5,7 +5,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 // Empty strings -> null; turn '' code into undefined so the unique index isn't hit with ''.
 function normalize(data) {
   const out = { ...data };
-  for (const key of ['code', 'contactPerson', 'phone', 'email', 'address', 'city']) {
+  for (const key of ['code', 'contactPerson', 'phone', 'email', 'address', 'city', 'vatRegistrationNo']) {
     if (out[key] === '') out[key] = key === 'code' ? null : null;
   }
   return out;

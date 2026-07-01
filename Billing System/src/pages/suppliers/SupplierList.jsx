@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
@@ -13,28 +13,32 @@ import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
+import { PO_COMPANY, PO_COMPANY_LABEL } from '../../utils/poConstants';
 
-const COMPANIES = ['ACTIVE24', 'GENIUS', 'BOTH'];
-
-const emptyForm = { code: '', name: '', contactPerson: '', phone: '', email: '', address: '', city: '', company: 'ACTIVE24' };
+const emptyForm = {
+  name: '',
+  vatRate: 0,
+  vatRegistrationNo: '',
+  contactPerson: '',
+  phone: '',
+  address: '',
+  company: PO_COMPANY,
+};
 
 export default function SupplierList() {
   const { can } = usePermission();
-  const { items: suppliers, loading, reload } = useResourceList(suppliersApi);
+  const { items: suppliers, loading, reload } = useResourceList(suppliersApi, { company: PO_COMPANY });
 
-  const [companyFilter, setCompanyFilter] = useState('All');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(suppliers, ['name', 'code', 'contactPerson', 'phone', 'city']);
-  const filtered = useMemo(
-    () => filteredItems.filter((s) => companyFilter === 'All' || s.company === companyFilter),
-    [filteredItems, companyFilter]
-  );
-  const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filtered);
+  const { searchQuery, setSearchQuery, filteredItems } = useSearch(suppliers, [
+    'name', 'contactPerson', 'phone', 'address', 'vatRegistrationNo',
+  ]);
+  const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filteredItems);
 
   const openCreate = () => {
     setEditing(null);
@@ -45,14 +49,13 @@ export default function SupplierList() {
   const openEdit = (supplier) => {
     setEditing(supplier);
     setForm({
-      code: supplier.code || '',
       name: supplier.name,
+      vatRate: Number(supplier.vatRate ?? 0),
+      vatRegistrationNo: supplier.vatRegistrationNo || '',
       contactPerson: supplier.contactPerson || '',
       phone: supplier.phone || '',
-      email: supplier.email || '',
       address: supplier.address || '',
-      city: supplier.city || '',
-      company: supplier.company,
+      company: PO_COMPANY,
     });
     setModalOpen(true);
   };
@@ -60,16 +63,27 @@ export default function SupplierList() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      toast.error('Name is required');
+      toast.error('Company name is required');
       return;
     }
+    if (form.vatRate === '' || Number(form.vatRate) < 0) {
+      toast.error('VAT percentage is required');
+      return;
+    }
+
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        name: form.name.trim(),
+        vatRate: Number(form.vatRate),
+        company: PO_COMPANY,
+      };
       if (editing) {
-        await suppliersApi.update(editing.id, form);
+        await suppliersApi.update(editing.id, payload);
         toast.success('Supplier updated');
       } else {
-        await suppliersApi.create(form);
+        await suppliersApi.create(payload);
         toast.success('Supplier created');
       }
       setModalOpen(false);
@@ -94,26 +108,11 @@ export default function SupplierList() {
 
   const showActions = can('suppliers.edit') || can('suppliers.delete');
   const columns = [
-    { key: 'code', label: 'Code', render: (r) => <span className="font-mono text-xs">{r.code || '—'}</span> },
-    { key: 'name', label: 'Supplier', render: (r) => <span className="font-medium">{r.name}</span> },
-    { key: 'contactPerson', label: 'Contact', render: (r) => r.contactPerson || '—' },
-    { key: 'phone', label: 'Phone', render: (r) => r.phone || '—' },
-    { key: 'city', label: 'City', render: (r) => r.city || '—' },
-    {
-      key: 'company',
-      label: 'Company',
-      render: (r) => (
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            r.company === 'GENIUS'
-              ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400'
-              : 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400'
-          }`}
-        >
-          {r.company}
-        </span>
-      ),
-    },
+    { key: 'name', label: 'Company Name', render: (r) => <span className="font-medium">{r.name}</span> },
+    { key: 'contactPerson', label: 'Contact Person', render: (r) => r.contactPerson || '—' },
+    { key: 'phone', label: 'Telephone', render: (r) => r.phone || '—' },
+    { key: 'vatRate', label: 'VAT %', render: (r) => `${Number(r.vatRate ?? 0)}%` },
+    { key: 'address', label: 'Address', render: (r) => r.address || '—' },
   ];
   if (showActions) {
     columns.push({
@@ -140,7 +139,7 @@ export default function SupplierList() {
     <div>
       <PageHeader
         title="Suppliers"
-        subtitle="Manage suppliers for both companies"
+        subtitle={`Manage suppliers for ${PO_COMPANY_LABEL}`}
         actions={
           <Can permission="suppliers.create">
             <button onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" /> Add Supplier</button>
@@ -149,15 +148,7 @@ export default function SupplierList() {
       />
 
       <div className="glass-card mb-6 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search suppliers..." className="flex-1" />
-          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="select-field !w-auto">
-            <option value="All">All Companies</option>
-            {COMPANIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
+        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search suppliers..." className="max-w-xl" />
       </div>
 
       <div className="glass-card p-4">
@@ -173,49 +164,90 @@ export default function SupplierList() {
         )}
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Supplier' : 'Add Supplier'} size="lg">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'Edit Supplier' : 'New Supplier'}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Company Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="input-field"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. IT Gallery Computers (Pvt) Ltd"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className="label">Code</label>
-              <input className="input-field" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="e.g. SUP-001" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                VAT Percentage <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                className="input-field"
+                value={form.vatRate}
+                onChange={(e) => setForm({ ...form, vatRate: e.target.value })}
+                required
+              />
+              <p className="mt-1 text-xs text-slate-500">e.g. 18, 20 or 0 (no VAT)</p>
             </div>
             <div>
-              <label className="label">Name *</label>
-              <input className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Supplier name" />
-            </div>
-            <div>
-              <label className="label">Contact Person</label>
-              <input className="input-field" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Phone</label>
-              <input className="input-field" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Email</label>
-              <input type="email" className="input-field" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">City</label>
-              <input className="input-field" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Address</label>
-              <input className="input-field" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Company</label>
-              <select className="select-field" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })}>
-                {COMPANIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">VAT Registration No.</label>
+              <input
+                className="input-field"
+                value={form.vatRegistrationNo}
+                onChange={(e) => setForm({ ...form, vatRegistrationNo: e.target.value })}
+                placeholder="optional"
+              />
             </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Contact Person</label>
+              <input
+                className="input-field"
+                value={form.contactPerson}
+                onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+                placeholder="e.g. Dilantha"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Telephone</label>
+              <input
+                className="input-field"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="e.g. 011 234 5678"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
+            <input
+              className="input-field"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              placeholder="optional"
+            />
+          </div>
+
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">{saving ? 'Saving…' : editing ? 'Update' : 'Create'}</button>
+            <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
+              {saving ? 'Saving…' : 'Save Supplier'}
+            </button>
           </div>
         </form>
       </Modal>

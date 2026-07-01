@@ -9,7 +9,7 @@ export default function SearchBar({ value, onChange, placeholder = 'Search...', 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="input-field pl-10"
+        className="input-field !pl-10"
       />
     </div>
   );
