@@ -44,6 +44,16 @@ function mapItemsForCreate(lines) {
   }));
 }
 
+async function assertPurchaseOrderLink(poId, supplierId) {
+  if (!poId) throw ApiError.badRequest('Purchase invoice must be linked to a purchase order');
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+  if (!po) throw ApiError.badRequest('Linked purchase order not found');
+  if (supplierId && po.supplierId !== supplierId) {
+    throw ApiError.badRequest('Supplier must match the linked purchase order');
+  }
+  return po;
+}
+
 export async function listPurchaseInvoices(query) {
   const { skip, take, page, pageSize } = parsePagination(query);
   const where = {};
@@ -125,15 +135,15 @@ export async function createPurchaseInvoice(data, userId) {
   const { vatEnabled, purchaseWithVat } = resolveVatFlags(data);
   const { lines, subtotal, vatAmount, total } = computeTotals(data.items, vatEnabled, purchaseWithVat, vatRate);
 
-  if (data.poId) {
-    const po = await prisma.purchaseOrder.findUnique({ where: { id: data.poId } });
-    if (!po) throw ApiError.badRequest('Linked PO not found');
+  await assertPurchaseOrderLink(data.poId, data.supplierId);
+  if (!data.supplierInvoiceNo?.trim()) {
+    throw ApiError.badRequest('Purchase invoice number is required');
   }
 
   return prisma.purchaseInvoice.create({
     data: {
-      supplierInvoiceNo: data.supplierInvoiceNo || null,
-      poId: data.poId || null,
+      supplierInvoiceNo: data.supplierInvoiceNo.trim(),
+      poId: data.poId,
       supplierId: data.supplierId,
       company: data.company,
       vatEnabled,
@@ -164,13 +174,21 @@ export async function updatePurchaseInvoice(id, data) {
 
   const { lines, subtotal, vatAmount, total } = computeTotals(items, vatEnabled, purchaseWithVat, vatRate);
 
+  const poId = data.poId !== undefined ? data.poId : existing.poId;
+  const supplierId = data.supplierId ?? existing.supplierId;
+  await assertPurchaseOrderLink(poId, supplierId);
+  const supplierInvoiceNo = data.supplierInvoiceNo !== undefined
+    ? data.supplierInvoiceNo?.trim()
+    : existing.supplierInvoiceNo;
+  if (!supplierInvoiceNo) throw ApiError.badRequest('Purchase invoice number is required');
+
   await prisma.purchaseInvoiceItem.deleteMany({ where: { purchaseInvoiceId: id } });
 
   return prisma.purchaseInvoice.update({
     where: { id },
     data: {
-      supplierInvoiceNo: data.supplierInvoiceNo !== undefined ? data.supplierInvoiceNo || null : undefined,
-      poId: data.poId !== undefined ? data.poId || null : undefined,
+      supplierInvoiceNo,
+      poId,
       supplierId: data.supplierId ?? existing.supplierId,
       company: data.company ?? existing.company,
       vatEnabled,

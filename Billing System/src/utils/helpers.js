@@ -31,6 +31,16 @@ export function generateId(prefix) {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
 }
 
+/** Purchase invoice is ready for GRN when linked to PO and has an invoice number. */
+export function isInvoiceReadyForGrn(invoice) {
+  return Boolean(
+    invoice?.poId
+    && invoice?.po?.poNumber
+    && invoice?.supplierInvoiceNo?.trim()
+    && !invoice?.grn
+  );
+}
+
 export function generatePONumber(existingCount) {
   const num = String(existingCount + 1).padStart(4, '0');
   return `PO-2026-${num}`;

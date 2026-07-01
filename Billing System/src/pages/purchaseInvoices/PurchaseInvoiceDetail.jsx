@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import Can from '../../components/auth/Can';
 import { purchaseInvoicesApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, isInvoiceReadyForGrn } from '../../utils/helpers';
 
 export default function PurchaseInvoiceDetail() {
   const { id } = useParams();
@@ -52,7 +52,7 @@ export default function PurchaseInvoiceDetail() {
                 <Link to={`/purchase-invoices/${id}/edit`} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</Link>
               </Can>
             )}
-            {!invoice.grn && (
+            {!invoice.grn && isInvoiceReadyForGrn(invoice) && (
               <Can permission="grn.create">
                 <Link to={`/grn/new?purchaseInvoiceId=${invoice.id}`} className="btn-primary"><PackageCheck className="h-4 w-4" /> Create GRN</Link>
               </Can>
@@ -78,9 +78,15 @@ export default function PurchaseInvoiceDetail() {
             </div>
           ) : (
             <Can permission="grn.create">
-              <Link to={`/grn/new?purchaseInvoiceId=${invoice.id}`} className="btn-primary mt-2 w-full justify-center">
-                <PackageCheck className="h-4 w-4" /> Create GRN
-              </Link>
+              {isInvoiceReadyForGrn(invoice) ? (
+                <Link to={`/grn/new?purchaseInvoiceId=${invoice.id}`} className="btn-primary mt-2 w-full justify-center">
+                  <PackageCheck className="h-4 w-4" /> Create GRN
+                </Link>
+              ) : (
+                <p className="mt-2 text-xs text-amber-600">
+                  {!invoice.po?.poNumber ? 'Link a purchase order before GRN.' : 'Enter a purchase invoice number before GRN.'}
+                </p>
+              )}
             </Can>
           )}
         </div>

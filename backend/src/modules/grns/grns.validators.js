@@ -11,7 +11,7 @@ const grnLineSchema = z.object({
 });
 
 export const completeGrnSchema = z.object({
-  poId: z.string().min(1).optional().nullable(),
+  poId: z.string().min(1, 'Purchase order is required'),
   purchaseInvoiceId: z.string().min(1),
   supplierId: z.string().min(1),
   purchaseWithVat: z.boolean().default(false),

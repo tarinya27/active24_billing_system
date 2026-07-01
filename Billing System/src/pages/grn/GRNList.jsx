@@ -45,7 +45,7 @@ export default function GRNList() {
       } />
 
       <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
-        GRN cannot be created directly. Create a <Link to="/purchase-invoices" className="font-medium underline">purchase invoice</Link> first, then use <strong>Create GRN</strong> on the invoice detail page.
+        GRN is created from a purchase invoice (linked to a purchase order). Flow: <strong>Purchase Order → Purchase Invoice → GRN → Stock</strong>.
       </div>
 
       <div className="glass-card mb-6 p-4">

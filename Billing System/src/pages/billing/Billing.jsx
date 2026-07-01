@@ -7,6 +7,7 @@ import BarcodeInput from '../../components/ui/BarcodeInput';
 import Modal from '../../components/ui/Modal';
 import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import WalkInCustomerForm from '../../components/billing/WalkInCustomerForm';
+import ScannedUnitDetails, { ScannedUnitEmpty } from '../../components/billing/ScannedUnitDetails';
 import { customersApi } from '../../api/masters';
 import { stockApi, invoicesApi, settingsApi, PAYMENT_METHOD_API, PAYMENT_METHOD_LABEL } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
@@ -26,6 +27,7 @@ export default function Billing() {
   const [showPreviousInvoices, setShowPreviousInvoices] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lastScanned, setLastScanned] = useState(null);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -72,20 +74,26 @@ export default function Billing() {
     }
     try {
       const unit = await stockApi.lookup(trimmed);
-      setCartItems((prev) => [
-        ...prev,
-        {
-          barcode: unit.barcode,
-          productUnitId: unit.id,
-          productId: unit.productId,
-          productName: unit.product.name,
-          productCode: unit.product.code,
-          unitPrice: Number(unit.sellingPrice),
-          discount: 0,
-          quantity: 1,
-        },
-      ]);
-      toast.success(`${unit.product.name} added`);
+      const details = unit.saleDetails || {};
+      const cartItem = {
+        barcode: unit.barcode,
+        productUnitId: unit.id,
+        productId: unit.productId,
+        productName: unit.product.name,
+        productCode: unit.product.code,
+        category: details.category || unit.product?.category?.name || '—',
+        description: details.description || unit.product?.name,
+        purchasePrice: details.purchasePrice ?? Number(unit.costPrice ?? 0),
+        grnNumber: details.grnNumber || '—',
+        poNumber: details.poNumber || '—',
+        purchaseInvoiceNo: details.purchaseInvoiceNo || '—',
+        unitPrice: Number(details.sellingPrice ?? unit.sellingPrice),
+        discount: 0,
+        quantity: 1,
+      };
+      setCartItems((prev) => [...prev, cartItem]);
+      setLastScanned(cartItem);
+      toast.success(`${unit.product.name} added — GRN ${details.grnNumber || 'linked'}`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Unit not available'));
     }
@@ -97,7 +105,10 @@ export default function Billing() {
     );
   };
 
-  const removeItem = (barcode) => setCartItems((prev) => prev.filter((i) => i.barcode !== barcode));
+  const removeItem = (barcode) => {
+    setCartItems((prev) => prev.filter((i) => i.barcode !== barcode));
+    setLastScanned((prev) => (prev?.barcode === barcode ? null : prev));
+  };
 
   const totals = calculateInvoiceTotals(cartItems);
 
@@ -136,6 +147,7 @@ export default function Billing() {
       setGeneratedInvoice(viewInvoice);
       setShowPreview(true);
       setCartItems([]);
+      setLastScanned(null);
       toast.success('Invoice generated successfully!');
       if (settings?.autoPrint) setTimeout(() => window.print(), 300);
     } catch (err) {
@@ -177,8 +189,8 @@ export default function Billing() {
   return (
     <div>
       <PageHeader
-        title="Billing / Invoicing"
-        subtitle="Scan unit barcodes — one barcode per serialized item"
+        title="Billing / Sales Invoice"
+        subtitle="PO → Purchase Invoice → GRN → Sales — scan unit barcodes to sell"
         actions={
           <button type="button" onClick={() => setShowPreviousInvoices(true)} className="btn-secondary">
             <History className="h-4 w-4" /> Previous Invoices
@@ -191,9 +203,33 @@ export default function Billing() {
           <div className="glass-card p-4">
             <BarcodeInput onScan={handleBarcodeScan} placeholder="Scan unit barcode to add item..." />
             <p className="mt-2 text-xs text-slate-500">
-              Each physical unit has a unique barcode from GRN. Duplicate or sold units are rejected automatically.
+              Scan physical unit barcodes received via GRN. Product, PO, purchase invoice, and pricing details load automatically.
             </p>
           </div>
+
+          {lastScanned && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-primary-600">Last Scanned</h3>
+              <ScannedUnitDetails item={lastScanned} highlight />
+            </div>
+          )}
+
+          {cartItems.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">All Scanned Items ({cartItems.length})</h3>
+              <div className="space-y-3">
+                {cartItems.map((item) => (
+                  <ScannedUnitDetails key={item.barcode} item={item} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {cartItems.length === 0 && !lastScanned && (
+            <div className="glass-card p-4">
+              <ScannedUnitEmpty />
+            </div>
+          )}
         </div>
 
         <div className="xl:col-span-2">
@@ -266,6 +302,7 @@ export default function Billing() {
                           <td className="py-2 pr-2">
                             <p className="font-medium truncate max-w-[140px]">{item.productName}</p>
                             <p className="font-mono text-[10px] text-slate-400">{item.barcode}</p>
+                            <p className="text-[10px] text-slate-400">{item.grnNumber} • {item.poNumber}</p>
                           </td>
                           <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
                           <td className="py-2">
@@ -302,7 +339,7 @@ export default function Billing() {
             </div>
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => setCartItems([])} className="btn-secondary flex-1" disabled={cartItems.length === 0}>Clear</button>
+              <button type="button" onClick={() => { setCartItems([]); setLastScanned(null); }} className="btn-secondary flex-1" disabled={cartItems.length === 0}>Clear</button>
               <button type="button" onClick={handleGenerateInvoice} className="btn-primary flex-1" disabled={cartItems.length === 0 || submitting}>
                 <Receipt className="h-4 w-4" /> {submitting ? 'Processing…' : 'Generate Invoice'}
               </button>

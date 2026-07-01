@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Eye, Pencil, Trash2, Copy, RefreshCw, Upload, Download, Printer,
+  Eye, Pencil, Trash2, RefreshCw, Download, Printer,
   ToggleLeft, ToggleRight, ArrowUpDown,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -20,7 +20,6 @@ import { getErrorMessage } from '../../api/client';
 import { formatCurrency } from '../../utils/helpers';
 import { downloadBlob, exportProductsCsv, exportProductsExcel } from '../../utils/productExport';
 import ProductFormModal from './ProductFormModal';
-import ProductImportModal from './ProductImportModal';
 import ProductPrintView from './ProductPrintView';
 
 const SORT_OPTIONS = [
@@ -53,7 +52,6 @@ export default function ProductList() {
   const [settings, setSettings] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [printProducts, setPrintProducts] = useState([]);
@@ -97,16 +95,6 @@ export default function ProductList() {
     productsApi.brands().then(setBrands).catch(() => {});
     settingsApi.get().then(setSettings).catch(() => {});
   }, []);
-
-  const handleDuplicate = async (product) => {
-    try {
-      const copy = await productsApi.duplicate(product.id);
-      toast.success('Product duplicated');
-      navigate(`/products/${copy.id}`);
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to duplicate product'));
-    }
-  };
 
   const handleToggleStatus = async (product) => {
     try {
@@ -228,11 +216,6 @@ export default function ProductList() {
               {r.isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
             </button>
           </Can>
-          <Can permission="products.create">
-            <button onClick={() => handleDuplicate(r)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-violet-600 dark:hover:bg-slate-800" title="Duplicate">
-              <Copy className="h-4 w-4" />
-            </button>
-          </Can>
           <Can permission="products.delete">
             <button onClick={() => setDeleteTarget(r)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950" title="Delete">
               <Trash2 className="h-4 w-4" />
@@ -247,7 +230,7 @@ export default function ProductList() {
     <div>
       <PageHeader
         title="Products"
-        subtitle={`${total} product${total === 1 ? '' : 's'} in catalog`}
+        subtitle="View catalog — stock increases only via GRN (PO → Invoice → GRN)"
         actions={
           <div className="flex flex-wrap gap-2">
             <button onClick={reload} className="btn-secondary" title="Refresh"><RefreshCw className="h-4 w-4" /></button>
@@ -256,13 +239,13 @@ export default function ProductList() {
               <button onClick={() => handleExport('excel')} className="btn-secondary"><Download className="h-4 w-4" /> Export Excel</button>
               <button onClick={() => handleExport('pdf')} className="btn-secondary"><Printer className="h-4 w-4" /> Print</button>
             </Can>
-            <Can permission="products.create">
-              <button onClick={() => setImportOpen(true)} className="btn-secondary"><Upload className="h-4 w-4" /> Import</button>
-              <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary"><Plus className="h-4 w-4" /> Add Product</button>
-            </Can>
           </div>
         }
       />
+
+      <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        Inventory stock is updated <strong>only from GRN</strong> after Purchase Order → Purchase Invoice. Use this page to view and edit product details — not to add stock.
+      </div>
 
       <div className="glass-card mb-6 space-y-4 p-4">
         <SearchBar
@@ -348,8 +331,6 @@ export default function ProductList() {
         suppliers={suppliers}
         onSaved={reload}
       />
-
-      <ProductImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onImported={reload} />
 
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}

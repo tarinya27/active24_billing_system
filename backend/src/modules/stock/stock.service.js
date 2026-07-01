@@ -15,6 +15,57 @@ const unitInclude = {
   },
 };
 
+const unitLookupInclude = {
+  product: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      company: true,
+      category: { select: { id: true, name: true } },
+    },
+  },
+  grnItem: {
+    select: {
+      description: true,
+      purchasePrice: true,
+      sellingPrice: true,
+      category: { select: { id: true, name: true } },
+      grn: {
+        select: {
+          grnNumber: true,
+          po: { select: { poNumber: true } },
+          purchaseInvoice: { select: { id: true, supplierInvoiceNo: true } },
+        },
+      },
+    },
+  },
+  purchaseInvoice: {
+    select: {
+      id: true,
+      supplierInvoiceNo: true,
+      po: { select: { poNumber: true } },
+    },
+  },
+};
+
+function mapUnitForSale(unit) {
+  const grn = unit.grnItem?.grn;
+  const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
+  return {
+    ...unit,
+    saleDetails: {
+      category: unit.grnItem?.category?.name || unit.product?.category?.name || null,
+      description: unit.grnItem?.description || unit.product?.name || null,
+      purchasePrice: Number(unit.grnItem?.purchasePrice ?? unit.costPrice ?? 0),
+      sellingPrice: Number(unit.sellingPrice ?? unit.grnItem?.sellingPrice ?? 0),
+      grnNumber: grn?.grnNumber || null,
+      poNumber: grn?.po?.poNumber || pi?.po?.poNumber || null,
+      purchaseInvoiceNo: pi?.supplierInvoiceNo || null,
+    },
+  };
+}
+
 export async function listStockSummary(query) {
   const products = await prisma.product.findMany({
     where: { isActive: true },
@@ -92,13 +143,13 @@ export async function listUnits(query) {
 export async function lookupUnitByBarcode(barcode) {
   const unit = await prisma.productUnit.findUnique({
     where: { barcode },
-    include: unitInclude,
+    include: unitLookupInclude,
   });
   if (!unit) throw ApiError.notFound('Unit not found for this barcode');
   if (unit.status !== 'IN_STOCK') {
     throw ApiError.conflict(`Unit is not available for sale (status: ${unit.status})`);
   }
-  return unit;
+  return mapUnitForSale(unit);
 }
 
 export async function listMovements(query) {

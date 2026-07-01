@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, PackageCheck } from 'lucide-react';
+import { Eye, PackageCheck, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
@@ -10,7 +10,7 @@ import Can from '../../components/auth/Can';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { purchaseInvoicesApi } from '../../api/procurement';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, isInvoiceReadyForGrn } from '../../utils/helpers';
 
 function isVatEnabled(invoice) {
   return invoice.vatEnabled ?? (Number(invoice.vatRate) > 0 && !invoice.purchaseWithVat);
@@ -53,7 +53,7 @@ export default function PurchaseInvoiceList() {
     {
       key: 'grnAction', label: '',
       render: (r) => (
-        !r.grn ? (
+        isInvoiceReadyForGrn(r) ? (
           <Can permission="grn.create">
             <Link
               to={`/grn/new?purchaseInvoiceId=${r.id}`}
@@ -63,6 +63,8 @@ export default function PurchaseInvoiceList() {
               <PackageCheck className="h-3.5 w-3.5" /> Create GRN
             </Link>
           </Can>
+        ) : !r.grn ? (
+          <span className="text-xs text-slate-400">Complete PO &amp; invoice no.</span>
         ) : null
       ),
     },
@@ -80,13 +82,16 @@ export default function PurchaseInvoiceList() {
     <div>
       <PageHeader
         title="Purchase Invoices"
-        subtitle="Supplier invoice entry before GRN"
+        subtitle="Step 2: Purchase Order → Purchase Invoice → GRN"
         actions={
-          <Can permission="purchase_invoices.create">
-            <Link to="/purchase-invoices/new" className="btn-primary"><Plus className="h-4 w-4" /> New Invoice</Link>
+          <Can permission="purchase_orders.view">
+            <Link to="/purchase-orders" className="btn-primary"><ShoppingCart className="h-4 w-4" /> Purchase Orders</Link>
           </Can>
         }
       />
+      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+        Create invoices from a <Link to="/purchase-orders" className="font-medium underline">purchase order</Link>, then create GRN from the invoice. Stock is updated only when GRN is confirmed.
+      </div>
       <div className="glass-card mb-6 p-4">
         <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search invoices..." />
       </div>

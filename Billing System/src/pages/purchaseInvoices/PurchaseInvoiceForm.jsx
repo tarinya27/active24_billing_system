@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Save } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
@@ -24,6 +24,7 @@ export default function PurchaseInvoiceForm() {
 
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [poNumber, setPoNumber] = useState('');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -33,6 +34,12 @@ export default function PurchaseInvoiceForm() {
     vatEnabled: true,
     items: [emptyLine()],
   });
+
+  useEffect(() => {
+    if (isEdit || prefillPoId) return;
+    toast.error('Create a purchase order first, then open Purchase Invoice from the PO.');
+    navigate('/purchase-orders', { replace: true });
+  }, [isEdit, prefillPoId, navigate]);
 
   useEffect(() => {
     Promise.all([
@@ -49,6 +56,8 @@ export default function PurchaseInvoiceForm() {
     setLoading(true);
     purchaseInvoicesApi.get(editId).then((inv) => {
       if (inv.grn) toast.warning('This invoice has a GRN — editing may be blocked');
+      if (!inv.poId) toast.warning('This invoice has no linked purchase order');
+      setPoNumber(inv.po?.poNumber || '');
       setForm({
         supplierInvoiceNo: inv.supplierInvoiceNo || '',
         poId: inv.poId || '',
@@ -68,6 +77,7 @@ export default function PurchaseInvoiceForm() {
   useEffect(() => {
     if (!prefillPoId || isEdit) return;
     purchaseOrdersApi.get(prefillPoId).then((po) => {
+      setPoNumber(po.poNumber);
       setForm((f) => ({
         ...f,
         poId: po.id,
@@ -79,8 +89,11 @@ export default function PurchaseInvoiceForm() {
           units: i.quantity,
         })),
       }));
-    }).catch(() => {});
-  }, [prefillPoId, isEdit]);
+    }).catch(() => {
+      toast.error('Failed to load purchase order');
+      navigate('/purchase-orders', { replace: true });
+    });
+  }, [prefillPoId, isEdit, navigate]);
 
   const totals = useMemo(
     () => calcPurchaseInvoiceTotals(form.items, form.vatEnabled, VAT_RATE),
@@ -102,12 +115,14 @@ export default function PurchaseInvoiceForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.poId) { toast.error('Purchase order is required'); return; }
+    if (!form.supplierInvoiceNo.trim()) { toast.error('Purchase invoice number is required'); return; }
     if (!form.supplierId) { toast.error('Select a supplier'); return; }
     if (form.items.some((i) => !i.productId || !i.units)) { toast.error('Complete all line items'); return; }
 
     const payload = {
-      supplierInvoiceNo: form.supplierInvoiceNo,
-      poId: form.poId || null,
+      supplierInvoiceNo: form.supplierInvoiceNo.trim(),
+      poId: form.poId,
       supplierId: form.supplierId,
       company: COMPANY,
       vatEnabled: form.vatEnabled,
@@ -135,15 +150,25 @@ export default function PurchaseInvoiceForm() {
     }
   };
 
+  if (!isEdit && !prefillPoId) {
+    return (
+      <div className="py-20 text-center">
+        <h2 className="text-lg font-semibold">Purchase order required</h2>
+        <p className="mt-2 text-sm text-slate-500">Flow: Purchase Order → Purchase Invoice → GRN</p>
+        <Link to="/purchase-orders" className="btn-primary mt-6 inline-flex">Go to Purchase Orders</Link>
+      </div>
+    );
+  }
+
   if (loading) return <p className="py-16 text-center text-slate-500">Loading invoice…</p>;
 
   return (
     <div>
       <PageHeader
         title={isEdit ? 'Edit Purchase Invoice' : 'Purchase Invoice Entry'}
-        subtitle="Record supplier invoice before GRN — totals auto-calculate"
+        subtitle={`Linked to PO ${poNumber || '—'} — record supplier invoice before GRN`}
         actions={
-          <button type="button" onClick={() => navigate('/purchase-invoices')} className="btn-secondary">
+          <button type="button" onClick={() => navigate(isEdit ? `/purchase-invoices/${editId}` : '/purchase-invoices')} className="btn-secondary">
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
         }
@@ -152,23 +177,28 @@ export default function PurchaseInvoiceForm() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="glass-card grid grid-cols-1 gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="label">Supplier Invoice No.</label>
-            <input className="input-field" value={form.supplierInvoiceNo} onChange={(e) => setForm({ ...form, supplierInvoiceNo: e.target.value })} placeholder="Supplier reference" />
+            <label className="label">Purchase Invoice No. *</label>
+            <input
+              className="input-field"
+              value={form.supplierInvoiceNo}
+              onChange={(e) => setForm({ ...form, supplierInvoiceNo: e.target.value })}
+              placeholder="Supplier invoice reference"
+              required
+            />
+          </div>
+          <div>
+            <label className="label">Purchase Order No. *</label>
+            <p className="input-field bg-slate-50 font-medium dark:bg-slate-800/50">{poNumber || '—'}</p>
           </div>
           <div>
             <label className="label">Supplier *</label>
-            <select className="select-field" value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} required>
-              <option value="">Select supplier</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <p className="input-field bg-slate-50 font-medium dark:bg-slate-800/50">
+              {suppliers.find((s) => s.id === form.supplierId)?.name || '—'}
+            </p>
           </div>
           <div>
             <label className="label">Company</label>
             <p className="input-field cursor-default bg-slate-50 text-slate-700 dark:bg-slate-800/50 dark:text-slate-200">Active24</p>
-          </div>
-          <div>
-            <label className="label">Linked PO ID</label>
-            <input className="input-field" value={form.poId} onChange={(e) => setForm({ ...form, poId: e.target.value })} placeholder="Optional PO id" />
           </div>
           <div className="sm:col-span-2 lg:col-span-3">
             <label className="label">Apply 18% VAT on this invoice?</label>

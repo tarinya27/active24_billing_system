@@ -37,6 +37,7 @@ export default function GRNForm() {
   const [categories, setCategories] = useState([]);
   const [purchaseInvoiceId, setPurchaseInvoiceId] = useState(prefillPurchaseInvoiceId || '');
   const [poId, setPoId] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceItems, setInvoiceItems] = useState({});
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,7 +53,7 @@ export default function GRNForm() {
 
   useEffect(() => {
     if (prefillPurchaseInvoiceId) return;
-    toast.error('Create a purchase invoice first, then open GRN from the invoice.');
+    toast.error('Create a purchase invoice (from a PO) first, then open GRN from the invoice.');
     navigate('/purchase-invoices', { replace: true });
   }, [prefillPurchaseInvoiceId, navigate]);
 
@@ -75,6 +76,16 @@ export default function GRNForm() {
         navigate(`/purchase-invoices/${pi.id}`, { replace: true });
         return;
       }
+      if (!pi.poId || !pi.po?.poNumber) {
+        toast.error('Purchase invoice must be linked to a purchase order');
+        navigate(`/purchase-invoices/${pi.id}`, { replace: true });
+        return;
+      }
+      if (!pi.supplierInvoiceNo?.trim()) {
+        toast.error('Purchase invoice number is required before GRN');
+        navigate(`/purchase-invoices/${pi.id}`, { replace: true });
+        return;
+      }
       const itemMap = Object.fromEntries(
         pi.items.map((item) => [item.productId, {
           unitPrice: Number(item.unitPrice),
@@ -83,7 +94,8 @@ export default function GRNForm() {
         }])
       );
       setPurchaseInvoiceId(pi.id);
-      setPoId(pi.poId || '');
+      setPoId(pi.poId);
+      setInvoiceNumber(pi.supplierInvoiceNo.trim());
       setInvoiceItems(itemMap);
       setForm((f) => ({
         ...f,
@@ -211,6 +223,7 @@ export default function GRNForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.supplierId) { toast.error('Select a supplier'); return; }
+    if (!poId) { toast.error('Purchase order is required'); return; }
     if (form.lines.length === 0) { toast.error('Add at least one product line'); return; }
     if (form.lines.some((l) => l.barcodes.length === 0)) {
       toast.error('Each line needs at least one scanned unit barcode');
@@ -219,10 +232,14 @@ export default function GRNForm() {
 
     setSaving(true);
     try {
-      const noteParts = [form.notes, form.poRef ? `PO: ${form.poRef}` : ''].filter(Boolean);
+      const noteParts = [
+        form.notes,
+        form.poRef ? `PO: ${form.poRef}` : '',
+        invoiceNumber ? `PI: ${invoiceNumber}` : '',
+      ].filter(Boolean);
       await grnsApi.complete({
         supplierId: form.supplierId,
-        poId: poId || null,
+        poId,
         purchaseInvoiceId,
         purchaseWithVat: form.purchaseWithVat,
         vatRate: Number(form.vatRate),
@@ -265,23 +282,27 @@ export default function GRNForm() {
 
   return (
     <div>
-      <PageHeader title="GRN from Purchase Invoice" subtitle="Scan barcodes to receive stock — purchase price locked from invoice" actions={
-        <button type="button" onClick={() => navigate(`/purchase-invoices/${purchaseInvoiceId}`)} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back to Invoice</button>
-      } />
+      <PageHeader
+        title="GRN — Goods Received Note"
+        subtitle="PO and purchase invoice required — stock updates on confirm"
+        actions={
+          <button type="button" onClick={() => navigate(`/purchase-invoices/${purchaseInvoiceId}`)} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back to Invoice</button>
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="glass-card grid grid-cols-1 gap-4 p-6 md:grid-cols-2 lg:grid-cols-4">
           <div>
+            <label className="label">Purchase Order No. *</label>
+            <p className="input-field bg-slate-50 font-semibold dark:bg-slate-800/50">{form.poRef || '—'}</p>
+          </div>
+          <div>
+            <label className="label">Purchase Invoice No. *</label>
+            <p className="input-field bg-slate-50 font-semibold text-primary-600 dark:bg-slate-800/50">{invoiceNumber || '—'}</p>
+          </div>
+          <div>
             <label className="label">Supplier *</label>
             <p className="input-field bg-slate-50 font-medium dark:bg-slate-800/50">{supplierName || '—'}</p>
-          </div>
-          <div>
-            <label className="label">PO Number</label>
-            <p className="input-field bg-slate-50 dark:bg-slate-800/50">{form.poRef || '—'}</p>
-          </div>
-          <div>
-            <label className="label">Purchase Invoice</label>
-            <p className="input-field bg-slate-50 text-primary-600 dark:bg-slate-800/50">Linked</p>
           </div>
           <div className="lg:col-span-2">
             <label className="label">Notes</label>

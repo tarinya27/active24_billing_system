@@ -7,7 +7,7 @@ import { nextGrnNumber } from '../../utils/documentNumbers.js';
 const grnInclude = {
   supplier: { select: { id: true, name: true, code: true } },
   po: { select: { id: true, poNumber: true, status: true } },
-  purchaseInvoice: { select: { id: true, supplierInvoiceNo: true, total: true, purchaseWithVat: true } },
+  purchaseInvoice: { select: { id: true, supplierInvoiceNo: true, total: true, purchaseWithVat: true, poId: true } },
   receivedBy: { select: { id: true, name: true } },
   items: {
     include: {
@@ -94,39 +94,46 @@ export async function completeGrn(data, userId) {
   if (!data.purchaseInvoiceId) {
     throw ApiError.badRequest('GRN must be linked to a purchase invoice');
   }
+  if (!data.poId) {
+    throw ApiError.badRequest('GRN must be linked to a purchase order');
+  }
 
   const vatRate = await getVatRate(data.vatRate);
   const allBarcodes = data.lines.flatMap((l) => l.barcodes);
   await assertUniqueBarcodes(allBarcodes);
 
-  if (data.poId) {
-    const po = await prisma.purchaseOrder.findUnique({ where: { id: data.poId } });
-    if (!po) throw ApiError.badRequest('Linked PO not found');
-  }
-  if (data.purchaseInvoiceId) {
-    const pi = await prisma.purchaseInvoice.findUnique({
-      where: { id: data.purchaseInvoiceId },
-      include: { grn: true, items: true },
-    });
-    if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
-    if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: data.poId } });
+  if (!po) throw ApiError.badRequest('Linked purchase order not found');
 
-    const invoicedByProduct = Object.fromEntries(
-      pi.items.map((i) => [i.productId, { units: i.units, unitPrice: Number(i.unitPrice) }])
-    );
-    for (const line of data.lines) {
-      const invoiced = invoicedByProduct[line.productId];
-      if (invoiced == null) {
-        throw ApiError.badRequest('Product is not on the linked purchase invoice');
-      }
-      if (line.barcodes.length > invoiced.units) {
-        throw ApiError.badRequest(
-          `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${invoiced.units}) for product`
-        );
-      }
-      if (Number(line.purchasePrice) !== invoiced.unitPrice) {
-        throw ApiError.badRequest('Purchase price must match purchase invoice unit price');
-      }
+  const pi = await prisma.purchaseInvoice.findUnique({
+    where: { id: data.purchaseInvoiceId },
+    include: { grn: true, items: true, po: true },
+  });
+  if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
+  if (!pi.poId) throw ApiError.badRequest('Purchase invoice must be linked to a purchase order');
+  if (pi.poId !== data.poId) {
+    throw ApiError.badRequest('GRN purchase order must match the purchase invoice');
+  }
+  if (!pi.supplierInvoiceNo?.trim()) {
+    throw ApiError.badRequest('Purchase invoice number is required before GRN');
+  }
+  if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
+
+  const invoicedByProduct = Object.fromEntries(
+    pi.items.map((i) => [i.productId, { units: i.units, unitPrice: Number(i.unitPrice) }])
+  );
+  for (const line of data.lines) {
+    const invoiced = invoicedByProduct[line.productId];
+    if (invoiced == null) {
+      throw ApiError.badRequest('Product is not on the linked purchase invoice');
+    }
+    if (line.barcodes.length > invoiced.units) {
+      throw ApiError.badRequest(
+        `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${invoiced.units}) for product`
+      );
+    }
+    if (Number(line.purchasePrice) !== invoiced.unitPrice) {
+      throw ApiError.badRequest('Purchase price must match purchase invoice unit price');
     }
   }
 
@@ -136,8 +143,8 @@ export async function completeGrn(data, userId) {
     const grn = await tx.grn.create({
       data: {
         grnNumber,
-        poId: data.poId || null,
-        purchaseInvoiceId: data.purchaseInvoiceId || null,
+        poId: data.poId,
+        purchaseInvoiceId: data.purchaseInvoiceId,
         supplierId: data.supplierId,
         purchaseWithVat: data.purchaseWithVat,
         status: 'COMPLETED',
@@ -208,7 +215,7 @@ export async function completeGrn(data, userId) {
       }
     }
 
-    if (data.poId) await updatePoStatusAfterGrn(tx, data.poId);
+    await updatePoStatusAfterGrn(tx, data.poId);
 
     return tx.grn.findUnique({ where: { id: grn.id }, include: grnInclude });
   });

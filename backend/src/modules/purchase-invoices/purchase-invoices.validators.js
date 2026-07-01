@@ -8,8 +8,8 @@ const lineSchema = z.object({
 });
 
 export const createPurchaseInvoiceSchema = z.object({
-  supplierInvoiceNo: z.string().trim().max(100).optional().or(z.literal('')),
-  poId: z.string().min(1).optional().nullable(),
+  supplierInvoiceNo: z.string().trim().min(1, 'Purchase invoice number is required'),
+  poId: z.string().min(1, 'Purchase order is required'),
   supplierId: z.string().min(1),
   company: z.enum(['GENIUS', 'ACTIVE24', 'BOTH']).default('ACTIVE24'),
   vatEnabled: z.boolean().default(false),
