@@ -25,6 +25,8 @@ export async function listSuppliers(query) {
     ];
   }
   if (query.company) where.company = query.company;
+  if (query.isActive === 'true') where.isActive = true;
+  if (query.isActive === 'false') where.isActive = false;
 
   const [items, total] = await Promise.all([
     prisma.supplier.findMany({
@@ -47,7 +49,7 @@ export async function getSupplier(id) {
 }
 
 export async function createSupplier(data) {
-  return prisma.supplier.create({ data: normalize(data) });
+  return prisma.supplier.create({ data: { ...normalize(data), isActive: data.isActive ?? true } });
 }
 
 export async function updateSupplier(id, data) {
@@ -55,9 +57,20 @@ export async function updateSupplier(id, data) {
   return prisma.supplier.update({ where: { id }, data: normalize(data) });
 }
 
-export async function deleteSupplier(id) {
+export async function updateSupplierStatus(id, isActive) {
   await getSupplier(id);
-  // P2003 (FK constraint) is mapped to a friendly 409 by the error handler.
+  return prisma.supplier.update({ where: { id }, data: { isActive } });
+}
+
+export async function deleteSupplier(id) {
+  const existing = await prisma.supplier.findUnique({
+    where: { id },
+    include: { _count: { select: { products: true } } },
+  });
+  if (!existing) throw ApiError.notFound('Supplier not found');
+  if (existing._count.products > 0) {
+    return prisma.supplier.update({ where: { id }, data: { isActive: false } });
+  }
   await prisma.supplier.delete({ where: { id } });
-  return { id };
+  return { id, deleted: true };
 }

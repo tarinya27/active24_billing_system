@@ -21,6 +21,11 @@ export const update = asyncHandler(async (req, res) => {
   res.json({ data: supplier, error: null });
 });
 
+export const updateStatus = asyncHandler(async (req, res) => {
+  const supplier = await service.updateSupplierStatus(req.params.id, req.body.isActive);
+  res.json({ data: supplier, error: null });
+});
+
 export const remove = asyncHandler(async (req, res) => {
   const result = await service.deleteSupplier(req.params.id);
   res.json({ data: result, error: null });

@@ -106,10 +106,13 @@ model User {
 // ---------- Masters ----------
 
 model Category {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  products Product[]
-  grnItems GrnItem[]
+  id        String    @id @default(cuid())
+  name      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+  grnItems  GrnItem[]
 
   @@map("categories")
 }
@@ -124,7 +127,9 @@ model Supplier {
   address       String?
   city          String?
   company       Company  @default(ACTIVE24)
+  isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   products         Product[]
   purchaseOrders   PurchaseOrder[]
@@ -151,15 +156,19 @@ model Customer {
 model Product {
   id                  String    @id @default(cuid())
   code                String    @unique
+  barcode             String?   @unique
   name                String
   description         String?
-  categoryId          String?
-  category            Category? @relation(fields: [categoryId], references: [id])
+  brand               String?
+  categoryId          String
+  category            Category  @relation(fields: [categoryId], references: [id])
   company             Company   @default(ACTIVE24)
+  purchasePrice       Decimal   @default(0) @db.Decimal(12, 2)
   defaultSellingPrice Decimal   @db.Decimal(12, 2)
+  vatPercentage       Decimal   @default(0) @db.Decimal(5, 2)
   reorderLevel        Int       @default(10)
-  supplierId          String?
-  supplier            Supplier? @relation(fields: [supplierId], references: [id])
+  supplierId          String
+  supplier            Supplier  @relation(fields: [supplierId], references: [id])
   isActive            Boolean   @default(true)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

@@ -16,6 +16,11 @@ export const update = asyncHandler(async (req, res) => {
   res.json({ data: category, error: null });
 });
 
+export const updateStatus = asyncHandler(async (req, res) => {
+  const category = await service.updateCategoryStatus(req.params.id, req.body.isActive);
+  res.json({ data: category, error: null });
+});
+
 export const remove = asyncHandler(async (req, res) => {
   const result = await service.deleteCategory(req.params.id);
   res.json({ data: result, error: null });

@@ -12,6 +12,11 @@ export const createSupplierSchema = z.object({
   address: z.string().trim().max(300).optional().or(z.literal('')),
   city: optionalText,
   company: company.default('ACTIVE24'),
+  isActive: z.boolean().optional(),
 });
 
 export const updateSupplierSchema = createSupplierSchema.partial();
+
+export const supplierStatusSchema = z.object({
+  isActive: z.boolean(),
+});

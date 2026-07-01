@@ -4,6 +4,7 @@ import ProtectedRoute from './ProtectedRoute';
 import Login from '../pages/auth/Login';
 import Dashboard from '../pages/Dashboard';
 import ProductList from '../pages/products/ProductList';
+import ProductDetail from '../pages/products/ProductDetail';
 import CategoryList from '../pages/categories/CategoryList';
 import CustomerList from '../pages/customers/CustomerList';
 import UserList from '../pages/users/UserList';
@@ -31,6 +32,7 @@ export default function AppRoutes() {
 
           <Route element={<ProtectedRoute requiredPermission="products.view" />}>
             <Route path="products" element={<ProductList />} />
+            <Route path="products/:id" element={<ProductDetail />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermission="categories.manage" />}>
             <Route path="categories" element={<CategoryList />} />
