@@ -13,16 +13,24 @@ export async function nextGrnNumber() {
 }
 
 export async function nextPoNumber(company = 'ACTIVE24') {
-  const year = new Date().getFullYear();
-  const tag = company === 'GENIUS' ? 'GEN' : 'A24';
-  const prefix = `PO-${tag}-${year}-`;
-  const latest = await prisma.purchaseOrder.findFirst({
-    where: { poNumber: { startsWith: prefix } },
-    orderBy: { poNumber: 'desc' },
+  return nextPoSerialNumber(company);
+}
+
+export async function nextPoSerialNumber(company = 'ACTIVE24') {
+  const orders = await prisma.purchaseOrder.findMany({
+    where: { company },
     select: { poNumber: true },
   });
-  const next = latest ? parseInt(latest.poNumber.slice(prefix.length), 10) + 1 : 1;
-  return `${prefix}${String(next).padStart(4, '0')}`;
+
+  let maxSerial = 10000;
+  for (const { poNumber } of orders) {
+    const numeric = parseInt(poNumber, 10);
+    if (!Number.isNaN(numeric) && numeric > maxSerial) {
+      maxSerial = numeric;
+    }
+  }
+
+  return String(maxSerial + 1);
 }
 
 export async function nextInvoiceNumber(prefix = 'INV-2026-') {

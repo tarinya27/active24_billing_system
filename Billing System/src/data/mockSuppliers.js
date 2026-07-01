@@ -1,17 +1,1 @@
-export const mockSuppliers = [
-  { id: 'SUP-001', name: 'Genius Distribution Lanka', contact: 'Mr. Nimal Perera', phone: '+94 11 234 5678', email: 'sales@genius.lk', address: 'No. 45, Baseline Road, Colombo 09', city: 'Colombo' },
-  { id: 'SUP-002', name: 'TechWorld Imports (Pvt) Ltd', contact: 'Ms. Sanduni Fernando', phone: '+94 77 123 4567', email: 'orders@techworld.lk', address: 'Level 3, Liberty Plaza, Colombo 03', city: 'Colombo' },
-  { id: 'SUP-003', name: 'Singer Sri Lanka PLC', contact: 'Mr. Kasun Jayawardena', phone: '+94 11 470 4700', email: 'b2b@singer.lk', address: 'No. 308, T B Jayah Mawatha, Colombo 10', city: 'Colombo' },
-  { id: 'SUP-004', name: 'Softlogic Computer House', contact: 'Mr. Ruwan Silva', phone: '+94 11 576 5765', email: 'procurement@softlogic.lk', address: 'No. 75, Union Place, Colombo 02', city: 'Colombo' },
-  { id: 'SUP-005', name: 'Barclays Computers', contact: 'Mr. Dinesh Ratnayake', phone: '+94 11 268 2682', email: 'sales@barclays.lk', address: 'No. 28, Duplication Road, Colombo 04', city: 'Colombo' },
-  { id: 'SUP-006', name: 'Redline Technologies', contact: 'Ms. Anjali Gunasekara', phone: '+94 77 890 1234', email: 'info@redline.lk', address: 'No. 12, Nawala Road, Nugegoda', city: 'Nugegoda' },
-  { id: 'SUP-007', name: 'Metro Office Supplies', contact: 'Mr. Pradeep Wijesinghe', phone: '+94 11 485 6789', email: 'orders@metrooffice.lk', address: 'No. 56, Galle Road, Dehiwala', city: 'Dehiwala' },
-  { id: 'SUP-008', name: 'Lanka Cable Mart', contact: 'Mr. Sunil Mendis', phone: '+94 11 276 5432', email: 'sales@lankacable.lk', address: 'No. 89, Main Street, Pettah', city: 'Colombo' },
-  { id: 'SUP-009', name: 'Digital Solutions Hub', contact: 'Ms. Tharushi Karunaratne', phone: '+94 76 543 2109', email: 'contact@digitalsolutions.lk', address: 'No. 34, Kandy Road, Kiribathgoda', city: 'Kiribathgoda' },
-  { id: 'SUP-010', name: 'Global IT Partners', contact: 'Mr. Chaminda Dias', phone: '+94 11 312 9876', email: 'partners@globalit.lk', address: 'No. 67, High Level Road, Maharagama', city: 'Maharagama' },
-  { id: 'SUP-011', name: 'Office Mart Lanka', contact: 'Ms. Nadeesha Perera', phone: '+94 11 498 7654', email: 'sales@officemart.lk', address: 'No. 23, Station Road, Negombo', city: 'Negombo' },
-  { id: 'SUP-012', name: 'PC House Kandy', contact: 'Mr. Mahesh Bandara', phone: '+94 81 222 3344', email: 'orders@pchousekandy.lk', address: 'No. 15, Peradeniya Road, Kandy', city: 'Kandy' },
-  { id: 'SUP-013', name: 'Elite Peripherals', contact: 'Mr. Roshan Fernando', phone: '+94 77 654 3210', email: 'info@eliteperipherals.lk', address: 'No. 78, Lake Road, Boralesgamuwa', city: 'Boralesgamuwa' },
-  { id: 'SUP-014', name: 'Network Pro Lanka', contact: 'Ms. Dilani Wickramasinghe', phone: '+94 11 567 8901', email: 'sales@networkpro.lk', address: 'No. 41, Havelock Road, Colombo 05', city: 'Colombo' },
-  { id: 'SUP-015', name: 'Smart Storage Solutions', contact: 'Mr. Isuru Jayasinghe', phone: '+94 76 789 0123', email: 'orders@smartstorage.lk', address: 'No. 92, Industrial Zone, Katunayake', city: 'Katunayake' },
-];
+export const mockSuppliers = [];

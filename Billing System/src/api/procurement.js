@@ -12,6 +12,12 @@ function createResource(base) {
 
 export const purchaseOrdersApi = {
   ...createResource('/purchase-orders'),
+  nextSerial: (company = 'ACTIVE24') =>
+    api.get('/purchase-orders/next-serial', { params: { company } }).then((r) => r.data.data),
+  sync: (company = 'ACTIVE24') => api.post('/purchase-orders/sync', { company }).then((r) => r.data.data),
+  importBackup: (backup, company = 'ACTIVE24') =>
+    api.post('/purchase-orders/import/backup', { backup, company }).then((r) => r.data.data),
+  testConnection: () => api.get('/purchase-orders/sync/test').then((r) => r.data.data),
   tally: (id) => api.get(`/purchase-orders/${id}/tally`).then((r) => r.data.data),
 };
 

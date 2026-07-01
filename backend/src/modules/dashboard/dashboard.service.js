@@ -1,4 +1,6 @@
 import { prisma } from '../../config/prisma.js';
+import { nextPoSerialNumber } from '../../utils/documentNumbers.js';
+import { PO_SYNC_COMPANY } from '../../integrations/po/index.js';
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -22,13 +24,13 @@ export async function getDashboardStats() {
     todaySalesAgg,
     totalRevenueAgg,
     availableStock,
-    pendingPOs,
     todayGRNs,
     stockByProduct,
     activities,
     monthlySales,
     topProducts,
     stockSource,
+    purchaseOrders,
   ] = await Promise.all([
     prisma.invoice.aggregate({
       where: { status: 'COMPLETED', createdAt: { gte: todayStart, lte: todayEnd } },
@@ -39,7 +41,6 @@ export async function getDashboardStats() {
       _sum: { grandTotal: true },
     }),
     prisma.productUnit.count({ where: { status: 'IN_STOCK' } }),
-    prisma.purchaseOrder.count({ where: { status: { in: ['PENDING', 'APPROVED'] } } }),
     prisma.grn.count({ where: { status: 'COMPLETED', createdAt: { gte: todayStart, lte: todayEnd } } }),
     prisma.productUnit.groupBy({
       by: ['productId'],
@@ -54,6 +55,7 @@ export async function getDashboardStats() {
     getMonthlySales(),
     getTopProducts(),
     getStockSourceDistribution(),
+    getPurchaseOrderStats(),
   ]);
 
   const productIds = stockByProduct.map((s) => s.productId);
@@ -82,15 +84,46 @@ export async function getDashboardStats() {
     todaySales: Number(todaySalesAgg._sum.grandTotal || 0),
     totalRevenue: Number(totalRevenueAgg._sum.grandTotal || 0),
     availableStock,
-    pendingPOs,
     todayGRNs,
     lowStockItems: lowStockItems + outOfStock,
     monthlySales,
     topProducts,
     stockSourceDistribution: stockSource,
+    purchaseOrders,
     activities: activities.map((a) => ({
       ...a,
       amount: a.amount != null ? Number(a.amount) : null,
+    })),
+  };
+}
+
+async function getPurchaseOrderStats(company = PO_SYNC_COMPANY) {
+  const where = { company };
+
+  const [totalPos, aggregate, activeSuppliers, recentOrders, nextSerial] = await Promise.all([
+    prisma.purchaseOrder.count({ where }),
+    prisma.purchaseOrder.aggregate({ where, _sum: { totalAmount: true } }),
+    prisma.supplier.count({ where: { company, isActive: true } }),
+    prisma.purchaseOrder.findMany({
+      where,
+      include: { supplier: { select: { id: true, name: true } } },
+      orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+    }),
+    nextPoSerialNumber(company),
+  ]);
+
+  return {
+    company,
+    companyLabel: company === 'ACTIVE24' ? 'Active24 (Pvt) Ltd' : 'Genius Associates',
+    totalPos,
+    totalValue: Number(aggregate._sum.totalAmount || 0),
+    activeSuppliers,
+    nextPoNumber: nextSerial,
+    nextSerial,
+    recentOrders: recentOrders.map((po) => ({
+      ...po,
+      totalAmount: Number(po.totalAmount),
     })),
   };
 }

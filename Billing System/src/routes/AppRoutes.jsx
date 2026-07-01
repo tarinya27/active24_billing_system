@@ -8,8 +8,11 @@ import ProductDetail from '../pages/products/ProductDetail';
 import CategoryList from '../pages/categories/CategoryList';
 import CustomerList from '../pages/customers/CustomerList';
 import UserList from '../pages/users/UserList';
+import PurchaseOrderLayout from '../components/layouts/PurchaseOrderLayout';
 import PurchaseOrderList from '../pages/purchaseOrders/PurchaseOrderList';
 import PurchaseOrderDetail from '../pages/purchaseOrders/PurchaseOrderDetail';
+import PurchaseOrderForm from '../pages/purchaseOrders/PurchaseOrderForm';
+import PurchaseOrderMigration from '../pages/purchaseOrders/PurchaseOrderMigration';
 import SupplierList from '../pages/suppliers/SupplierList';
 import PurchaseInvoiceList from '../pages/purchaseInvoices/PurchaseInvoiceList';
 import PurchaseInvoiceForm from '../pages/purchaseInvoices/PurchaseInvoiceForm';
@@ -45,8 +48,19 @@ export default function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="purchase_orders.view" />}>
-            <Route path="purchase-orders" element={<PurchaseOrderList />} />
-            <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
+            <Route path="purchase-orders" element={<PurchaseOrderLayout />}>
+              <Route index element={<PurchaseOrderList />} />
+              <Route path="migration" element={<ProtectedRoute requiredPermission="purchase_orders.sync" />}>
+                <Route index element={<PurchaseOrderMigration />} />
+              </Route>
+              <Route path="new" element={<ProtectedRoute requiredPermission="purchase_orders.create" />}>
+                <Route index element={<PurchaseOrderForm />} />
+              </Route>
+              <Route path=":id/edit" element={<ProtectedRoute requiredPermission="purchase_orders.edit" />}>
+                <Route index element={<PurchaseOrderForm />} />
+              </Route>
+              <Route path=":id" element={<PurchaseOrderDetail />} />
+            </Route>
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="suppliers.view" />}>

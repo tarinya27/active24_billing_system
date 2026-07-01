@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Pencil } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Can from '../../components/auth/Can';
+import PurchaseOrderPrintView from '../../components/purchaseOrders/PurchaseOrderPrintView';
 import { purchaseOrdersApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate } from '../../utils/helpers';
@@ -16,6 +17,7 @@ export default function PurchaseOrderDetail() {
   const [po, setPo] = useState(null);
   const [tally, setTally] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showPrint, setShowPrint] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +53,10 @@ export default function PurchaseOrderDetail() {
         actions={
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate('/purchase-orders')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
+            <button type="button" onClick={() => setShowPrint(true)} className="btn-secondary"><Printer className="h-4 w-4" /> Print</button>
+            <Can permission="purchase_orders.edit">
+              <Link to={`/purchase-orders/${po.id}/edit`} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</Link>
+            </Can>
             <Can permission="purchase_invoices.create">
               <Link to={`/purchase-invoices/new?poId=${po.id}`} className="btn-primary"><FileText className="h-4 w-4" /> Create Purchase Invoice</Link>
             </Can>
@@ -103,6 +109,14 @@ export default function PurchaseOrderDetail() {
           </div>
         </div>
       </div>
+
+      {showPrint && (
+        <PurchaseOrderPrintView
+          po={po}
+          onClose={() => setShowPrint(false)}
+          onPrint={() => window.print()}
+        />
+      )}
     </div>
   );
 }

@@ -31,4 +31,10 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   isProd: (process.env.NODE_ENV || 'development') === 'production',
+  po: {
+    useMock: process.env.PO_USE_MOCK !== 'false',
+    baseUrl: process.env.PO_SYSTEM_BASE_URL || 'https://po.geniuslanka.com',
+    username: process.env.PO_SYSTEM_USERNAME || '',
+    password: process.env.PO_SYSTEM_PASSWORD || '',
+  },
 };

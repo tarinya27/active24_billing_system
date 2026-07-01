@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
   DollarSign, TrendingUp, Package, ShoppingCart, PackageCheck, AlertTriangle,
-  Receipt, ArrowRightLeft, ClipboardCheck,
+  Receipt, ArrowRightLeft, ClipboardCheck, Truck, Hash, Printer,
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import SummaryCard from '../components/ui/SummaryCard';
 import PageHeader from '../components/ui/PageHeader';
+import Can from '../components/auth/Can';
+import PurchaseOrderPrintView from '../components/purchaseOrders/PurchaseOrderPrintView';
 import { dashboardApi } from '../api/ops';
+import { purchaseOrdersApi } from '../api/procurement';
 import { getErrorMessage } from '../api/client';
-import { formatCurrency, formatDateTime } from '../utils/helpers';
-import { toast } from 'react-toastify';
+import { formatCurrency, formatDate, formatDateTime } from '../utils/helpers';
+import { usePermission } from '../hooks/usePermission';
 
 const COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
@@ -23,9 +28,21 @@ const activityIcons = {
   po: ClipboardCheck,
 };
 
+const emptyPoStats = {
+  totalPos: 0,
+  totalValue: 0,
+  activeSuppliers: 0,
+  nextPoNumber: '—',
+  nextSerial: '—',
+  recentOrders: [],
+};
+
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { can } = usePermission();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [printPo, setPrintPo] = useState(null);
 
   useEffect(() => {
     dashboardApi
@@ -38,7 +55,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Executive Dashboard" subtitle="Loading business overview…" />
+        <PageHeader title="Dashboard" subtitle="Loading business overview…" />
         <p className="py-20 text-center text-slate-400">Loading dashboard…</p>
       </div>
     );
@@ -48,30 +65,109 @@ export default function Dashboard() {
     todaySales: 0,
     totalRevenue: 0,
     availableStock: 0,
-    pendingPOs: 0,
     todayGRNs: 0,
     lowStockItems: 0,
     monthlySales: [],
     topProducts: [],
     stockSourceDistribution: [],
     activities: [],
+    purchaseOrders: emptyPoStats,
   };
+
+  const poStats = dashboardStats.purchaseOrders || emptyPoStats;
+  const showPoSection = can('purchase_orders.view');
 
   return (
     <div>
       <PageHeader
-        title="Executive Dashboard"
-        subtitle="Welcome back! Here's your business overview."
+        title="Dashboard"
+        subtitle={
+          showPoSection
+            ? `Welcome back! Next PO number will be ${poStats.nextPoNumber}.`
+            : "Welcome back! Here's your business overview."
+        }
       />
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <SummaryCard title="Today's Sales" value={formatCurrency(dashboardStats.todaySales)} icon={DollarSign} color="primary" />
         <SummaryCard title="Total Revenue" value={formatCurrency(dashboardStats.totalRevenue)} icon={TrendingUp} color="emerald" />
         <SummaryCard title="Available Stock" value={dashboardStats.availableStock.toLocaleString()} icon={Package} color="cyan" />
-        <SummaryCard title="Pending POs" value={dashboardStats.pendingPOs} icon={ShoppingCart} color="amber" />
         <SummaryCard title="Today's GRNs" value={dashboardStats.todayGRNs} icon={PackageCheck} color="violet" />
         <SummaryCard title="Low Stock Items" value={dashboardStats.lowStockItems} icon={AlertTriangle} color="rose" />
       </div>
+
+      {showPoSection && (
+        <div className="mb-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Purchase Orders</h2>
+            <Can permission="purchase_orders.create">
+              <Link to="/purchase-orders/new" className="btn-primary !py-2 !text-xs">
+                + New Purchase Order
+              </Link>
+            </Can>
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard title="Total POs (this company)" value={poStats.totalPos} icon={ShoppingCart} color="primary" />
+            <SummaryCard title="Total PO Value" value={formatCurrency(poStats.totalValue)} icon={DollarSign} color="emerald" />
+            <SummaryCard title="Active Suppliers" value={poStats.activeSuppliers} icon={Truck} color="cyan" />
+            <SummaryCard title="Next Serial No." value={poStats.nextSerial} icon={Hash} color="violet" />
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent Purchase Orders</h3>
+              <Link to="/purchase-orders" className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                View all
+              </Link>
+            </div>
+
+            {poStats.recentOrders.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">No purchase orders yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">PO No.</th>
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
+                      <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Grand Total</th>
+                      <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {poStats.recentOrders.map((po) => (
+                      <tr
+                        key={po.id}
+                        className="cursor-pointer border-b border-slate-50 transition-colors hover:bg-slate-50/80 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
+                        onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                      >
+                        <td className="py-3 font-medium text-primary-600">{po.poNumber}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-300">{formatDate(po.orderDate)}</td>
+                        <td className="py-3">{po.supplier?.name || '—'}</td>
+                        <td className="py-3 text-right font-medium">{formatCurrency(Number(po.totalAmount))}</td>
+                        <td className="py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              purchaseOrdersApi.get(po.id).then(setPrintPo).catch((err) => toast.error(getErrorMessage(err)));
+                            }}
+                            className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                          >
+                            <span className="inline-flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> Print</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <div className="glass-card p-6 lg:col-span-2 xl:col-span-1">
@@ -148,6 +244,14 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {printPo && (
+        <PurchaseOrderPrintView
+          po={printPo}
+          onClose={() => setPrintPo(null)}
+          onPrint={() => window.print()}
+        />
+      )}
     </div>
   );
 }

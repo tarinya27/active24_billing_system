@@ -30,3 +30,25 @@ export const remove = asyncHandler(async (req, res) => {
   const result = await service.deletePurchaseOrder(req.params.id);
   res.json({ data: result, error: null });
 });
+
+export const syncTest = asyncHandler(async (req, res) => {
+  const data = await service.testPurchaseOrderSync();
+  res.json({ data, error: null });
+});
+
+export const sync = asyncHandler(async (req, res) => {
+  const data = await service.syncPurchaseOrders(req.body);
+  res.json({ data, error: null });
+});
+
+export const nextSerial = asyncHandler(async (req, res) => {
+  const data = await service.previewNextPoSerial(req.query.company || 'ACTIVE24');
+  res.json({ data, error: null });
+});
+
+export const importBackup = asyncHandler(async (req, res) => {
+  const data = await service.importPurchaseOrdersFromBackup(req.body.backup, {
+    company: req.body.company,
+  });
+  res.json({ data, error: null });
+});

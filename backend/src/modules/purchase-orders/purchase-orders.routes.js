@@ -1,12 +1,17 @@
 import { Router } from 'express';
 import { authMiddleware, requirePermission } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
-import { createPoSchema, updatePoSchema } from './purchase-orders.validators.js';
+import { createPoSchema, updatePoSchema, syncPoSchema, importBackupSchema } from './purchase-orders.validators.js';
 import * as controller from './purchase-orders.controller.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+
+router.get('/next-serial', requirePermission('purchase_orders.view'), controller.nextSerial);
+router.get('/sync/test', requirePermission('purchase_orders.sync'), controller.syncTest);
+router.post('/sync', requirePermission('purchase_orders.sync'), validate(syncPoSchema), controller.sync);
+router.post('/import/backup', requirePermission('purchase_orders.sync'), validate(importBackupSchema), controller.importBackup);
 
 router.get('/', requirePermission('purchase_orders.view'), controller.list);
 router.get('/:id/tally', requirePermission('purchase_orders.view'), controller.tally);

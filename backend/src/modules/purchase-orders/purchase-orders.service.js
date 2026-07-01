@@ -1,10 +1,16 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { nextPoNumber } from '../../utils/documentNumbers.js';
+import { nextPoNumber, nextPoSerialNumber } from '../../utils/documentNumbers.js';
+import {
+  fetchExternalPurchaseOrders,
+  testExternalPoConnection,
+  PO_SYNC_COMPANY,
+} from '../../integrations/po/index.js';
+import { parsePoBackup } from '../../integrations/po/backupParser.js';
 
 const poInclude = {
-  supplier: { select: { id: true, name: true, code: true, company: true } },
+  supplier: { select: { id: true, name: true, code: true, company: true, contactPerson: true, vatRate: true } },
   items: {
     include: {
       product: { select: { id: true, code: true, name: true, categoryId: true, defaultSellingPrice: true } },
@@ -13,8 +19,38 @@ const poInclude = {
   _count: { select: { grns: true, purchaseInvoices: true } },
 };
 
-function calcTotal(items) {
+function calcSubTotal(items) {
   return items.reduce((sum, i) => sum + Number(i.costPrice) * i.quantity, 0);
+}
+
+function calcPoTotals(items, vatRate = 0) {
+  const subTotal = calcSubTotal(items);
+  const vatAmount = Math.round(subTotal * Number(vatRate) / 100 * 100) / 100;
+  const totalAmount = subTotal + vatAmount;
+  return { subTotal, vatAmount, totalAmount };
+}
+
+async function getSupplierVatRate(supplierId) {
+  const supplier = await prisma.supplier.findUnique({
+    where: { id: supplierId },
+    select: { vatRate: true },
+  });
+  return Number(supplier?.vatRate ?? 0);
+}
+
+function buildPoMeta(data, totals) {
+  return {
+    supplierRefNo: data.supplierRefNo || null,
+    attn: data.attn || null,
+    paymentTerms: data.paymentTerms || '30 days',
+    fulfillmentType: data.fulfillmentType || 'DELIVERY',
+    deliveryAddress: data.fulfillmentType === 'COLLECTION' ? null : data.deliveryAddress || null,
+    collectedBy: data.fulfillmentType === 'DELIVERY' ? null : data.collectedBy || null,
+    subTotal: totals.subTotal,
+    vatRate: totals.vatRate,
+    vatAmount: totals.vatAmount,
+    totalAmount: totals.totalAmount,
+  };
 }
 
 export async function listPurchaseOrders(query) {
@@ -28,11 +64,26 @@ export async function listPurchaseOrders(query) {
       { externalRef: { contains: query.search, mode: 'insensitive' } },
     ];
   }
+  if (query.serialNo) {
+    where.poNumber = { contains: String(query.serialNo).trim(), mode: 'insensitive' };
+  }
+  if (query.supplier) {
+    where.supplier = { name: { contains: String(query.supplier).trim(), mode: 'insensitive' } };
+  }
+  if (query.dateFrom || query.dateTo) {
+    where.orderDate = {};
+    if (query.dateFrom) where.orderDate.gte = new Date(query.dateFrom);
+    if (query.dateTo) {
+      const end = new Date(query.dateTo);
+      end.setHours(23, 59, 59, 999);
+      where.orderDate.lte = end;
+    }
+  }
   if (query.status) where.status = query.status;
-  if (query.company) where.company = query.company;
+  if (query.company && query.company !== 'BOTH') where.company = query.company;
 
   const [items, total] = await Promise.all([
-    prisma.purchaseOrder.findMany({ where, include: poInclude, orderBy: { createdAt: 'desc' }, skip, take }),
+    prisma.purchaseOrder.findMany({ where, include: poInclude, orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }], skip, take }),
     prisma.purchaseOrder.count({ where }),
   ]);
 
@@ -80,9 +131,21 @@ export async function getPurchaseOrderTally(id) {
   return { poId: id, poNumber: po.poNumber, lines };
 }
 
+export async function previewNextPoSerial(company = PO_SYNC_COMPANY) {
+  const serial = await nextPoSerialNumber(company);
+  return {
+    company,
+    serial,
+    companyLabel: company === 'ACTIVE24' ? 'Active24 (Pvt) Ltd' : 'Genius Associates',
+  };
+}
+
 export async function createPurchaseOrder(data) {
   const poNumber = data.poNumber || (await nextPoNumber(data.company));
-  const totalAmount = calcTotal(data.items);
+  const resolvedItems = await resolvePoItems(data.items, data.supplierId, data.company);
+  const vatRate = data.vatRate ?? (await getSupplierVatRate(data.supplierId));
+  const totals = { ...calcPoTotals(resolvedItems, vatRate), vatRate };
+
   return prisma.purchaseOrder.create({
     data: {
       poNumber,
@@ -92,8 +155,15 @@ export async function createPurchaseOrder(data) {
       expectedDelivery: data.expectedDelivery,
       status: data.status,
       notes: data.notes || null,
-      totalAmount,
-      items: { create: data.items },
+      ...buildPoMeta(data, totals),
+      items: {
+        create: resolvedItems.map((item) => ({
+          productId: item.productId,
+          description: item.description || null,
+          quantity: item.quantity,
+          costPrice: item.costPrice,
+        })),
+      },
     },
     include: poInclude,
   });
@@ -109,10 +179,33 @@ export async function updatePurchaseOrder(id, data) {
   if (data.status) update.status = data.status;
   if (data.notes !== undefined) update.notes = data.notes || null;
 
+  if (data.supplierRefNo !== undefined) update.supplierRefNo = data.supplierRefNo || null;
+  if (data.attn !== undefined) update.attn = data.attn || null;
+  if (data.paymentTerms !== undefined) update.paymentTerms = data.paymentTerms || '30 days';
+  if (data.fulfillmentType !== undefined) update.fulfillmentType = data.fulfillmentType;
+  if (data.deliveryAddress !== undefined) update.deliveryAddress = data.deliveryAddress || null;
+  if (data.collectedBy !== undefined) update.collectedBy = data.collectedBy || null;
+
+  const supplierId = data.supplierId || (await prisma.purchaseOrder.findUnique({ where: { id }, select: { supplierId: true } }))?.supplierId;
+
   if (data.items) {
-    update.totalAmount = calcTotal(data.items);
+    const resolvedItems = await resolvePoItems(data.items, supplierId, data.company || 'ACTIVE24');
+    const vatRate = data.vatRate ?? (supplierId ? await getSupplierVatRate(supplierId) : 0);
+    const totals = { ...calcPoTotals(resolvedItems, vatRate), vatRate };
+    Object.assign(update, buildPoMeta({ ...data, fulfillmentType: data.fulfillmentType || update.fulfillmentType }, totals));
     await prisma.poItem.deleteMany({ where: { poId: id } });
-    update.items = { create: data.items };
+    update.items = {
+      create: resolvedItems.map((item) => ({
+        productId: item.productId,
+        description: item.description || null,
+        quantity: item.quantity,
+        costPrice: item.costPrice,
+      })),
+    };
+  } else if (data.vatRate !== undefined && supplierId) {
+    const po = await getPurchaseOrder(id);
+    const totals = { ...calcPoTotals(po.items, data.vatRate), vatRate: data.vatRate };
+    Object.assign(update, buildPoMeta(data, totals));
   }
 
   return prisma.purchaseOrder.update({ where: { id }, data: update, include: poInclude });
@@ -124,4 +217,234 @@ export async function deletePurchaseOrder(id) {
   if (linked > 0) throw ApiError.conflict('Cannot delete a PO linked to GRNs');
   await prisma.purchaseOrder.delete({ where: { id } });
   return { id };
+}
+
+async function resolvePoItems(items, supplierId, company) {
+  const resolved = [];
+  for (const line of items) {
+    let productId = line.productId;
+    let description = line.description?.trim() || '';
+
+    if (!productId) {
+      const product = await findOrCreateProduct(
+        { description: description || 'PO line item', costPrice: line.costPrice },
+        supplierId,
+        company
+      );
+      productId = product.id;
+      description = description || product.name;
+    }
+
+    resolved.push({
+      productId,
+      description,
+      quantity: line.quantity,
+      costPrice: line.costPrice,
+    });
+  }
+  return resolved;
+}
+
+function slugCode(text, max = 20) {
+  return text
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, max);
+}
+
+async function uniqueProductCode(base) {
+  let code = base || 'PO-ITEM';
+  let n = 1;
+  while (await prisma.product.findUnique({ where: { code } })) {
+    code = `${base}-${n++}`;
+  }
+  return code;
+}
+
+async function getOrCreateImportCategory() {
+  const existing = await prisma.category.findFirst({
+    where: { name: { equals: 'Imported', mode: 'insensitive' } },
+  });
+  if (existing) return existing;
+
+  return prisma.category.create({
+    data: { name: 'Imported', isActive: true },
+  });
+}
+
+async function findOrCreateSupplier(name, company) {
+  const trimmed = name.trim();
+  let supplier = await prisma.supplier.findFirst({
+    where: { name: { equals: trimmed, mode: 'insensitive' }, company },
+  });
+  if (supplier) return supplier;
+
+  const baseCode = slugCode(trimmed, 16);
+  let code = baseCode;
+  let n = 1;
+  while (await prisma.supplier.findUnique({ where: { code } })) {
+    code = `${baseCode}-${n++}`;
+  }
+
+  return prisma.supplier.create({
+    data: { name: trimmed, code, company, isActive: true },
+  });
+}
+
+async function findOrCreateProduct(line, supplierId, company) {
+  const description = (line.description || line.productCode || 'Imported item').trim();
+
+  if (line.productCode) {
+    const byCode = await prisma.product.findUnique({ where: { code: line.productCode } });
+    if (byCode) return byCode;
+  }
+
+  let product = await prisma.product.findFirst({
+    where: { name: { equals: description, mode: 'insensitive' }, company },
+  });
+  if (product) return product;
+
+  product = await prisma.product.findFirst({
+    where: { name: { contains: description.slice(0, 40), mode: 'insensitive' }, company },
+  });
+  if (product) return product;
+
+  const category = await getOrCreateImportCategory();
+  const code = await uniqueProductCode(slugCode(description, 18) || 'PO-ITEM');
+  const costPrice = Number(line.costPrice) || 0;
+
+  return prisma.product.create({
+    data: {
+      code,
+      name: description,
+      categoryId: category.id,
+      supplierId,
+      company,
+      purchasePrice: costPrice,
+      defaultSellingPrice: Math.round(costPrice * 1.3 * 100) / 100,
+      isActive: true,
+    },
+  });
+}
+
+async function importExternalPo(ext) {
+  const existing = await prisma.purchaseOrder.findFirst({
+    where: { externalRef: ext.externalRef, company: ext.company },
+  });
+  if (existing) {
+    return { action: 'skipped', poNumber: existing.poNumber, reason: 'Already imported' };
+  }
+
+  const poNumberExists = await prisma.purchaseOrder.findUnique({ where: { poNumber: ext.poNumber } });
+  const poNumber = poNumberExists ? await nextPoNumber(ext.company) : ext.poNumber;
+
+  const supplier = await findOrCreateSupplier(ext.supplierName, ext.company);
+  const items = [];
+
+  for (const line of ext.items) {
+    const product = await findOrCreateProduct(line, supplier.id, ext.company);
+    items.push({
+      productId: product.id,
+      description: line.description || product.name,
+      quantity: Math.max(1, Math.round(Number(line.quantity) || 1)),
+      costPrice: Number(line.costPrice) || 0,
+    });
+  }
+
+  if (items.length === 0) {
+    return { action: 'error', poNumber: ext.poNumber, reason: 'No line items' };
+  }
+
+  const totalAmount = items.reduce((sum, i) => sum + i.costPrice * i.quantity, 0);
+  const po = await prisma.purchaseOrder.create({
+    data: {
+      poNumber,
+      externalRef: ext.externalRef,
+      company: ext.company,
+      supplierId: supplier.id,
+      orderDate: new Date(ext.orderDate),
+      expectedDelivery: ext.expectedDelivery ? new Date(ext.expectedDelivery) : null,
+      status: ext.status,
+      notes: ext.notes || null,
+      subTotal: totalAmount,
+      vatRate: 0,
+      vatAmount: 0,
+      totalAmount,
+      items: { create: items },
+    },
+    include: { supplier: { select: { name: true } } },
+  });
+
+  return {
+    action: 'created',
+    poNumber: po.poNumber,
+    supplier: po.supplier?.name,
+    totalAmount: Number(po.totalAmount),
+  };
+}
+
+export async function syncPurchaseOrders({ company = PO_SYNC_COMPANY } = {}) {
+  const companies = company === 'BOTH' ? ['GENIUS', 'ACTIVE24'] : [company];
+  const summary = { created: 0, skipped: 0, errors: 0, details: [], source: 'sync' };
+
+  for (const co of companies) {
+    const external = await fetchExternalPurchaseOrders(co);
+    await importPurchaseOrderBatch(external, co, summary);
+  }
+
+  return summary;
+}
+
+async function importPurchaseOrderBatch(orders, company, summary = { created: 0, skipped: 0, errors: 0, details: [] }) {
+  for (const ext of orders) {
+    if (ext.company !== company) continue;
+
+    try {
+      const result = await importExternalPo(ext);
+      if (result.action === 'created') summary.created += 1;
+      else if (result.action === 'skipped') summary.skipped += 1;
+      else summary.errors += 1;
+      summary.details.push({ company, ...result });
+    } catch (err) {
+      summary.errors += 1;
+      summary.details.push({
+        company,
+        action: 'error',
+        poNumber: ext.poNumber,
+        reason: err.message || 'Import failed',
+      });
+    }
+  }
+
+  return summary;
+}
+
+export async function importPurchaseOrdersFromBackup(backup, { company = PO_SYNC_COMPANY } = {}) {
+  const orders = parsePoBackup(backup, company);
+  if (!orders.length) {
+    throw ApiError.badRequest('No purchase orders found in backup file. Expected a JSON array or object with purchase_orders.');
+  }
+
+  const companies = company === 'BOTH' ? ['GENIUS', 'ACTIVE24'] : [company];
+  const summary = {
+    created: 0,
+    skipped: 0,
+    errors: 0,
+    details: [],
+    source: 'backup',
+    totalInFile: orders.length,
+  };
+
+  for (const co of companies) {
+    const filtered = orders.filter((o) => o.company === co);
+    await importPurchaseOrderBatch(filtered, co, summary);
+  }
+
+  return summary;
+}
+
+export async function testPurchaseOrderSync() {
+  return testExternalPoConnection();
 }
