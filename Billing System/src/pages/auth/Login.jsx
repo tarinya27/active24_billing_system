@@ -58,7 +58,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@active24.lk"
                 autoComplete="username"
-                className="input-field pl-10"
+                className="input-field !pl-10"
               />
             </div>
           </div>
@@ -73,7 +73,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 autoComplete="current-password"
-                className="input-field pl-10 pr-10"
+                className="input-field !pl-10 !pr-10"
               />
               <button
                 type="button"
@@ -95,12 +95,6 @@ export default function Login() {
               </>
             )}
           </button>
-
-          <div className="rounded-lg bg-slate-50 p-3 text-center text-xs text-slate-500 dark:bg-slate-800/50">
-            Demo accounts: <span className="font-medium">manager@active24.lk</span> /
-            <span className="font-medium"> admin@active24.lk</span> /
-            <span className="font-medium"> cashier@active24.lk</span>
-          </div>
         </form>
       </div>
     </div>
