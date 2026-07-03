@@ -23,6 +23,8 @@ export const PERMISSIONS = [
   'customers.edit',
   'customers.delete',
   'purchase_orders.view',
+  'purchase_orders.search',
+  'purchase_orders.print',
   'purchase_orders.sync',
   'purchase_orders.create',
   'purchase_orders.edit',
@@ -94,9 +96,26 @@ const CASHIER_PERMISSIONS = [
   'invoices.create',
 ];
 
+// PO capabilities for Manager: search (list/filter), edit, and print/reprint.
+const MANAGER_PO_PERMISSIONS = [
+  'purchase_orders.view',
+  'purchase_orders.search',
+  'purchase_orders.print',
+  'purchase_orders.create',
+  'purchase_orders.edit',
+  'purchase_orders.approve',
+  'purchase_orders.delete',
+  'purchase_orders.sync',
+];
+
+const MANAGER_PERMISSIONS = [
+  ...PERMISSIONS.filter((p) => !p.startsWith('purchase_orders.')),
+  ...MANAGER_PO_PERMISSIONS,
+];
+
 // MANAGER: full access. ADMIN: purchase orders view-only.
 export const ROLE_PERMISSIONS = {
-  MANAGER: new Set(PERMISSIONS),
+  MANAGER: new Set(MANAGER_PERMISSIONS),
   ADMIN: new Set(ADMIN_PERMISSIONS),
   CASHIER: new Set(CASHIER_PERMISSIONS),
 };

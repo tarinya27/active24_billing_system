@@ -5,11 +5,11 @@ import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Can from '../../components/auth/Can';
-import PurchaseOrderPrintView from '../../components/purchaseOrders/PurchaseOrderPrintView';
 import { purchaseOrdersApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { poStatusLabel } from '../../utils/constants';
+import { PO_PRINT, PO_EDIT } from '../../utils/poPermissions';
 
 export default function PurchaseOrderDetail() {
   const { id } = useParams();
@@ -17,7 +17,6 @@ export default function PurchaseOrderDetail() {
   const [po, setPo] = useState(null);
   const [tally, setTally] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showPrint, setShowPrint] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,8 +52,10 @@ export default function PurchaseOrderDetail() {
         actions={
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate('/purchase-orders')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
-            <button type="button" onClick={() => setShowPrint(true)} className="btn-secondary"><Printer className="h-4 w-4" /> Print</button>
-            <Can permission="purchase_orders.edit">
+            <Can permission={PO_PRINT}>
+              <Link to={`/purchase-orders/${po.id}/print`} className="btn-secondary"><Printer className="h-4 w-4" /> Print</Link>
+            </Can>
+            <Can permission={PO_EDIT}>
               <Link to={`/purchase-orders/${po.id}/edit`} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</Link>
             </Can>
             <Can permission="purchase_invoices.create">
@@ -109,14 +110,6 @@ export default function PurchaseOrderDetail() {
           </div>
         </div>
       </div>
-
-      {showPrint && (
-        <PurchaseOrderPrintView
-          po={po}
-          onClose={() => setShowPrint(false)}
-          onPrint={() => window.print()}
-        />
-      )}
     </div>
   );
 }

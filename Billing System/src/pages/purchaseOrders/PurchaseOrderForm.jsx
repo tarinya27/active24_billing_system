@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Save, Printer } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
-import PurchaseOrderPrintView from '../../components/purchaseOrders/PurchaseOrderPrintView';
 import { purchaseOrdersApi } from '../../api/procurement';
 import { suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
@@ -48,7 +47,6 @@ export default function PurchaseOrderForm() {
   const [nextSerial, setNextSerial] = useState('—');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
-  const [printPo, setPrintPo] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
@@ -183,8 +181,7 @@ export default function PurchaseOrderForm() {
       }
 
       if (printAfter) {
-        const full = await purchaseOrdersApi.get(saved.id);
-        setPrintPo(full);
+        navigate(`/purchase-orders/${saved.id}/print`);
       } else {
         navigate(`/purchase-orders/${saved.id}`);
       }
@@ -471,17 +468,6 @@ export default function PurchaseOrderForm() {
           </button>
         </div>
       </div>
-
-      {printPo && (
-        <PurchaseOrderPrintView
-          po={printPo}
-          onClose={() => {
-            setPrintPo(null);
-            navigate(`/purchase-orders/${printPo.id}`);
-          }}
-          onPrint={() => window.print()}
-        />
-      )}
     </div>
   );
 }

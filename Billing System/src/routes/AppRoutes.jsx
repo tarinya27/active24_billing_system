@@ -12,6 +12,7 @@ import PurchaseOrderLayout from '../components/layouts/PurchaseOrderLayout';
 import PurchaseOrderList from '../pages/purchaseOrders/PurchaseOrderList';
 import PurchaseOrderDetail from '../pages/purchaseOrders/PurchaseOrderDetail';
 import PurchaseOrderForm from '../pages/purchaseOrders/PurchaseOrderForm';
+import PurchaseOrderPrintPage from '../pages/purchaseOrders/PurchaseOrderPrintPage';
 import PurchaseOrderMigration from '../pages/purchaseOrders/PurchaseOrderMigration';
 import SupplierList from '../pages/suppliers/SupplierList';
 import PurchaseInvoiceList from '../pages/purchaseInvoices/PurchaseInvoiceList';
@@ -30,6 +31,9 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute />}>
+        <Route element={<ProtectedRoute requiredPermission="purchase_orders.print" />}>
+          <Route path="purchase-orders/:id/print" element={<PurchaseOrderPrintPage />} />
+        </Route>
         <Route element={<MainLayout />}>
           <Route index element={<Dashboard />} />
 

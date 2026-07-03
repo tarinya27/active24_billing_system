@@ -12,9 +12,7 @@ import { toast } from 'react-toastify';
 import SummaryCard from '../components/ui/SummaryCard';
 import PageHeader from '../components/ui/PageHeader';
 import Can from '../components/auth/Can';
-import PurchaseOrderPrintView from '../components/purchaseOrders/PurchaseOrderPrintView';
 import { dashboardApi } from '../api/ops';
-import { purchaseOrdersApi } from '../api/procurement';
 import { getErrorMessage } from '../api/client';
 import { formatCurrency, formatDate, formatDateTime } from '../utils/helpers';
 import { usePermission } from '../hooks/usePermission';
@@ -42,7 +40,6 @@ export default function Dashboard() {
   const { can } = usePermission();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [printPo, setPrintPo] = useState(null);
 
   useEffect(() => {
     dashboardApi
@@ -152,7 +149,7 @@ export default function Dashboard() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              purchaseOrdersApi.get(po.id).then(setPrintPo).catch((err) => toast.error(getErrorMessage(err)));
+                              navigate(`/purchase-orders/${po.id}/print`);
                             }}
                             className="text-sm font-medium text-primary-600 hover:text-primary-700"
                           >
@@ -244,14 +241,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
-      {printPo && (
-        <PurchaseOrderPrintView
-          po={printPo}
-          onClose={() => setPrintPo(null)}
-          onPrint={() => window.print()}
-        />
-      )}
     </div>
   );
 }

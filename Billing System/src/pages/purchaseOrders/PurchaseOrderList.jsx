@@ -5,12 +5,12 @@ import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Can from '../../components/auth/Can';
-import PurchaseOrderPrintView from '../../components/purchaseOrders/PurchaseOrderPrintView';
 import { useServerList } from '../../hooks/useServerList';
 import { purchaseOrdersApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
 import { formatDate } from '../../utils/helpers';
 import { PO_COMPANY, PO_COMPANY_LABEL } from '../../utils/poConstants';
+import { PO_SEARCH, PO_PRINT, PO_EDIT, PO_CREATE, PO_DELETE, PO_VIEW } from '../../utils/poPermissions';
 
 const EMPTY_FILTERS = {
   serialNo: '',
@@ -48,7 +48,6 @@ export default function PurchaseOrderList() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [applied, setApplied] = useState(EMPTY_FILTERS);
-  const [printPo, setPrintPo] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const queryParams = useMemo(() => listParams(applied), [applied]);
@@ -77,10 +76,7 @@ export default function PurchaseOrderList() {
   };
 
   const handlePrint = (row) => {
-    purchaseOrdersApi
-      .get(row.id)
-      .then(setPrintPo)
-      .catch((err) => toast.error(getErrorMessage(err)));
+    navigate(`/purchase-orders/${row.id}/print`);
   };
 
   const handleDelete = async () => {
@@ -104,7 +100,7 @@ export default function PurchaseOrderList() {
             <span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
               {PO_COMPANY_LABEL}
             </span>
-            <Can permission="purchase_orders.create">
+            <Can permission={PO_CREATE}>
               <Link to="/purchase-orders/new" className="btn-primary">
                 + New PO
               </Link>
@@ -113,6 +109,7 @@ export default function PurchaseOrderList() {
         }
       />
 
+      <Can anyOf={[PO_SEARCH, PO_VIEW]}>
       <form onSubmit={handleSearch} className="glass-card mb-6 p-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -172,6 +169,7 @@ export default function PurchaseOrderList() {
           </button>
         </div>
       </form>
+      </Can>
 
       <div className="glass-card overflow-hidden p-0">
         {loading ? (
@@ -208,7 +206,7 @@ export default function PurchaseOrderList() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <Can permission="purchase_orders.edit">
+                          <Can permission={PO_EDIT}>
                             <button
                               type="button"
                               onClick={() => navigate(`/purchase-orders/${po.id}/edit`)}
@@ -217,6 +215,7 @@ export default function PurchaseOrderList() {
                               Edit
                             </button>
                           </Can>
+                          <Can permission={PO_PRINT}>
                           <button
                             type="button"
                             onClick={() => handlePrint(po)}
@@ -224,7 +223,8 @@ export default function PurchaseOrderList() {
                           >
                             Print
                           </button>
-                          <Can permission="purchase_orders.delete">
+                          </Can>
+                          <Can permission={PO_DELETE}>
                             <button
                               type="button"
                               onClick={() => setDeleteTarget(po)}
@@ -252,14 +252,6 @@ export default function PurchaseOrderList() {
           </>
         )}
       </div>
-
-      {printPo && (
-        <PurchaseOrderPrintView
-          po={printPo}
-          onClose={() => setPrintPo(null)}
-          onPrint={() => window.print()}
-        />
-      )}
 
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}
