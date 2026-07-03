@@ -57,7 +57,7 @@ export default function PurchaseOrderList() {
     loading,
     reload,
     goToPage,
-    totalItems,
+    total: totalItems,
     page,
     totalPages,
     setPage,

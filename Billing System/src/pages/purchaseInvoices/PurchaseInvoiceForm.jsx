@@ -10,6 +10,8 @@ import { getErrorMessage } from '../../api/client';
 import { formatCurrency } from '../../utils/helpers';
 import { calcPurchaseInvoiceTotals } from '../../utils/pricing';
 
+import { PO_COMPANY } from '../../utils/poConstants';
+
 const COMPANY = 'ACTIVE24';
 const VAT_RATE = 18;
 
@@ -24,6 +26,8 @@ export default function PurchaseInvoiceForm() {
 
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [pendingPos, setPendingPos] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(!isEdit && !prefillPoId);
   const [poNumber, setPoNumber] = useState('');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -37,9 +41,19 @@ export default function PurchaseInvoiceForm() {
 
   useEffect(() => {
     if (isEdit || prefillPoId) return;
-    toast.error('Create a purchase order first, then open Purchase Invoice from the PO.');
-    navigate('/purchase-orders', { replace: true });
-  }, [isEdit, prefillPoId, navigate]);
+    purchaseOrdersApi
+      .list({ pageSize: 100, company: PO_COMPANY })
+      .then((result) => {
+        const awaiting = (result.items || []).filter((po) => !po._count?.purchaseInvoices);
+        setPendingPos(awaiting);
+      })
+      .catch(() => setPendingPos([]))
+      .finally(() => setPendingLoading(false));
+  }, [isEdit, prefillPoId]);
+
+  const selectPo = (poId) => {
+    navigate(`/purchase-invoices/new?poId=${poId}`, { replace: true });
+  };
 
   useEffect(() => {
     Promise.all([
@@ -152,10 +166,45 @@ export default function PurchaseInvoiceForm() {
 
   if (!isEdit && !prefillPoId) {
     return (
-      <div className="py-20 text-center">
-        <h2 className="text-lg font-semibold">Purchase order required</h2>
-        <p className="mt-2 text-sm text-slate-500">Flow: Purchase Order → Purchase Invoice → GRN</p>
-        <Link to="/purchase-orders" className="btn-primary mt-6 inline-flex">Go to Purchase Orders</Link>
+      <div>
+        <PageHeader
+          title="Purchase Invoice Entry"
+          subtitle="Select a purchase order to create its invoice"
+          actions={
+            <Link to="/purchase-invoices" className="btn-secondary">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Link>
+          }
+        />
+        {pendingLoading ? (
+          <p className="py-16 text-center text-slate-500">Loading purchase orders…</p>
+        ) : pendingPos.length === 0 ? (
+          <div className="py-20 text-center">
+            <h2 className="text-lg font-semibold">No purchase orders ready for invoicing</h2>
+            <p className="mt-2 text-sm text-slate-500">Create a purchase order first, then return here to create the invoice.</p>
+            <Link to="/purchase-orders/new" className="btn-primary mt-6 inline-flex">Create Purchase Order</Link>
+          </div>
+        ) : (
+          <div className="glass-card space-y-2 p-5">
+            {pendingPos.map((po) => (
+              <button
+                key={po.id}
+                type="button"
+                onClick={() => selectPo(po.id)}
+                className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-left transition-colors hover:border-primary-200 hover:bg-primary-50/50 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:border-primary-800 dark:hover:bg-primary-950/20"
+              >
+                <div className="text-sm">
+                  <span className="font-semibold text-slate-800 dark:text-white">PO {po.poNumber}</span>
+                  <span className="mx-2 text-slate-300">·</span>
+                  <span className="text-slate-600 dark:text-slate-300">{po.supplier?.name || '—'}</span>
+                  <span className="mx-2 text-slate-300">·</span>
+                  <span className="text-slate-500">{po.orderDate?.slice(0, 10)}</span>
+                </div>
+                <span className="text-sm font-medium text-primary-600">Create invoice →</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

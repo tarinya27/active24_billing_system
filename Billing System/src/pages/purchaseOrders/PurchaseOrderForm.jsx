@@ -183,7 +183,7 @@ export default function PurchaseOrderForm() {
       if (printAfter) {
         navigate(`/purchase-orders/${saved.id}/print`);
       } else {
-        navigate(`/purchase-orders/${saved.id}`);
+        navigate(`/purchase-invoices/new?poId=${saved.id}`);
       }
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to save PO'));
