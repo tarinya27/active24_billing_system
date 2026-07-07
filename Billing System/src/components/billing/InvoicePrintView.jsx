@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
 import { companyInfo as fallbackCompany } from '../../data';
+import BrandLogo from '../ui/BrandLogo';
 
 export default function InvoicePrintView({ invoice, settings, forPrint = false, onClose, onPrint }) {
   if (!invoice) return null;
@@ -15,6 +16,7 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
         email: settings.companyEmail,
         website: 'active24.lk',
         registrationNo: '—',
+        vatNo: '—',
       }
     : fallbackCompany;
 
@@ -26,7 +28,9 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
       <header className="invoice-header">
         <div className="invoice-header-left">
           <div className="invoice-brand">
-            <div className="invoice-logo">A24</div>
+            <div className="invoice-logo-wrap">
+              <BrandLogo className="invoice-logo" alt={`${company.name} logo`} />
+            </div>
             <div>
               <h1 className="invoice-company-name">{company.name}</h1>
               <p className="invoice-tagline">{company.tagline}</p>
@@ -53,11 +57,17 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
       </header>
 
       <div className="invoice-meta-grid invoice-meta-grid--bill-to">
-        <div className="invoice-meta-card">
+        <div className="invoice-meta-card invoice-meta-card--bill">
           <p className="invoice-label">Bill To</p>
           <p className="invoice-meta-value">{invoice.customer?.name}</p>
           <p className="invoice-meta-muted">{invoice.customer?.mobile}</p>
           <p className="invoice-meta-muted">{invoice.customer?.address}</p>
+        </div>
+        <div className="invoice-meta-card invoice-meta-card--company">
+          <p className="invoice-label">Company Details</p>
+          <p className="invoice-meta-row"><span>Registration No.</span><span>{company.registrationNo || '—'}</span></p>
+          <p className="invoice-meta-row"><span>VAT No.</span><span>{company.vatNo || '—'}</span></p>
+          <p className="invoice-meta-row"><span>Reference</span><span>{invoice.invoiceNumber}</span></p>
         </div>
       </div>
 
@@ -96,9 +106,17 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
       </table>
 
       <div className="invoice-bottom">
-        <div className="invoice-notes">
-          <p className="invoice-label">Notes</p>
-          <p className="invoice-meta-muted">Thank you for your business. Please retain this invoice for your records.</p>
+        <div className="invoice-notes invoice-notice-box">
+          <p className="invoice-notice-heading">Important Notice</p>
+          <p className="invoice-notice-body">
+            This invoice serves as your official warranty document. Please keep this invoice in a safe place,
+            as it is required for any warranty claims, exchanges, or after-sales service. We recommend
+            retaining it for future reference.
+          </p>
+          <p className="invoice-notice-thanks">
+            Thank you for choosing Active24 (Pvt) Ltd. We sincerely appreciate your business and look forward
+            to serving you again.
+          </p>
         </div>
         <div className="invoice-totals">
           <div className="invoice-total-row">
@@ -123,7 +141,7 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
       </div>
 
       <footer className="invoice-footer">
-        <p>{company.website} • {company.name}</p>
+        <p>{company.name}</p>
         <p>Computer Generated Invoice</p>
       </footer>
 
