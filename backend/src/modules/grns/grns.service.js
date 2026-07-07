@@ -7,7 +7,7 @@ import { nextGrnNumber } from '../../utils/documentNumbers.js';
 const grnInclude = {
   supplier: { select: { id: true, name: true, code: true } },
   po: { select: { id: true, poNumber: true, status: true } },
-  purchaseInvoice: { select: { id: true, supplierInvoiceNo: true, total: true, purchaseWithVat: true, poId: true } },
+  purchaseInvoice: { select: { id: true, supplierInvoiceNo: true, total: true, purchaseWithVat: true, poId: true, status: true } },
   receivedBy: { select: { id: true, name: true } },
   items: {
     include: {
@@ -36,6 +36,52 @@ async function assertUniqueBarcodes(barcodes) {
   if (existing.length) {
     throw ApiError.conflict(`Barcodes already exist: ${existing.map((e) => e.barcode).join(', ')}`);
   }
+}
+
+async function getLinkedPurchaseInvoice(purchaseInvoiceId) {
+  const pi = await prisma.purchaseInvoice.findUnique({
+    where: { id: purchaseInvoiceId },
+    include: {
+      grn: true,
+      po: true,
+      items: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              categoryId: true,
+            },
+          },
+        },
+      },
+      units: {
+        where: { status: 'PENDING_GRN' },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+  if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
+  if (!pi.poId) throw ApiError.badRequest('Purchase invoice must be linked to a purchase order');
+  if (!pi.po?.poNumber) throw ApiError.badRequest('Purchase invoice must be linked to a purchase order');
+  if (!pi.supplierInvoiceNo?.trim()) {
+    throw ApiError.badRequest('Purchase invoice number is required before GRN');
+  }
+  if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
+  return pi;
+}
+
+function getInvoiceLineMap(pi) {
+  return Object.fromEntries(
+    pi.items.map((item) => [
+      item.productId,
+      {
+        ...item,
+        unitPrice: Number(item.unitPrice),
+      },
+    ])
+  );
 }
 
 async function updatePoStatusAfterGrn(tx, poId) {
@@ -90,6 +136,77 @@ export async function getGrn(id) {
   return grn;
 }
 
+export async function reserveGrnBarcode(data) {
+  const trimmedBarcode = String(data.barcode || '').trim();
+  if (!trimmedBarcode) throw ApiError.badRequest('Barcode is required');
+
+  const existing = await prisma.productUnit.findUnique({
+    where: { barcode: trimmedBarcode },
+    select: { id: true },
+  });
+  if (existing) {
+    throw ApiError.conflict('Barcode already exists.');
+  }
+
+  const pi = await getLinkedPurchaseInvoice(data.purchaseInvoiceId);
+  const invoiceLines = getInvoiceLineMap(pi);
+  const productId = data.productId || '';
+  const invoiceLine = invoiceLines[productId];
+  if (!invoiceLine) {
+    throw ApiError.badRequest('Product is not on the linked purchase invoice');
+  }
+
+  const pendingCount = pi.units.filter((unit) => unit.productId === productId).length;
+  if (pendingCount >= invoiceLine.units) {
+    throw ApiError.badRequest('Invoice quantity exceeded.');
+  }
+
+  const vatRate = await getVatRate(data.vatRate);
+  const costExVat = calcCostExVat(data.purchasePrice, data.purchaseWithVat, vatRate);
+  const sellingPrice = data.sellingPriceMode === 'MANUAL'
+    ? Number(data.sellingPrice)
+    : calcGrnAutoSellingPrice(data.purchasePrice);
+
+  if (data.sellingPriceMode === 'MANUAL' && Number.isNaN(sellingPrice)) {
+    throw ApiError.badRequest(`Manual selling price required for ${invoiceLine.product.code}`);
+  }
+
+  const unit = await prisma.productUnit.create({
+    data: {
+      productId,
+      barcode: trimmedBarcode,
+      purchaseInvoiceId: pi.id,
+      costPrice: costExVat,
+      sellingPrice,
+      status: 'PENDING_GRN',
+    },
+    select: {
+      id: true,
+      barcode: true,
+      productId: true,
+      status: true,
+      costPrice: true,
+      sellingPrice: true,
+      createdAt: true,
+    },
+  });
+
+  return unit;
+}
+
+export async function removePendingGrnUnit(id) {
+  const unit = await prisma.productUnit.findUnique({
+    where: { id },
+    select: { id: true, status: true, grnItemId: true },
+  });
+  if (!unit) throw ApiError.notFound('Pending scanned unit not found');
+  if (unit.status !== 'PENDING_GRN' || unit.grnItemId) {
+    throw ApiError.conflict('Only pending scanned units can be removed');
+  }
+  await prisma.productUnit.delete({ where: { id } });
+  return { id };
+}
+
 export async function completeGrn(data, userId) {
   if (!data.purchaseInvoiceId) {
     throw ApiError.badRequest('GRN must be linked to a purchase invoice');
@@ -99,40 +216,32 @@ export async function completeGrn(data, userId) {
   }
 
   const vatRate = await getVatRate(data.vatRate);
-  const allBarcodes = data.lines.flatMap((l) => l.barcodes);
-  await assertUniqueBarcodes(allBarcodes);
-
   const po = await prisma.purchaseOrder.findUnique({ where: { id: data.poId } });
   if (!po) throw ApiError.badRequest('Linked purchase order not found');
 
-  const pi = await prisma.purchaseInvoice.findUnique({
-    where: { id: data.purchaseInvoiceId },
-    include: { grn: true, items: true, po: true },
-  });
-  if (!pi) throw ApiError.badRequest('Linked purchase invoice not found');
-  if (!pi.poId) throw ApiError.badRequest('Purchase invoice must be linked to a purchase order');
+  const pi = await getLinkedPurchaseInvoice(data.purchaseInvoiceId);
   if (pi.poId !== data.poId) {
     throw ApiError.badRequest('GRN purchase order must match the purchase invoice');
   }
-  if (!pi.supplierInvoiceNo?.trim()) {
-    throw ApiError.badRequest('Purchase invoice number is required before GRN');
-  }
-  if (pi.grn) throw ApiError.conflict('This purchase invoice already has a GRN');
 
-  const invoicedByProduct = Object.fromEntries(
-    pi.items.map((i) => [i.productId, { units: i.units, unitPrice: Number(i.unitPrice) }])
-  );
-  for (const line of data.lines) {
-    const invoiced = invoicedByProduct[line.productId];
-    if (invoiced == null) {
-      throw ApiError.badRequest('Product is not on the linked purchase invoice');
+  const invoicedByProduct = getInvoiceLineMap(pi);
+  const configByProduct = Object.fromEntries(data.lines.map((line) => [line.productId, line]));
+  const pendingUnitsByProduct = pi.units.reduce((acc, unit) => {
+    acc[unit.productId] ||= [];
+    acc[unit.productId].push(unit);
+    return acc;
+  }, {});
+
+  for (const invoiceItem of pi.items) {
+    const config = configByProduct[invoiceItem.productId];
+    const pendingUnits = pendingUnitsByProduct[invoiceItem.productId] || [];
+    if (!config) {
+      throw ApiError.badRequest(`GRN configuration missing for ${invoiceItem.product.code}`);
     }
-    if (line.barcodes.length > invoiced.units) {
-      throw ApiError.badRequest(
-        `Received quantity (${line.barcodes.length}) exceeds invoiced quantity (${invoiced.units}) for product`
-      );
+    if (pendingUnits.length !== invoiceItem.units) {
+      throw ApiError.badRequest('Received quantity must match invoice quantity before confirming GRN');
     }
-    if (Number(line.purchasePrice) !== invoiced.unitPrice) {
+    if (Number(config.purchasePrice) !== Number(invoiceItem.unitPrice)) {
       throw ApiError.badRequest('Purchase price must match purchase invoice unit price');
     }
   }
@@ -154,13 +263,14 @@ export async function completeGrn(data, userId) {
     });
 
     for (const line of data.lines) {
+      const pendingUnits = pendingUnitsByProduct[line.productId] || [];
       const product = await tx.product.findUnique({
         where: { id: line.productId },
         include: { category: true },
       });
       if (!product) throw ApiError.badRequest(`Product not found: ${line.productId}`);
 
-      if (line.barcodes.length === 0) {
+      if (pendingUnits.length === 0) {
         throw ApiError.badRequest(`At least one barcode required for ${product.code}`);
       }
 
@@ -185,17 +295,15 @@ export async function completeGrn(data, userId) {
           costExVat,
           sellingPrice,
           sellingPriceMode: line.sellingPriceMode,
-          units: line.barcodes.length,
+          units: pendingUnits.length,
         },
       });
 
-      for (const barcode of line.barcodes) {
-        const unit = await tx.productUnit.create({
+      for (const pendingUnit of pendingUnits) {
+        const unit = await tx.productUnit.update({
+          where: { id: pendingUnit.id },
           data: {
-            productId: line.productId,
-            barcode,
             grnItemId: grnItem.id,
-            purchaseInvoiceId: data.purchaseInvoiceId || null,
             costPrice: costExVat,
             sellingPrice,
             status: 'IN_STOCK',
@@ -216,6 +324,10 @@ export async function completeGrn(data, userId) {
     }
 
     await updatePoStatusAfterGrn(tx, data.poId);
+    await tx.purchaseInvoice.update({
+      where: { id: data.purchaseInvoiceId },
+      data: { status: 'RECEIVED' },
+    });
 
     return tx.grn.findUnique({ where: { id: grn.id }, include: grnInclude });
   });
@@ -244,6 +356,13 @@ export async function cancelGrn(id, userId, reason) {
           },
         });
       }
+    }
+
+    if (grn.purchaseInvoiceId) {
+      await tx.purchaseInvoice.update({
+        where: { id: grn.purchaseInvoiceId },
+        data: { status: 'PENDING' },
+      });
     }
 
     return tx.grn.update({

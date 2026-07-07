@@ -7,7 +7,19 @@ const grnLineSchema = z.object({
   purchasePrice: z.coerce.number().nonnegative(),
   sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
   sellingPrice: z.coerce.number().nonnegative().optional(),
-  barcodes: z.array(z.string().trim().min(1).max(64)).min(1),
+});
+
+export const reserveGrnBarcodeSchema = z.object({
+  purchaseInvoiceId: z.string().min(1),
+  barcode: z.string().trim().min(1).max(64),
+  productId: z.string().min(1).optional(),
+  categoryId: z.string().min(1).optional().nullable(),
+  description: z.string().trim().max(500).optional().or(z.literal('')),
+  purchasePrice: z.coerce.number().nonnegative(),
+  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
+  sellingPrice: z.coerce.number().nonnegative().optional(),
+  purchaseWithVat: z.boolean().default(false),
+  vatRate: z.coerce.number().nonnegative().optional(),
 });
 
 export const completeGrnSchema = z.object({

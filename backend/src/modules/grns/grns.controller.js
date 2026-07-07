@@ -11,6 +11,16 @@ export const getOne = asyncHandler(async (req, res) => {
   res.json({ data: grn, error: null });
 });
 
+export const reserveBarcode = asyncHandler(async (req, res) => {
+  const unit = await service.reserveGrnBarcode(req.body);
+  res.status(201).json({ data: unit, error: null });
+});
+
+export const removePendingUnit = asyncHandler(async (req, res) => {
+  const result = await service.removePendingGrnUnit(req.params.id);
+  res.json({ data: result, error: null });
+});
+
 export const complete = asyncHandler(async (req, res) => {
   const grn = await service.completeGrn(req.body, req.user.id);
   res.status(201).json({ data: grn, error: null });

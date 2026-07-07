@@ -14,6 +14,18 @@ const piInclude = {
     orderBy: { id: 'asc' },
   },
   grn: { select: { id: true, grnNumber: true, status: true } },
+  units: {
+    select: {
+      id: true,
+      barcode: true,
+      productId: true,
+      status: true,
+      sellingPrice: true,
+      costPrice: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
 };
 
 async function getDefaultVatRate(override) {
@@ -146,6 +158,7 @@ export async function createPurchaseInvoice(data, userId) {
       poId: data.poId,
       supplierId: data.supplierId,
       company: data.company,
+      status: 'PENDING',
       vatEnabled,
       purchaseWithVat,
       vatRate: vatEnabled ? vatRate : 0,
@@ -162,6 +175,9 @@ export async function createPurchaseInvoice(data, userId) {
 export async function updatePurchaseInvoice(id, data) {
   const existing = await getPurchaseInvoice(id);
   if (existing.grn) throw ApiError.conflict('Cannot edit a purchase invoice that already has a GRN');
+  if (existing.units.some((unit) => unit.status === 'PENDING_GRN')) {
+    throw ApiError.conflict('Cannot edit a purchase invoice with barcode scans pending GRN confirmation');
+  }
 
   const vatRate = await getDefaultVatRate(data.vatRate ?? existing.vatRate);
   const { vatEnabled, purchaseWithVat } = resolveVatFlags(data, existing);
@@ -206,6 +222,9 @@ export async function updatePurchaseInvoice(id, data) {
 export async function deletePurchaseInvoice(id) {
   const existing = await getPurchaseInvoice(id);
   if (existing.grn) throw ApiError.conflict('Cannot delete a purchase invoice linked to a GRN');
+  if (existing.units.some((unit) => unit.status === 'PENDING_GRN')) {
+    throw ApiError.conflict('Cannot delete a purchase invoice with barcode scans pending GRN confirmation');
+  }
   await prisma.purchaseInvoice.delete({ where: { id } });
   return { id };
 }

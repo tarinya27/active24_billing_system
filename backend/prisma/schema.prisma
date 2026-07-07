@@ -49,6 +49,11 @@ enum GrnStatus {
   CANCELLED
 }
 
+enum PurchaseInvoiceStatus {
+  PENDING
+  RECEIVED
+}
+
 enum InvoiceStatus {
   DRAFT
   COMPLETED
@@ -68,6 +73,7 @@ enum PaymentMethod {
 }
 
 enum UnitStatus {
+  PENDING_GRN
   IN_STOCK
   SOLD
   RETURNED
@@ -250,6 +256,7 @@ model PurchaseInvoice {
   supplierId        String
   supplier          Supplier       @relation(fields: [supplierId], references: [id])
   company           Company        @default(ACTIVE24)
+  status            PurchaseInvoiceStatus @default(PENDING)
   vatEnabled        Boolean        @default(false)
   purchaseWithVat   Boolean        @default(false)
   vatRate           Decimal        @default(0) @db.Decimal(5, 2)
