@@ -1,10 +1,9 @@
-import { createPortal } from 'react-dom';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
 import { companyInfo as fallbackCompany } from '../../data';
 import BrandLogo from '../ui/BrandLogo';
 
-export default function InvoicePrintView({ invoice, settings, forPrint = false, onClose, onPrint }) {
+export default function InvoicePrintView({ invoice, settings, onClose, onPrint }) {
   if (!invoice) return null;
 
   const company = settings
@@ -22,8 +21,8 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
 
   const content = (
     <div
-      id={forPrint ? 'invoice-print-content' : undefined}
-      className={`invoice-a4 invoice-a4-preview${forPrint ? ' invoice-print-layer hidden print:block' : ''}`}
+      id="invoice-print-content"
+      className="invoice-a4 invoice-a4-preview invoice-print"
     >
       <header className="invoice-header">
         <div className="invoice-header-left">
@@ -150,7 +149,7 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
         <p>Computer Generated Invoice</p>
       </footer>
 
-      {!forPrint && onClose && onPrint && (
+      {!onClose || !onPrint ? null : (
         <div className="no-print invoice-actions">
           <button type="button" onClick={onClose} className="btn-secondary">Close</button>
           <button type="button" onClick={onPrint} className="btn-primary">Print Invoice</button>
@@ -159,6 +158,5 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
     </div>
   );
 
-  if (forPrint) return createPortal(content, document.body);
   return content;
 }

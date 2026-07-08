@@ -289,12 +289,13 @@
     overflow: visible !important;
   }
 
-  body * {
+  /* Scoped to PO print only — do not hide other printable documents */
+  body:has(#po-print-content) * {
     visibility: hidden !important;
   }
 
-  #po-print-content,
-  #po-print-content * {
+  body:has(#po-print-content) #po-print-content,
+  body:has(#po-print-content) #po-print-content * {
     visibility: visible !important;
   }
 

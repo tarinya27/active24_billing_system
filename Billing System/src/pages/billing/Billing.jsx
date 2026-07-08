@@ -13,6 +13,7 @@ import { stockApi, invoicesApi, settingsApi, PAYMENT_METHOD_API, PAYMENT_METHOD_
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { calculateInvoiceTotals } from '../../utils/invoiceCalculations';
+import { printElement } from '../../utils/printDocument';
 import { formatCurrency } from '../../utils/helpers';
 import { PAYMENT_METHODS, CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
 
@@ -45,6 +46,17 @@ export default function Billing() {
     loadCustomers();
     settingsApi.get().then(setSettings).catch(() => {});
   }, [loadCustomers]);
+
+  useEffect(() => {
+    if (!showPreview || !generatedInvoice || !settings?.autoPrint) return undefined;
+    const timer = setTimeout(() => {
+      printElement('invoice-print-content').catch((err) => {
+        console.error(err);
+        toast.error('Could not open print preview. Try Print Invoice again.');
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showPreview, generatedInvoice, settings?.autoPrint]);
 
   const customer = customers.find((c) => c.id === selectedCustomer);
   const isWalkInCustomer = customer?.type === 'WALK_IN' && customer?.name === 'Walk-in Customer';
@@ -149,7 +161,6 @@ export default function Billing() {
       setCartItems([]);
       setLastScanned(null);
       toast.success('Invoice generated successfully!');
-      if (settings?.autoPrint) setTimeout(() => window.print(), 300);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to create invoice'));
     } finally {
@@ -157,7 +168,12 @@ export default function Billing() {
     }
   };
 
-  const handlePrint = () => setTimeout(() => window.print(), 150);
+  const handlePrint = () => {
+    printElement('invoice-print-content').catch((err) => {
+      console.error(err);
+      toast.error('Could not open print preview. Please try again.');
+    });
+  };
 
   const openInvoicePreview = async (invoice) => {
     try {
@@ -355,10 +371,6 @@ export default function Billing() {
           </div>
         )}
       </Modal>
-
-      {generatedInvoice && showPreview && (
-        <InvoicePrintView invoice={generatedInvoice} settings={settings} forPrint />
-      )}
 
       <PreviousInvoicesDrawer
         isOpen={showPreviousInvoices}
