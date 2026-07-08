@@ -17,41 +17,66 @@
 .invoice-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 32px;
-  padding-bottom: 18px;
+  align-items: center;
+  gap: 28px;
+  padding-bottom: 22px;
   border-bottom: 2px solid #1d4ed8;
   margin-bottom: 24px;
 }
 
 .invoice-header-left {
-  flex: 1;
-  max-width: 55%;
+  flex: 1 1 50%;
+  max-width: 50%;
+  min-width: 0;
 }
 
 .invoice-brand {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
 }
 
 .invoice-logo-wrap {
-  width: 96px;
-  height: 96px;
-  border-radius: 16px;
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
-  border: 1px solid #dbe4f0;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   flex-shrink: 0;
 }
 
-.invoice-company-details {
-  margin-bottom: 0;
-  padding-left: 110px;
+.invoice-company-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 0;
+}
+
+.invoice-company-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.invoice-company-address,
+.invoice-company-phone,
+.invoice-company-email {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #64748b;
 }
 
 .invoice-meta-grid.invoice-meta-grid--bill-to {
@@ -93,70 +118,78 @@
 }
 
 .invoice-title-block {
-  text-align: right;
-  min-width: 240px;
-  align-self: flex-start;
-  margin-left: auto;
+  flex: 1 1 50%;
+  max-width: 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  text-align: center;
 }
 
 .invoice-details-block {
-  margin-top: 12px;
-  text-align: right;
+  margin-top: 8px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .invoice-details-block .invoice-label {
-  margin-bottom: 6px;
+  margin: 0 0 6px;
+  width: 100%;
+  text-align: center;
+}
+
+.invoice-details-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 24px;
+  row-gap: 7px;
+  justify-content: center;
+  width: fit-content;
 }
 
 .invoice-detail-line {
-  display: flex;
-  justify-content: flex-end;
-  gap: 20px;
+  display: contents;
+}
+
+.invoice-detail-label {
   font-size: 11px;
-  color: #334155;
-  margin-bottom: 4px;
-}
-
-.invoice-detail-line span:first-child {
+  font-weight: 500;
+  line-height: 1.45;
   color: #64748b;
-  min-width: 56px;
   text-align: right;
+  white-space: nowrap;
 }
 
-.invoice-detail-line span:last-child {
+.invoice-detail-value {
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.45;
   color: #0f172a;
-  min-width: 100px;
-  text-align: right;
+  text-align: left;
+  min-width: 108px;
 }
 
 .invoice-title-block .invoice-credit-note {
-  margin-top: 8px;
-  text-align: right;
+  margin: 6px 0 0;
+  text-align: center;
   font-size: 11px;
+  color: #64748b;
 }
 
 .invoice-logo {
-  width: 78px;
-  height: 78px;
+  width: 72px;
+  height: 72px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
-.invoice-company-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.2;
-}
-
-.invoice-tagline {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
 .invoice-title {
+  margin: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -165,10 +198,11 @@
 }
 
 .invoice-number {
+  margin: 5px 0 0;
   font-size: 22px;
   font-weight: 700;
   color: #1d4ed8;
-  margin-top: 6px;
+  line-height: 1.15;
 }
 
 .invoice-meta-grid {
@@ -480,31 +514,48 @@
     display: flex !important;
     flex-direction: row !important;
     justify-content: space-between !important;
-    align-items: flex-start !important;
+    align-items: center !important;
+    gap: 28px !important;
+    padding-bottom: 22px !important;
   }
 
   #invoice-print-content .invoice-header-left {
-    max-width: 55% !important;
-    flex: 1 !important;
+    max-width: 50% !important;
+    flex: 1 1 50% !important;
   }
 
   #invoice-print-content .invoice-title-block {
-    text-align: right !important;
-    min-width: 240px !important;
-    margin-left: auto !important;
+    max-width: 50% !important;
+    flex: 1 1 50% !important;
+    align-items: center !important;
+    text-align: center !important;
+    margin-left: 0 !important;
     width: auto !important;
   }
 
   #invoice-print-content .invoice-details-block {
-    text-align: right !important;
+    text-align: center !important;
+    align-items: center !important;
+    margin-top: 8px !important;
   }
 
-  #invoice-print-content .invoice-detail-line {
-    justify-content: flex-end !important;
+  #invoice-print-content .invoice-details-grid {
+    justify-content: center !important;
   }
 
-  #invoice-print-content .invoice-company-details {
-    padding-left: 110px !important;
+  #invoice-print-content .invoice-brand {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  #invoice-print-content .invoice-company-info {
+    gap: 7px !important;
+    padding-bottom: 0 !important;
+  }
+
+  #invoice-print-content .invoice-company-name {
+    margin-bottom: 0 !important;
   }
 
   #invoice-print-content .invoice-meta-grid {
@@ -598,14 +649,23 @@
 @media screen and (max-width: 768px) {
   .invoice-header {
     flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
   }
 
   .invoice-header-left {
     max-width: 100%;
+    flex: 1 1 auto;
   }
 
-  .invoice-company-details {
-    padding-left: 0;
+  .invoice-title-block {
+    max-width: 100%;
+    flex: 1 1 auto;
+    align-items: center;
+  }
+
+  .invoice-brand {
+    gap: 14px;
   }
 
   .invoice-meta-grid.invoice-meta-grid--bill-to {
@@ -617,30 +677,6 @@
     flex: 1 1 auto;
     width: 100%;
     max-width: 100%;
-  }
-
-  .invoice-title-block {
-    text-align: left;
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .invoice-details-block {
-    text-align: left;
-  }
-
-  .invoice-detail-line {
-    justify-content: space-between;
-  }
-
-  .invoice-detail-line span:first-child,
-  .invoice-detail-line span:last-child {
-    text-align: left;
-    min-width: auto;
-  }
-
-  .invoice-title-block .invoice-credit-note {
-    text-align: left;
   }
 
   .invoice-bottom {

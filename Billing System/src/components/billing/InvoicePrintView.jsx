@@ -31,14 +31,14 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
             <div className="invoice-logo-wrap">
               <BrandLogo className="invoice-logo" alt={`${company.name} logo`} />
             </div>
-            <div>
+            <div className="invoice-company-info">
               <h1 className="invoice-company-name">{company.name}</h1>
-              <p className="invoice-tagline">{company.tagline}</p>
+              <p className="invoice-company-address">{company.address}</p>
+              <p className="invoice-company-phone">{company.phone}</p>
+              {company.email && (
+                <p className="invoice-company-email">{company.email}</p>
+              )}
             </div>
-          </div>
-          <div className="invoice-company-details">
-            <p className="invoice-meta-muted">{company.address}</p>
-            <p className="invoice-meta-muted">{company.phone} • {company.email}</p>
           </div>
         </div>
         <div className="invoice-title-block">
@@ -46,9 +46,20 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
           <p className="invoice-number">{invoice.invoiceNumber}</p>
           <div className="invoice-details-block">
             <p className="invoice-label">Invoice Details</p>
-            <p className="invoice-detail-line"><span>Date</span><span>{formatDate(invoice.date || invoice.createdAt)}</span></p>
-            <p className="invoice-detail-line"><span>Cashier</span><span>{invoice.cashier?.name || invoice.cashier || '—'}</span></p>
-            <p className="invoice-detail-line"><span>Payment</span><span>{invoice.paymentMethod}</span></p>
+            <div className="invoice-details-grid">
+              <p className="invoice-detail-line">
+                <span className="invoice-detail-label">Date</span>
+                <span className="invoice-detail-value">{formatDate(invoice.date || invoice.createdAt)}</span>
+              </p>
+              <p className="invoice-detail-line">
+                <span className="invoice-detail-label">Cashier</span>
+                <span className="invoice-detail-value">{invoice.cashier?.name || invoice.cashier || '—'}</span>
+              </p>
+              <p className="invoice-detail-line">
+                <span className="invoice-detail-label">Payment</span>
+                <span className="invoice-detail-value">{invoice.paymentMethod}</span>
+              </p>
+            </div>
             {invoice.paymentMethod === 'Credit' && (
               <p className="invoice-credit-note">Payment due within {CREDIT_PAYMENT_TERM_DAYS} days</p>
             )}
