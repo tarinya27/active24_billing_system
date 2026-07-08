@@ -47,18 +47,12 @@ export default function InvoicePrintView({ invoice, settings, forPrint = false, 
           <div className="invoice-details-block">
             <p className="invoice-label">Invoice Details</p>
             <div className="invoice-details-grid">
-              <p className="invoice-detail-line">
-                <span className="invoice-detail-label">Date</span>
-                <span className="invoice-detail-value">{formatDate(invoice.date || invoice.createdAt)}</span>
-              </p>
-              <p className="invoice-detail-line">
-                <span className="invoice-detail-label">Cashier</span>
-                <span className="invoice-detail-value">{invoice.cashier?.name || invoice.cashier || '—'}</span>
-              </p>
-              <p className="invoice-detail-line">
-                <span className="invoice-detail-label">Payment</span>
-                <span className="invoice-detail-value">{invoice.paymentMethod}</span>
-              </p>
+              <span className="invoice-detail-label">Date</span>
+              <span className="invoice-detail-value">{formatDate(invoice.date || invoice.createdAt)}</span>
+              <span className="invoice-detail-label">Cashier</span>
+              <span className="invoice-detail-value">{invoice.cashier?.name || invoice.cashier || '—'}</span>
+              <span className="invoice-detail-label">Payment</span>
+              <span className="invoice-detail-value">{invoice.paymentMethod}</span>
             </div>
             {invoice.paymentMethod === 'Credit' && (
               <p className="invoice-credit-note">Payment due within {CREDIT_PAYMENT_TERM_DAYS} days</p>
