@@ -4,6 +4,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 import { nextInvoiceNumber } from '../../utils/documentNumbers.js';
 import { CREDIT_TERM_DAYS } from '../../utils/enums.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
+import { resolvePoNumberFromUnits, resolveSupplierTinFromUnits } from '../../utils/invoicePrintMeta.js';
 
 const invoiceInclude = {
   customer: true,
@@ -34,6 +35,54 @@ function serializeInvoice(inv) {
       warrantyMonths: item.warrantyMonths ?? null,
     })),
     payments: inv.payments?.map((p) => ({ ...p, amount: Number(p.amount) })) || [],
+  };
+}
+
+const invoicePrintUnitInclude = {
+  product: {
+    select: {
+      supplier: { select: { vatRegistrationNo: true } },
+    },
+  },
+  grnItem: {
+    select: {
+      grn: {
+        select: {
+          po: { select: { poNumber: true } },
+          supplier: { select: { vatRegistrationNo: true } },
+          purchaseInvoice: {
+            select: {
+              po: { select: { poNumber: true } },
+              supplier: { select: { vatRegistrationNo: true } },
+            },
+          },
+        },
+      },
+    },
+  },
+  purchaseInvoice: {
+    select: {
+      po: { select: { poNumber: true } },
+      supplier: { select: { vatRegistrationNo: true } },
+    },
+  },
+};
+
+async function enrichInvoicePrintMeta(invoice) {
+  const unitIds = invoice.items.map((item) => item.productUnitId).filter(Boolean);
+  if (!unitIds.length) {
+    return { ...invoice, poNumber: null, supplierTin: null };
+  }
+
+  const units = await prisma.productUnit.findMany({
+    where: { id: { in: unitIds } },
+    include: invoicePrintUnitInclude,
+  });
+
+  return {
+    ...invoice,
+    poNumber: resolvePoNumberFromUnits(units),
+    supplierTin: resolveSupplierTinFromUnits(units),
   };
 }
 
@@ -85,7 +134,7 @@ export async function getInvoice(id, user) {
     throw ApiError.forbidden('You can only view your own invoices');
   }
 
-  return serializeInvoice(invoice);
+  return enrichInvoicePrintMeta(serializeInvoice(invoice));
 }
 
 export async function createInvoice(payload, userId) {
@@ -101,7 +150,7 @@ export async function createInvoice(payload, userId) {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const vatRate = settings?.vatEnabled ? Number(settings.vatRate || 0) / 100 : 0;
 
-  return prisma.$transaction(async (tx) => {
+  const invoice = await prisma.$transaction(async (tx) => {
     const units = await tx.productUnit.findMany({
       where: { barcode: { in: barcodes } },
       include: {
@@ -211,8 +260,10 @@ export async function createInvoice(payload, userId) {
       },
     });
 
-    return serializeInvoice(invoice);
+    return invoice;
   });
+
+  return enrichInvoicePrintMeta(serializeInvoice(invoice));
 }
 
 export async function settleCredit(id, payload, userId) {

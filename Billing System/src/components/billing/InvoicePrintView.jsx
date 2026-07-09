@@ -1,5 +1,6 @@
 import BrandLogo from '../ui/BrandLogo';
 import { formatWarrantyLabel } from '../../utils/warranty';
+import { displayTaxInvoiceField } from '../../utils/invoicePrintMeta';
 
 const COMPANY_NAME = 'Active24 (Pvt) Ltd';
 const COMPANY_ADDRESS = 'No: 92, Jambugasmulla Road, Nugegoda';
@@ -7,7 +8,6 @@ const COMPANY_PHONE = '(011) 255 2245';
 const COMPANY_EMAIL = 'active24.pvt.ltd@gmail.com';
 const COMPANY_BANK = 'ACTIVE24 (PVT) LTD. Bank of Ceylon, Thimbirigasyay Branch Current A/C No: 085063686';
 const COMPANY_VAT_REG = '—';
-const SUPPLIER_TIN = '—';
 
 function formatShortDate(date) {
   if (!date) return '—';
@@ -71,8 +71,9 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
   const invoiceDate = formatShortDate(invoice.date || invoice.createdAt);
   const dateOfSupply = invoiceDate;
 
-  const poNo = invoice.poNumber || invoice.po?.poNumber || '—';
+  const poNo = displayTaxInvoiceField(invoice.poNumber || invoice.po?.poNumber);
   const sofNo = invoice.sofNo || '—';
+  const supplierTin = displayTaxInvoiceField(invoice.supplierTin);
   const purchaserTin = invoice.customer?.tin || invoice.customer?.vatNo || '—';
 
   const placeOfSupplyLines = [
@@ -150,7 +151,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
         </div>
         <div className="tax-left-info-row">
           <span className="tax-left-info-label">Supplier&apos;s TIN</span>
-          <span className="tax-left-info-value">{SUPPLIER_TIN}</span>
+          <span className="tax-left-info-value">{supplierTin}</span>
         </div>
         <div className="tax-left-info-row">
           <span className="tax-left-info-label">Telephone</span>

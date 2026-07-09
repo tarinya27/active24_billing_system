@@ -23,6 +23,7 @@ const unitLookupInclude = {
       name: true,
       company: true,
       category: { select: { id: true, name: true } },
+      supplier: { select: { vatRegistrationNo: true } },
     },
   },
   grnItem: {
@@ -36,6 +37,7 @@ const unitLookupInclude = {
         select: {
           grnNumber: true,
           po: { select: { poNumber: true } },
+          supplier: { select: { vatRegistrationNo: true } },
           purchaseInvoice: { select: { id: true, supplierInvoiceNo: true } },
         },
       },
@@ -46,6 +48,7 @@ const unitLookupInclude = {
       id: true,
       supplierInvoiceNo: true,
       po: { select: { poNumber: true } },
+      supplier: { select: { vatRegistrationNo: true } },
     },
   },
 };
@@ -54,6 +57,12 @@ function mapUnitForSale(unit) {
   const grn = unit.grnItem?.grn;
   const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
   const warrantyMonths = unit.warrantyMonths ?? unit.grnItem?.warrantyMonths ?? null;
+  const supplierTin = (
+    grn?.supplier?.vatRegistrationNo
+    || pi?.supplier?.vatRegistrationNo
+    || unit.product?.supplier?.vatRegistrationNo
+    || null
+  );
   return {
     ...unit,
     saleDetails: {
@@ -65,6 +74,7 @@ function mapUnitForSale(unit) {
       poNumber: grn?.po?.poNumber || pi?.po?.poNumber || null,
       purchaseInvoiceNo: pi?.supplierInvoiceNo || null,
       warrantyMonths,
+      supplierTin: supplierTin ? String(supplierTin).trim() : null,
     },
   };
 }

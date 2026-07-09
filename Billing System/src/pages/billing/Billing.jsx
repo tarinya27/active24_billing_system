@@ -16,7 +16,10 @@ import { calculateInvoiceTotals } from '../../utils/invoiceCalculations';
 import { printElement } from '../../utils/printDocument';
 import { formatCurrency } from '../../utils/helpers';
 import { PAYMENT_METHODS, CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
-import { formatWarrantyLabel } from '../../utils/warranty';
+import {
+  resolveTaxInvoicePoNumber,
+  resolveTaxInvoiceSupplierTin,
+} from '../../utils/invoicePrintMeta';
 
 export default function Billing() {
   const { user } = useAuth();
@@ -98,8 +101,9 @@ export default function Billing() {
         description: details.description || unit.product?.name,
         purchasePrice: details.purchasePrice ?? Number(unit.costPrice ?? 0),
         grnNumber: details.grnNumber || '—',
-        poNumber: details.poNumber || '—',
+        poNumber: details.poNumber || null,
         purchaseInvoiceNo: details.purchaseInvoiceNo || '—',
+        supplierTin: details.supplierTin || null,
         warrantyMonths: details.warrantyMonths ?? null,
         unitPrice: Number(details.sellingPrice ?? unit.sellingPrice),
         discount: 0,
@@ -148,6 +152,8 @@ export default function Billing() {
         cashier: invoice.cashier?.name || user?.name,
         paymentMethod: PAYMENT_METHOD_LABEL[invoice.paymentMethod] || invoice.paymentMethod,
         customer,
+        poNumber: invoice.poNumber ?? resolveTaxInvoicePoNumber(cartItems),
+        supplierTin: invoice.supplierTin ?? resolveTaxInvoiceSupplierTin(cartItems),
         items: invoice.items.map((item) => ({
           productId: item.productId,
           productName: item.product?.name,
@@ -188,6 +194,8 @@ export default function Billing() {
         cashier: full.cashier?.name,
         paymentMethod: PAYMENT_METHOD_LABEL[full.paymentMethod] || full.paymentMethod,
         customer: invCustomer,
+        poNumber: full.poNumber ?? null,
+        supplierTin: full.supplierTin ?? null,
         items: full.items.map((item) => ({
           productId: item.productId,
           productName: item.product?.name,
