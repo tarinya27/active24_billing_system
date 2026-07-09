@@ -773,3 +773,313 @@
     gap: 28px;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Traditional Tax Invoice — matches reference sample layout               */
+/* -------------------------------------------------------------------------- */
+
+.tax-invoice-legacy {
+  width: 100%;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  line-height: 1.2;
+}
+
+.tax-invoice-legacy * {
+  box-sizing: border-box;
+}
+
+/* Header */
+.tax-header {
+  display: grid;
+  grid-template-columns: 1fr 72mm;
+  column-gap: 4mm;
+  align-items: start;
+  margin-bottom: 2mm;
+}
+
+.tax-header-left {
+  display: flex;
+  gap: 3mm;
+  align-items: flex-start;
+}
+
+.tax-logo-wrap {
+  width: 20mm;
+  height: 20mm;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #000;
+}
+
+.tax-logo {
+  width: 17mm;
+  height: 17mm;
+  object-fit: contain;
+}
+
+.tax-company-name {
+  font-size: 13pt;
+  font-weight: 700;
+  margin-bottom: 1mm;
+}
+
+.tax-company-address {
+  font-size: 10pt;
+  line-height: 1.25;
+}
+
+.tax-header-right {
+  text-align: right;
+}
+
+.tax-title {
+  font-size: 16pt;
+  font-weight: 700;
+  margin-bottom: 1mm;
+}
+
+.tax-vat-reg {
+  font-size: 9pt;
+  margin-bottom: 1.5mm;
+}
+
+.tax-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  font-size: 9pt;
+}
+
+.tax-info-table td {
+  border: 1px solid #000;
+  padding: 0.8mm 1.5mm;
+  vertical-align: middle;
+}
+
+.tax-info-label {
+  width: 38%;
+  text-align: left;
+}
+
+.tax-info-label-top {
+  vertical-align: top;
+}
+
+.tax-info-value-multiline {
+  text-align: left;
+  line-height: 1.2;
+}
+
+/* Left info block */
+.tax-left-info {
+  width: 62%;
+  margin-bottom: 2mm;
+}
+
+.tax-left-info-row {
+  display: grid;
+  grid-template-columns: 42mm 1fr;
+  font-size: 10pt;
+  line-height: 1.35;
+  margin-bottom: 0.5mm;
+}
+
+/* Main items + totals table (single unified table) */
+.tax-main-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  table-layout: fixed;
+  margin-bottom: 2mm;
+}
+
+.tax-main-table th,
+.tax-main-table td {
+  border: 1px solid #000;
+  padding: 1mm 1.5mm;
+  vertical-align: top;
+  font-size: 9.5pt;
+}
+
+.tax-main-table thead th {
+  background: #d9d9d9;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  padding: 1.2mm 1mm;
+}
+
+.tax-col-item {
+  width: 18mm;
+  text-align: left;
+}
+
+.tax-col-desc {
+  width: auto;
+  text-align: left;
+}
+
+.tax-col-qty {
+  width: 16mm;
+  text-align: center;
+}
+
+.tax-col-price {
+  width: 22mm;
+  text-align: right;
+}
+
+.tax-col-amount {
+  width: 32mm;
+  text-align: right;
+}
+
+.tax-row-empty td {
+  height: 7mm;
+}
+
+.tax-row-total td,
+.tax-row-payment td {
+  vertical-align: middle;
+}
+
+.tax-cheque-cell {
+  text-align: left;
+  font-size: 9.5pt;
+  padding: 1.5mm;
+}
+
+.tax-total-label-cell {
+  text-align: center;
+  font-size: 9pt;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.tax-total-value-cell {
+  text-align: right;
+  font-weight: 700;
+  font-size: 11pt;
+  white-space: nowrap;
+}
+
+.tax-payment-label-cell {
+  font-weight: 400;
+  padding: 1.2mm 1.5mm;
+}
+
+.tax-payment-value-cell {
+  padding: 1.2mm 1.5mm;
+}
+
+/* Bank details */
+.tax-bank-row {
+  text-align: center;
+  font-size: 9pt;
+  margin: 2mm 0 3mm;
+}
+
+/* Signature block */
+.tax-signature-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  table-layout: fixed;
+}
+
+.tax-signature-table td {
+  border: 1px solid #000;
+  padding: 0;
+  vertical-align: top;
+}
+
+.tax-sig-customer-block {
+  width: 40%;
+}
+
+.tax-sig-company-block {
+  width: 60%;
+}
+
+.tax-sig-customer-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 28mm;
+}
+
+.tax-sig-customer-name-area {
+  flex: 1;
+  padding: 1.5mm 2mm;
+  border-bottom: 1px solid #000;
+}
+
+.tax-sig-customer-sign-area {
+  padding: 1.5mm 2mm;
+  min-height: 12mm;
+}
+
+.tax-sig-company-title {
+  text-align: center;
+  font-size: 9pt;
+  padding: 1.5mm 2mm;
+  border-bottom: 1px solid #000;
+}
+
+.tax-sig-company-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  min-height: 24mm;
+}
+
+.tax-sig-company-col {
+  padding: 1.5mm 2mm;
+  border-right: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.tax-sig-company-col:last-child {
+  border-right: none;
+}
+
+.tax-sig-label {
+  font-size: 9pt;
+  margin-bottom: 1mm;
+}
+
+.tax-sig-name {
+  flex: 1;
+  font-size: 9.5pt;
+  min-height: 6mm;
+}
+
+.tax-sig-line {
+  border-bottom: 1px solid #000;
+  min-height: 8mm;
+  margin-top: auto;
+}
+
+@media print {
+  .tax-invoice-legacy {
+    font-size: 9.5pt;
+  }
+
+  .tax-header,
+  .tax-left-info,
+  .tax-main-table,
+  .tax-bank-row,
+  .tax-signature-table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .tax-main-table thead {
+    background: #d9d9d9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

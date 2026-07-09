@@ -1,153 +1,283 @@
-import { formatCurrency, formatDate } from '../../utils/helpers';
-import { CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
-import { companyInfo as fallbackCompany } from '../../data';
 import BrandLogo from '../ui/BrandLogo';
 
-export default function InvoicePrintView({ invoice, settings, onClose, onPrint }) {
+const COMPANY_NAME = 'Active24 (Pvt) Ltd';
+const COMPANY_ADDRESS = 'No: 92, Jambugasmulla Road, Nugegoda';
+const COMPANY_PHONE = '(011) 255 2245';
+const COMPANY_EMAIL = 'active24.pvt.ltd@gmail.com';
+const COMPANY_BANK = 'ACTIVE24 (PVT) LTD. Bank of Ceylon, Thimbirigasyay Branch Current A/C No: 085063686';
+const COMPANY_VAT_REG = '—';
+const SUPPLIER_TIN = '—';
+
+function formatShortDate(date) {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+}
+
+function formatNumber(amount) {
+  const n = Number(amount ?? 0);
+  return new Intl.NumberFormat('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+function formatRs(amount) {
+  return `Rs${formatNumber(amount)}`;
+}
+
+function numberToWordsEnglish(n) {
+  const ones = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const under1000 = (x) => {
+    if (x === 0) return '';
+    const parts = [];
+    const hundreds = Math.floor(x / 100);
+    const rest = x % 100;
+    if (hundreds > 0) parts.push(`${ones[hundreds]} Hundred`);
+    if (rest > 0) {
+      if (rest < 10) parts.push(ones[rest]);
+      else if (rest < 20) parts.push(teens[rest - 10]);
+      else {
+        const t = Math.floor(rest / 10);
+        const o = rest % 10;
+        parts.push(tens[t] + (o ? ` ${ones[o]}` : ''));
+      }
+    }
+    return parts.join(' ');
+  };
+
+  const million = Math.floor(n / 1_000_000);
+  const thousand = Math.floor((n % 1_000_000) / 1_000);
+  const rest = n % 1_000;
+  const segments = [];
+  if (million) segments.push(`${under1000(million)} Million`);
+  if (thousand) segments.push(`${under1000(thousand)} Thousand`);
+  if (rest) segments.push(under1000(rest));
+  return segments.length ? segments.join(' ') : 'Zero';
+}
+
+function amountInWords(amount) {
+  return `${numberToWordsEnglish(Math.floor(Number(amount ?? 0)))}.`;
+}
+
+function shouldShowWarranty(productName = '') {
+  const s = productName.toLowerCase();
+  return s.includes('adapter') || s.includes('laptop') || s.includes('power') || s.includes('dell');
+}
+
+export default function InvoicePrintView({ invoice, settings: _settings, onClose, onPrint }) {
   if (!invoice) return null;
 
-  const company = settings
-    ? {
-        name: settings.companyName,
-        tagline: 'Billing & Inventory',
-        address: settings.companyAddress,
-        phone: settings.companyPhone,
-        email: settings.companyEmail,
-        website: 'active24.lk',
-        registrationNo: '—',
-        vatNo: '—',
-      }
-    : fallbackCompany;
+  const invoiceDate = formatShortDate(invoice.date || invoice.createdAt);
+  const dateOfSupply = invoiceDate;
 
-  const content = (
-    <div
-      id="invoice-print-content"
-      className="invoice-a4 invoice-a4-preview invoice-print"
-    >
-      <header className="invoice-header">
-        <div className="invoice-header-left">
-          <div className="invoice-brand">
-            <div className="invoice-logo-wrap">
-              <BrandLogo className="invoice-logo" alt={`${company.name} logo`} />
-            </div>
-            <div className="invoice-company-info">
-              <h1 className="invoice-company-name">{company.name}</h1>
-              <p className="invoice-company-address">{company.address}</p>
-              <p className="invoice-company-phone">{company.phone}</p>
-              {company.email && (
-                <p className="invoice-company-email">{company.email}</p>
-              )}
-            </div>
+  const poNo = invoice.poNumber || invoice.po?.poNumber || '—';
+  const sofNo = invoice.sofNo || '—';
+  const purchaserTin = invoice.customer?.tin || invoice.customer?.vatNo || '—';
+
+  const placeOfSupplyLines = [
+    invoice.customer?.name,
+    invoice.customer?.address,
+    purchaserTin !== '—' ? `VAT Registration No. ${purchaserTin}` : null,
+  ].filter(Boolean);
+
+  const items = Array.isArray(invoice.items) ? invoice.items : [];
+  const emptyRowCount = Math.max(12 - items.length, 8);
+
+  const paymentModeLabel = (() => {
+    const m = (invoice.paymentMethod || '').toLowerCase();
+    if (!m) return '—';
+    if (m.includes('cash') || m.includes('card')) return 'Immidiatly';
+    if (m.includes('bank')) return 'Bank Transfer';
+    if (m.includes('credit')) return 'Credit';
+    return invoice.paymentMethod;
+  })();
+
+  const customerName = invoice.customer?.name || '—';
+  const preparedBy = invoice.cashier?.name || invoice.cashier || '—';
+
+  return (
+    <div id="invoice-print-content" className="invoice-a4 invoice-a4-preview invoice-print tax-invoice-legacy">
+      <div className="tax-header">
+        <div className="tax-header-left">
+          <div className="tax-logo-wrap">
+            <BrandLogo className="tax-logo" alt="Active24 logo" />
+          </div>
+          <div className="tax-company-block">
+            <div className="tax-company-name">{COMPANY_NAME}</div>
+            <div className="tax-company-address">{COMPANY_ADDRESS}</div>
           </div>
         </div>
-        <div className="invoice-title-block">
-          <p className="invoice-title">TAX INVOICE</p>
-          <p className="invoice-number">{invoice.invoiceNumber}</p>
-          <div className="invoice-details-block">
-            <p className="invoice-label">Invoice Details</p>
-            <div className="invoice-details-grid">
-              <span className="invoice-detail-label">Date</span>
-              <span className="invoice-detail-value">{formatDate(invoice.date || invoice.createdAt)}</span>
-              <span className="invoice-detail-label">Cashier</span>
-              <span className="invoice-detail-value">{invoice.cashier?.name || invoice.cashier || '—'}</span>
-              <span className="invoice-detail-label">Payment</span>
-              <span className="invoice-detail-value">{invoice.paymentMethod}</span>
-            </div>
-            {invoice.paymentMethod === 'Credit' && (
-              <p className="invoice-credit-note">Payment due within {CREDIT_PAYMENT_TERM_DAYS} days</p>
-            )}
-          </div>
-        </div>
-      </header>
 
-      <div className="invoice-meta-grid invoice-meta-grid--bill-to">
-        <div className="invoice-meta-card invoice-meta-card--bill">
-          <p className="invoice-label">Bill To</p>
-          <p className="invoice-meta-value">{invoice.customer?.name}</p>
-          <p className="invoice-meta-muted">{invoice.customer?.mobile}</p>
-          <p className="invoice-meta-muted">{invoice.customer?.address}</p>
-        </div>
-        <div className="invoice-meta-card invoice-meta-card--company">
-          <p className="invoice-label">Company Details</p>
-          <p className="invoice-meta-row"><span>Registration No.</span><span>{company.registrationNo || '—'}</span></p>
-          <p className="invoice-meta-row"><span>VAT No.</span><span>{company.vatNo || '—'}</span></p>
-          <p className="invoice-meta-row"><span>Reference</span><span>{invoice.invoiceNumber}</span></p>
+        <div className="tax-header-right">
+          <div className="tax-title">Tax Invoice</div>
+          <div className="tax-vat-reg">VAT Reg No. {COMPANY_VAT_REG}</div>
+          <table className="tax-info-table">
+            <tbody>
+              <tr>
+                <td className="tax-info-label">P.O No.</td>
+                <td className="tax-info-value">{poNo}</td>
+              </tr>
+              <tr>
+                <td className="tax-info-label">SOF No.</td>
+                <td className="tax-info-value">{sofNo}</td>
+              </tr>
+              <tr>
+                <td className="tax-info-label">Tax Invoice #</td>
+                <td className="tax-info-value">{invoice.invoiceNumber}</td>
+              </tr>
+              <tr>
+                <td className="tax-info-label">Purchaser&apos;s TIN</td>
+                <td className="tax-info-value">{purchaserTin}</td>
+              </tr>
+              <tr>
+                <td className="tax-info-label tax-info-label-top">Place of Supply</td>
+                <td className="tax-info-value tax-info-value-multiline">
+                  {placeOfSupplyLines.length > 0
+                    ? placeOfSupplyLines.map((line) => <div key={line}>{line}</div>)
+                    : 'Sri Lanka'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <table className="invoice-table">
+      <div className="tax-left-info">
+        <div className="tax-left-info-row">
+          <span className="tax-left-info-label">Date of Invoice</span>
+          <span className="tax-left-info-value">{invoiceDate}</span>
+        </div>
+        <div className="tax-left-info-row">
+          <span className="tax-left-info-label">Supplier&apos;s TIN</span>
+          <span className="tax-left-info-value">{SUPPLIER_TIN}</span>
+        </div>
+        <div className="tax-left-info-row">
+          <span className="tax-left-info-label">Telephone</span>
+          <span className="tax-left-info-value">{COMPANY_PHONE}</span>
+        </div>
+        <div className="tax-left-info-row">
+          <span className="tax-left-info-label">E-mail</span>
+          <span className="tax-left-info-value">{COMPANY_EMAIL}</span>
+        </div>
+        <div className="tax-left-info-row">
+          <span className="tax-left-info-label">Date of Supply</span>
+          <span className="tax-left-info-value">{dateOfSupply}</span>
+        </div>
+      </div>
+
+      <table className="tax-main-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Product</th>
-            <th>Barcode</th>
-            <th className="text-right">Unit Price</th>
-            <th className="text-right">Discount</th>
-            <th className="text-right">Amount</th>
+            <th className="tax-col-item">Item</th>
+            <th className="tax-col-desc">Description of Good or Services</th>
+            <th className="tax-col-qty">Quantity</th>
+            <th className="tax-col-price">Unit Price</th>
+            <th className="tax-col-amount">Amount Excluding VAT (Rs.)</th>
           </tr>
         </thead>
         <tbody>
-          {invoice.items.map((item, index) => {
-            const name = item.productName || item.product?.name;
-            const code = item.productCode || item.product?.code;
-            const lineTotal = item.unitPrice * (item.quantity || 1);
-            const finalTotal = lineTotal - (item.discount || 0);
+          {items.map((it, i) => {
+            const qty = it.quantity ?? 1;
+            const discount = Number(it.discount ?? 0);
+            const lineBase = Number(it.unitPrice ?? 0) * Number(qty);
+            const amountExVat = lineBase - discount;
+            const productName = it.productName || it.product?.name || '—';
+            const serialOrBarcode = it.barcode || it.serialNumber || '';
+
             return (
-              <tr key={item.barcode || item.productId || index}>
-                <td>{index + 1}</td>
-                <td>
-                  <span className="invoice-product-name">{name}</span>
-                  <span className="invoice-product-code">{code}</span>
+              <tr key={it.barcode || it.productId || i}>
+                <td className="tax-col-item">{it.productCode || 'Others'}</td>
+                <td className="tax-col-desc">
+                  <div>{productName}</div>
+                  {shouldShowWarranty(productName) && <div>6 Months Warranty</div>}
+                  {serialOrBarcode && <div>S/N - {serialOrBarcode}</div>}
                 </td>
-                <td className="font-mono text-xs">{item.barcode || item.productUnit?.barcode || '—'}</td>
-                <td className="text-right">{formatCurrency(item.unitPrice)}</td>
-                <td className="text-right">{item.discount ? formatCurrency(item.discount) : '—'}</td>
-                <td className="text-right invoice-amount">{formatCurrency(finalTotal)}</td>
+                <td className="tax-col-qty">{qty}</td>
+                <td className="tax-col-price">{formatNumber(it.unitPrice)}</td>
+                <td className="tax-col-amount">{formatNumber(amountExVat)}</td>
               </tr>
             );
           })}
+
+          {Array.from({ length: emptyRowCount }).map((_, i) => (
+            <tr key={`empty-${i}`} className="tax-row-empty">
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+          ))}
+
+          <tr className="tax-row-total">
+            <td colSpan={2} className="tax-cheque-cell">
+              Please draw cheques in favour of &apos;{COMPANY_NAME}&apos;
+            </td>
+            <td colSpan={2} className="tax-total-label-cell">
+              Total Amount Including VAT
+            </td>
+            <td className="tax-total-value-cell">{formatRs(invoice.grandTotal)}</td>
+          </tr>
+
+          <tr className="tax-row-payment">
+            <td colSpan={2} className="tax-payment-label-cell">Mode of Payments</td>
+            <td colSpan={3} className="tax-payment-value-cell">{paymentModeLabel}</td>
+          </tr>
+
+          <tr className="tax-row-payment">
+            <td colSpan={2} className="tax-payment-label-cell">Total Amounts in Words</td>
+            <td colSpan={3} className="tax-payment-value-cell">{amountInWords(invoice.grandTotal)}</td>
+          </tr>
         </tbody>
       </table>
 
-      <div className="invoice-bottom">
-        <div className="invoice-notes invoice-notice-box">
-          <p className="invoice-notice-heading">Important Notice</p>
-          <p className="invoice-notice-body">
-            This invoice serves as your official warranty document. Please keep this invoice in a safe place,
-            as it is required for any warranty claims, exchanges, or after-sales service. We recommend
-            retaining it for future reference.
-          </p>
-          <p className="invoice-notice-thanks">
-            Thank you for choosing Active24 (Pvt) Ltd. We sincerely appreciate your business and look forward
-            to serving you again.
-          </p>
-        </div>
-        <div className="invoice-totals">
-          <div className="invoice-total-row">
-            <span>Subtotal</span>
-            <span>{formatCurrency(invoice.subtotal)}</span>
-          </div>
-          <div className="invoice-total-row invoice-discount">
-            <span>Discount</span>
-            <span>-{formatCurrency(invoice.totalDiscount)}</span>
-          </div>
-          {invoice.vatAmount > 0 && (
-            <div className="invoice-total-row">
-              <span>VAT</span>
-              <span>{formatCurrency(invoice.vatAmount)}</span>
-            </div>
-          )}
-          <div className="invoice-total-row invoice-grand-total">
-            <span>Grand Total</span>
-            <span>{formatCurrency(invoice.grandTotal)}</span>
-          </div>
-        </div>
+      <div className="tax-bank-row">
+        {COMPANY_BANK}
       </div>
 
-      <footer className="invoice-footer">
-        <p>{company.name}</p>
-        <p>Computer Generated Invoice</p>
-      </footer>
+      <table className="tax-signature-table">
+        <tbody>
+          <tr className="tax-sig-header-row">
+            <td colSpan={2} className="tax-sig-customer-block">
+              <div className="tax-sig-customer-inner">
+                <div className="tax-sig-customer-name-area">
+                  <div className="tax-sig-label">Customer Name</div>
+                  <div className="tax-sig-name">{customerName}</div>
+                </div>
+                <div className="tax-sig-customer-sign-area">
+                  <div className="tax-sig-label">Signature</div>
+                  <div className="tax-sig-line" />
+                </div>
+              </div>
+            </td>
+            <td colSpan={3} className="tax-sig-company-block">
+              <div className="tax-sig-company-title">On behalf of {COMPANY_NAME}</div>
+              <div className="tax-sig-company-cols">
+                <div className="tax-sig-company-col">
+                  <div className="tax-sig-label">Prepared by</div>
+                  <div className="tax-sig-name">{preparedBy}</div>
+                  <div className="tax-sig-line" />
+                </div>
+                <div className="tax-sig-company-col">
+                  <div className="tax-sig-label">Checked by</div>
+                  <div className="tax-sig-name">&nbsp;</div>
+                  <div className="tax-sig-line" />
+                </div>
+                <div className="tax-sig-company-col">
+                  <div className="tax-sig-label">Authorized by</div>
+                  <div className="tax-sig-name">&nbsp;</div>
+                  <div className="tax-sig-line" />
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       {!onClose || !onPrint ? null : (
         <div className="no-print invoice-actions">
@@ -157,6 +287,4 @@ export default function InvoicePrintView({ invoice, settings, onClose, onPrint }
       )}
     </div>
   );
-
-  return content;
 }
