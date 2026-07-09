@@ -30,6 +30,7 @@ const unitLookupInclude = {
       description: true,
       purchasePrice: true,
       sellingPrice: true,
+      warrantyMonths: true,
       category: { select: { id: true, name: true } },
       grn: {
         select: {
@@ -52,6 +53,7 @@ const unitLookupInclude = {
 function mapUnitForSale(unit) {
   const grn = unit.grnItem?.grn;
   const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
+  const warrantyMonths = unit.warrantyMonths ?? unit.grnItem?.warrantyMonths ?? null;
   return {
     ...unit,
     saleDetails: {
@@ -62,6 +64,7 @@ function mapUnitForSale(unit) {
       grnNumber: grn?.grnNumber || null,
       poNumber: grn?.po?.poNumber || pi?.po?.poNumber || null,
       purchaseInvoiceNo: pi?.supplierInvoiceNo || null,
+      warrantyMonths,
     },
   };
 }

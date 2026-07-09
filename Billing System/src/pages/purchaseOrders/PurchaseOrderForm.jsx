@@ -15,7 +15,7 @@ import {
   splitPaymentTerms,
 } from '../../utils/poConstants';
 
-const emptyItem = () => ({ description: '', quantity: 1, costPrice: 0 });
+const emptyItem = () => ({ description: '', quantity: 1, costPrice: 0, warrantyMonths: '' });
 
 const emptyForm = {
   supplierId: '',
@@ -84,6 +84,7 @@ export default function PurchaseOrderForm() {
             description: i.description || i.product?.name || '',
             quantity: i.quantity,
             costPrice: Number(i.costPrice),
+            warrantyMonths: i.warrantyMonths ?? '',
           })),
         });
       })
@@ -138,6 +139,9 @@ export default function PurchaseOrderForm() {
       description: i.description.trim(),
       quantity: Number(i.quantity),
       costPrice: Number(i.costPrice),
+      warrantyMonths: i.warrantyMonths === '' || i.warrantyMonths == null
+        ? null
+        : Number(i.warrantyMonths),
     })),
   });
 
@@ -278,13 +282,14 @@ export default function PurchaseOrderForm() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-12">No</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Description of Goods</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-28">Quantity</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-36">Unit Price (Rs)</th>
+                  <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-32">Warranty (Months)</th>
                   <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 w-32">Line Total</th>
                 </tr>
               </thead>
@@ -316,9 +321,20 @@ export default function PurchaseOrderForm() {
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="1"
                           value={item.costPrice}
                           onChange={(e) => updateItem(index, { costPrice: parseFloat(e.target.value) || 0 })}
+                          className="input-field"
+                        />
+                      </td>
+                      <td className="py-3 pr-3 align-top">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.warrantyMonths}
+                          onChange={(e) => updateItem(index, { warrantyMonths: e.target.value })}
+                          placeholder="Optional"
                           className="input-field"
                         />
                       </td>

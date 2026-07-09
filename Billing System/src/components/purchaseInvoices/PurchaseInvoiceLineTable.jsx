@@ -14,13 +14,14 @@ export default function PurchaseInvoiceLineTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[800px] text-sm">
+      <table className="w-full min-w-[920px] text-sm">
         <thead>
           <tr className="border-b border-slate-200 dark:border-slate-700">
             <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Product</th>
             <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Item Description</th>
             <th className="pb-3 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
             <th className="pb-3 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Units</th>
+            <th className="pb-3 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Warranty (Months)</th>
             <th className="pb-3 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">VAT</th>
             <th className="pb-3 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Total Price</th>
             <th className="pb-3 w-10" />
@@ -64,6 +65,17 @@ export default function PurchaseInvoiceLineTable({
                     className="input-field !w-20 !text-right !text-xs"
                     value={line.units}
                     onChange={(e) => onChange(index, 'units', e.target.value)}
+                  />
+                </td>
+                <td className="py-3 pr-3 align-top">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="input-field !w-20 !text-right !text-xs"
+                    value={line.warrantyMonths}
+                    onChange={(e) => onChange(index, 'warrantyMonths', e.target.value)}
+                    placeholder="—"
                   />
                 </td>
                 <td className="py-3 pr-3 text-right align-top font-medium text-slate-600 dark:text-slate-300">

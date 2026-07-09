@@ -15,7 +15,7 @@ import { PO_COMPANY } from '../../utils/poConstants';
 const COMPANY = 'ACTIVE24';
 const VAT_RATE = 18;
 
-const emptyLine = () => ({ productId: '', description: '', unitPrice: 0, units: 1 });
+const emptyLine = () => ({ productId: '', description: '', unitPrice: 0, units: 1, warrantyMonths: '' });
 
 export default function PurchaseInvoiceForm() {
   const navigate = useNavigate();
@@ -82,6 +82,7 @@ export default function PurchaseInvoiceForm() {
           description: i.description || i.product?.name || '',
           unitPrice: Number(i.unitPrice),
           units: i.units,
+          warrantyMonths: i.warrantyMonths ?? '',
         })),
       });
     }).catch((err) => toast.error(getErrorMessage(err, 'Failed to load invoice')))
@@ -101,6 +102,7 @@ export default function PurchaseInvoiceForm() {
           description: i.product?.name || '',
           unitPrice: Number(i.costPrice),
           units: i.quantity,
+          warrantyMonths: i.warrantyMonths ?? '',
         })),
       }));
     }).catch(() => {
@@ -147,6 +149,9 @@ export default function PurchaseInvoiceForm() {
         description: i.description?.trim() || null,
         unitPrice: Number(i.unitPrice),
         units: Number(i.units),
+        warrantyMonths: i.warrantyMonths === '' || i.warrantyMonths == null
+          ? null
+          : Number(i.warrantyMonths),
       })),
     };
 

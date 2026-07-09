@@ -16,6 +16,7 @@ import { calculateInvoiceTotals } from '../../utils/invoiceCalculations';
 import { printElement } from '../../utils/printDocument';
 import { formatCurrency } from '../../utils/helpers';
 import { PAYMENT_METHODS, CREDIT_PAYMENT_TERM_DAYS } from '../../utils/constants';
+import { formatWarrantyLabel } from '../../utils/warranty';
 
 export default function Billing() {
   const { user } = useAuth();
@@ -99,6 +100,7 @@ export default function Billing() {
         grnNumber: details.grnNumber || '—',
         poNumber: details.poNumber || '—',
         purchaseInvoiceNo: details.purchaseInvoiceNo || '—',
+        warrantyMonths: details.warrantyMonths ?? null,
         unitPrice: Number(details.sellingPrice ?? unit.sellingPrice),
         discount: 0,
         quantity: 1,
@@ -154,6 +156,7 @@ export default function Billing() {
           unitPrice: item.unitPrice,
           discount: item.discount,
           quantity: 1,
+          warrantyMonths: item.warrantyMonths ?? null,
         })),
       };
       setGeneratedInvoice(viewInvoice);
@@ -193,6 +196,7 @@ export default function Billing() {
           unitPrice: item.unitPrice,
           discount: item.discount,
           quantity: 1,
+          warrantyMonths: item.warrantyMonths ?? null,
         })),
       });
       setShowPreviousInvoices(false);

@@ -2,6 +2,7 @@ import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
 import { calcPurchaseInvoiceTotals } from '../../utils/pricing.js';
+import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 
 const piInclude = {
   supplier: { select: { id: true, name: true, code: true } },
@@ -53,6 +54,7 @@ function mapItemsForCreate(lines) {
     units: l.units,
     vatAmount: l.vatAmount,
     lineTotal: l.lineGrandTotal ?? l.lineTotal,
+    warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
   }));
 }
 
@@ -186,6 +188,7 @@ export async function updatePurchaseInvoice(id, data) {
     description: i.description || '',
     unitPrice: Number(i.unitPrice),
     units: i.units,
+    warrantyMonths: i.warrantyMonths,
   }));
 
   const { lines, subtotal, vatAmount, total } = computeTotals(items, vatEnabled, purchaseWithVat, vatRate);

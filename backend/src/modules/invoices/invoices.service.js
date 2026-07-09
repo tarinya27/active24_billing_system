@@ -3,6 +3,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
 import { nextInvoiceNumber } from '../../utils/documentNumbers.js';
 import { CREDIT_TERM_DAYS } from '../../utils/enums.js';
+import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 
 const invoiceInclude = {
   customer: true,
@@ -30,6 +31,7 @@ function serializeInvoice(inv) {
       ...item,
       unitPrice: Number(item.unitPrice),
       discount: Number(item.discount),
+      warrantyMonths: item.warrantyMonths ?? null,
     })),
     payments: inv.payments?.map((p) => ({ ...p, amount: Number(p.amount) })) || [],
   };
@@ -102,7 +104,10 @@ export async function createInvoice(payload, userId) {
   return prisma.$transaction(async (tx) => {
     const units = await tx.productUnit.findMany({
       where: { barcode: { in: barcodes } },
-      include: { product: { select: { id: true, code: true, name: true } } },
+      include: {
+        product: { select: { id: true, code: true, name: true } },
+        grnItem: { select: { warrantyMonths: true } },
+      },
     });
 
     if (units.length !== barcodes.length) {
@@ -121,10 +126,14 @@ export async function createInvoice(payload, userId) {
     const unitByBarcode = Object.fromEntries(units.map((u) => [u.barcode, u]));
     const lineItems = payload.items.map((item) => {
       const unit = unitByBarcode[item.barcode];
+      const warrantyMonths = normalizeWarrantyMonths(
+        unit.warrantyMonths ?? unit.grnItem?.warrantyMonths
+      );
       return {
         unit,
         discount: Number(item.discount || 0),
         unitPrice: Number(unit.sellingPrice),
+        warrantyMonths,
       };
     });
 
@@ -159,6 +168,7 @@ export async function createInvoice(payload, userId) {
             productId: l.unit.productId,
             unitPrice: l.unitPrice,
             discount: l.discount,
+            warrantyMonths: l.warrantyMonths,
           })),
         },
         payments: isCredit

@@ -3,6 +3,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
 import { calcCostExVat, calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextGrnNumber } from '../../utils/documentNumbers.js';
+import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 
 const grnInclude = {
   supplier: { select: { id: true, name: true, code: true } },
@@ -178,6 +179,7 @@ export async function reserveGrnBarcode(data) {
       purchaseInvoiceId: pi.id,
       costPrice: costExVat,
       sellingPrice,
+      warrantyMonths: normalizeWarrantyMonths(invoiceLine.warrantyMonths),
       status: 'PENDING_GRN',
     },
     select: {
@@ -296,8 +298,15 @@ export async function completeGrn(data, userId) {
           sellingPrice,
           sellingPriceMode: line.sellingPriceMode,
           units: pendingUnits.length,
+          warrantyMonths: normalizeWarrantyMonths(
+            line.warrantyMonths ?? invoicedByProduct[line.productId]?.warrantyMonths
+          ),
         },
       });
+
+      const lineWarrantyMonths = normalizeWarrantyMonths(
+        line.warrantyMonths ?? invoicedByProduct[line.productId]?.warrantyMonths
+      );
 
       for (const pendingUnit of pendingUnits) {
         const unit = await tx.productUnit.update({
@@ -306,6 +315,7 @@ export async function completeGrn(data, userId) {
             grnItemId: grnItem.id,
             costPrice: costExVat,
             sellingPrice,
+            warrantyMonths: lineWarrantyMonths,
             status: 'IN_STOCK',
           },
         });

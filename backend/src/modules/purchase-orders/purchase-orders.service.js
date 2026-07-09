@@ -8,6 +8,7 @@ import {
   PO_SYNC_COMPANY,
 } from '../../integrations/po/index.js';
 import { parsePoBackup } from '../../integrations/po/backupParser.js';
+import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 
 const poInclude = {
   supplier: { select: { id: true, name: true, code: true, company: true, contactPerson: true, vatRate: true } },
@@ -162,6 +163,7 @@ export async function createPurchaseOrder(data) {
           description: item.description || null,
           quantity: item.quantity,
           costPrice: item.costPrice,
+          warrantyMonths: item.warrantyMonths,
         })),
       },
     },
@@ -200,6 +202,7 @@ export async function updatePurchaseOrder(id, data) {
         description: item.description || null,
         quantity: item.quantity,
         costPrice: item.costPrice,
+        warrantyMonths: item.warrantyMonths,
       })),
     };
   } else if (data.vatRate !== undefined && supplierId) {
@@ -240,6 +243,7 @@ async function resolvePoItems(items, supplierId, company) {
       description,
       quantity: line.quantity,
       costPrice: line.costPrice,
+      warrantyMonths: normalizeWarrantyMonths(line.warrantyMonths),
     });
   }
   return resolved;

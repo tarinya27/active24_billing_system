@@ -1,4 +1,5 @@
 import BrandLogo from '../ui/BrandLogo';
+import { formatWarrantyLabel } from '../../utils/warranty';
 
 const COMPANY_NAME = 'Active24 (Pvt) Ltd';
 const COMPANY_ADDRESS = 'No: 92, Jambugasmulla Road, Nugegoda';
@@ -62,11 +63,6 @@ function numberToWordsEnglish(n) {
 
 function amountInWords(amount) {
   return `${numberToWordsEnglish(Math.floor(Number(amount ?? 0)))}.`;
-}
-
-function shouldShowWarranty(productName = '') {
-  const s = productName.toLowerCase();
-  return s.includes('adapter') || s.includes('laptop') || s.includes('power') || s.includes('dell');
 }
 
 export default function InvoicePrintView({ invoice, settings: _settings, onClose, onPrint }) {
@@ -188,14 +184,15 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
             const amountExVat = lineBase - discount;
             const productName = it.productName || it.product?.name || '—';
             const serialOrBarcode = it.barcode || it.serialNumber || '';
+            const warrantyLabel = formatWarrantyLabel(it.warrantyMonths);
 
             return (
               <tr key={it.barcode || it.productId || i}>
                 <td className="tax-col-item">{it.productCode || 'Others'}</td>
                 <td className="tax-col-desc">
                   <div>{productName}</div>
-                  {shouldShowWarranty(productName) && <div>6 Months Warranty</div>}
                   {serialOrBarcode && <div>S/N - {serialOrBarcode}</div>}
+                  {warrantyLabel && <div>Warranty: {warrantyLabel}</div>}
                 </td>
                 <td className="tax-col-qty">{qty}</td>
                 <td className="tax-col-price">{formatNumber(it.unitPrice)}</td>

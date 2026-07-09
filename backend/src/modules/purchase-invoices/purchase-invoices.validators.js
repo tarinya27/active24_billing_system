@@ -5,6 +5,7 @@ const lineSchema = z.object({
   description: z.string().trim().max(500).optional().or(z.literal('')),
   unitPrice: z.coerce.number().nonnegative(),
   units: z.coerce.number().int().positive(),
+  warrantyMonths: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const createPurchaseInvoiceSchema = z.object({

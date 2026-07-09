@@ -238,9 +238,10 @@ model PoItem {
   po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
   productId   String
   product     Product       @relation(fields: [productId], references: [id])
-  description String?
-  quantity    Int
-  costPrice   Decimal       @db.Decimal(12, 2)
+  description     String?
+  quantity        Int
+  costPrice       Decimal @db.Decimal(12, 2)
+  warrantyMonths  Int?
 
   @@index([poId])
   @@map("po_items")
@@ -287,6 +288,7 @@ model PurchaseInvoiceItem {
   units             Int
   vatAmount         Decimal         @default(0) @db.Decimal(12, 2)
   lineTotal         Decimal         @db.Decimal(14, 2)
+  warrantyMonths    Int?
 
   @@index([purchaseInvoiceId])
   @@map("purchase_invoice_items")
@@ -331,6 +333,7 @@ model GrnItem {
   sellingPrice     Decimal          @db.Decimal(12, 2)
   sellingPriceMode SellingPriceMode @default(AUTO)
   units            Int
+  warrantyMonths   Int?
 
   productUnits ProductUnit[]
 
@@ -351,6 +354,7 @@ model ProductUnit {
   purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id])
   costPrice         Decimal          @db.Decimal(12, 2)
   sellingPrice      Decimal          @db.Decimal(12, 2)
+  warrantyMonths    Int?
   status            UnitStatus       @default(IN_STOCK)
   createdAt         DateTime         @default(now())
 
@@ -397,8 +401,9 @@ model InvoiceItem {
   productUnit   ProductUnit @relation(fields: [productUnitId], references: [id])
   productId     String
   product       Product     @relation(fields: [productId], references: [id])
-  unitPrice     Decimal     @db.Decimal(12, 2)
-  discount      Decimal     @default(0) @db.Decimal(12, 2)
+  unitPrice      Decimal     @db.Decimal(12, 2)
+  discount       Decimal     @default(0) @db.Decimal(12, 2)
+  warrantyMonths Int?
 
   @@index([invoiceId])
   @@map("invoice_items")

@@ -9,6 +9,7 @@ const poLineSchema = z
     description: z.string().trim().max(500).optional(),
     quantity: z.coerce.number().int().positive(),
     costPrice: z.coerce.number().nonnegative(),
+    warrantyMonths: z.coerce.number().int().positive().optional().nullable(),
   })
   .refine((line) => Boolean(line.productId || line.description?.trim()), {
     message: 'Each line needs a description or product',

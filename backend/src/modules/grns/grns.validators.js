@@ -7,6 +7,7 @@ const grnLineSchema = z.object({
   purchasePrice: z.coerce.number().nonnegative(),
   sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
   sellingPrice: z.coerce.number().nonnegative().optional(),
+  warrantyMonths: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const reserveGrnBarcodeSchema = z.object({

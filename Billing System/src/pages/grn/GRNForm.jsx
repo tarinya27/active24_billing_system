@@ -9,11 +9,13 @@ import { categoriesApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { calcGrnAutoSellingPrice } from '../../utils/pricing';
+import { formatWarrantyLabel } from '../../utils/warranty';
 
 function buildLine(product, {
   unitPrice = 0,
   expectedUnits = 0,
   description = '',
+  warrantyMonths = null,
   purchaseWithVat = false,
   vatRate = 0,
   scannedUnits = [],
@@ -24,6 +26,7 @@ function buildLine(product, {
     product,
     categoryId: product?.category?.id || product?.categoryId || '',
     description: description || product?.description || product?.name || '',
+    warrantyMonths,
     purchasePrice,
     purchasePriceLocked: true,
     sellingPriceMode: 'AUTO',
@@ -134,6 +137,7 @@ export default function GRNForm() {
             unitPrice: Number(item.unitPrice),
             expectedUnits: item.units,
             description: item.description || item.product?.name,
+            warrantyMonths: item.warrantyMonths ?? null,
             purchaseWithVat: false,
             vatRate: pi.vatEnabled ? Number(pi.vatRate) : 0,
             scannedUnits: pendingUnitsByProduct[item.productId] || [],
@@ -260,6 +264,7 @@ export default function GRNForm() {
           purchasePrice: Number(line.purchasePrice),
           sellingPriceMode: line.sellingPriceMode,
           sellingPrice: line.sellingPriceMode === 'MANUAL' ? Number(line.sellingPrice) : undefined,
+          warrantyMonths: line.warrantyMonths ?? null,
         })),
       });
       toast.success('GRN confirmed — stock updated');
@@ -365,6 +370,12 @@ export default function GRNForm() {
                 <div className="xl:col-span-2">
                   <label className="label">Item Description</label>
                   <input className="input-field" value={line.description} onChange={(e) => updateLine(lineIndex, { description: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Warranty</label>
+                  <p className="input-field bg-slate-50 dark:bg-slate-800/50">
+                    {formatWarrantyLabel(line.warrantyMonths) || '—'}
+                  </p>
                 </div>
                 <div>
                   <label className="label">Purchase Price</label>
