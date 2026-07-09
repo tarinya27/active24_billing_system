@@ -903,6 +903,9 @@
   padding: 1mm 1.5mm;
   vertical-align: top;
   font-size: 9.5pt;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .tax-main-table thead th {
@@ -911,31 +914,58 @@
   text-align: center;
   vertical-align: middle;
   padding: 1.2mm 1mm;
+  line-height: 1.15;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .tax-col-item {
-  width: 18mm;
+  width: 26mm;
   text-align: left;
+  vertical-align: top;
 }
 
 .tax-col-desc {
   width: auto;
   text-align: left;
+  line-height: 1.28;
 }
 
 .tax-col-qty {
-  width: 16mm;
+  width: 17mm;
   text-align: center;
+  vertical-align: middle;
 }
 
 .tax-col-price {
-  width: 22mm;
+  width: 17mm;
   text-align: right;
+  vertical-align: middle;
 }
 
 .tax-col-amount {
-  width: 32mm;
+  width: 27mm;
   text-align: right;
+  vertical-align: middle;
+}
+
+.tax-main-table thead .tax-col-item,
+.tax-main-table thead .tax-col-qty,
+.tax-main-table thead .tax-col-price {
+  white-space: nowrap;
+}
+
+.tax-main-table tbody .tax-col-item,
+.tax-main-table tbody .tax-col-desc {
+  hyphens: auto;
+}
+
+.tax-main-table tbody .tax-col-desc > div {
+  margin-bottom: 0.6mm;
+}
+
+.tax-main-table tbody .tax-col-desc > div:last-child {
+  margin-bottom: 0;
 }
 
 .tax-row-empty td {
