@@ -9,6 +9,11 @@ import {
 } from '../../integrations/po/index.js';
 import { parsePoBackup } from '../../integrations/po/backupParser.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
+import {
+  resolvePoVatPercentage,
+  vatForNewProduct,
+  syncProductVatFromPo,
+} from '../../utils/productVat.js';
 
 const poInclude = {
   supplier: { select: { id: true, name: true, code: true, company: true, contactPerson: true, vatRate: true } },
@@ -143,8 +148,8 @@ export async function previewNextPoSerial(company = PO_SYNC_COMPANY) {
 
 export async function createPurchaseOrder(data) {
   const poNumber = data.poNumber || (await nextPoNumber(data.company));
-  const resolvedItems = await resolvePoItems(data.items, data.supplierId, data.company);
   const vatRate = data.vatRate ?? (await getSupplierVatRate(data.supplierId));
+  const resolvedItems = await resolvePoItems(data.items, data.supplierId, data.company, vatRate);
   const totals = { ...calcPoTotals(resolvedItems, vatRate), vatRate };
 
   return prisma.purchaseOrder.create({
@@ -191,8 +196,8 @@ export async function updatePurchaseOrder(id, data) {
   const supplierId = data.supplierId || (await prisma.purchaseOrder.findUnique({ where: { id }, select: { supplierId: true } }))?.supplierId;
 
   if (data.items) {
-    const resolvedItems = await resolvePoItems(data.items, supplierId, data.company || 'ACTIVE24');
     const vatRate = data.vatRate ?? (supplierId ? await getSupplierVatRate(supplierId) : 0);
+    const resolvedItems = await resolvePoItems(data.items, supplierId, data.company || 'ACTIVE24', vatRate);
     const totals = { ...calcPoTotals(resolvedItems, vatRate), vatRate };
     Object.assign(update, buildPoMeta({ ...data, fulfillmentType: data.fulfillmentType || update.fulfillmentType }, totals));
     await prisma.poItem.deleteMany({ where: { poId: id } });
@@ -222,7 +227,16 @@ export async function deletePurchaseOrder(id) {
   return { id };
 }
 
-async function resolvePoItems(items, supplierId, company) {
+async function resolvePoItems(items, supplierId, company, vatRate) {
+  const supplier = await prisma.supplier.findUnique({
+    where: { id: supplierId },
+    select: { vatRate: true },
+  });
+  const resolvedVat = resolvePoVatPercentage(vatRate, supplier?.vatRate);
+  if (resolvedVat === null) {
+    console.warn(`[VAT] PO for supplier ${supplierId}: no VAT resolved from PO or supplier`);
+  }
+
   const resolved = [];
   for (const line of items) {
     let productId = line.productId;
@@ -232,10 +246,18 @@ async function resolvePoItems(items, supplierId, company) {
       const product = await findOrCreateProduct(
         { description: description || 'PO line item', costPrice: line.costPrice },
         supplierId,
-        company
+        company,
+        resolvedVat
       );
       productId = product.id;
       description = description || product.name;
+    } else {
+      await syncProductVatFromPo(
+        prisma,
+        productId,
+        resolvedVat,
+        `PO line product ${productId}`
+      );
     }
 
     resolved.push({
@@ -297,27 +319,37 @@ async function findOrCreateSupplier(name, company) {
   });
 }
 
-async function findOrCreateProduct(line, supplierId, company) {
+async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
   const description = (line.description || line.productCode || 'Imported item').trim();
 
   if (line.productCode) {
     const byCode = await prisma.product.findUnique({ where: { code: line.productCode } });
-    if (byCode) return byCode;
+    if (byCode) {
+      await syncProductVatFromPo(prisma, byCode.id, resolvedVat, `PO import product ${byCode.code}`);
+      return byCode;
+    }
   }
 
   let product = await prisma.product.findFirst({
     where: { name: { equals: description, mode: 'insensitive' }, company },
   });
-  if (product) return product;
+  if (product) {
+    await syncProductVatFromPo(prisma, product.id, resolvedVat, `PO import product ${product.code}`);
+    return product;
+  }
 
   product = await prisma.product.findFirst({
     where: { name: { contains: description.slice(0, 40), mode: 'insensitive' }, company },
   });
-  if (product) return product;
+  if (product) {
+    await syncProductVatFromPo(prisma, product.id, resolvedVat, `PO import product ${product.code}`);
+    return product;
+  }
 
   const category = await getOrCreateImportCategory();
   const code = await uniqueProductCode(slugCode(description, 18) || 'PO-ITEM');
   const costPrice = Number(line.costPrice) || 0;
+  const vatPercentage = vatForNewProduct(resolvedVat, `new product ${code}`);
 
   return prisma.product.create({
     data: {
@@ -328,6 +360,7 @@ async function findOrCreateProduct(line, supplierId, company) {
       company,
       purchasePrice: costPrice,
       defaultSellingPrice: Math.round(costPrice * 1.3 * 100) / 100,
+      vatPercentage,
       isActive: true,
     },
   });
@@ -345,10 +378,11 @@ async function importExternalPo(ext) {
   const poNumber = poNumberExists ? await nextPoNumber(ext.company) : ext.poNumber;
 
   const supplier = await findOrCreateSupplier(ext.supplierName, ext.company);
+  const importVat = resolvePoVatPercentage(ext.vatRate, supplier.vatRate);
   const items = [];
 
   for (const line of ext.items) {
-    const product = await findOrCreateProduct(line, supplier.id, ext.company);
+    const product = await findOrCreateProduct(line, supplier.id, ext.company, importVat);
     items.push({
       productId: product.id,
       description: line.description || product.name,
@@ -373,7 +407,7 @@ async function importExternalPo(ext) {
       status: ext.status,
       notes: ext.notes || null,
       subTotal: totalAmount,
-      vatRate: 0,
+      vatRate: importVat ?? Number(supplier.vatRate ?? 0),
       vatAmount: 0,
       totalAmount,
       items: { create: items },

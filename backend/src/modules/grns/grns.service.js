@@ -4,6 +4,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 import { calcCostExVat, calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextGrnNumber } from '../../utils/documentNumbers.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
+import { resolvePoVatPercentage, syncProductVatFromPo } from '../../utils/productVat.js';
 
 const grnInclude = {
   supplier: { select: { id: true, name: true, code: true } },
@@ -218,8 +219,16 @@ export async function completeGrn(data, userId) {
   }
 
   const vatRate = await getVatRate(data.vatRate);
-  const po = await prisma.purchaseOrder.findUnique({ where: { id: data.poId } });
+  const po = await prisma.purchaseOrder.findUnique({
+    where: { id: data.poId },
+    include: { supplier: { select: { vatRate: true } } },
+  });
   if (!po) throw ApiError.badRequest('Linked purchase order not found');
+
+  const poVatPercentage = resolvePoVatPercentage(po.vatRate, po.supplier?.vatRate);
+  if (poVatPercentage === null) {
+    console.warn(`[VAT] GRN for PO ${po.poNumber}: no resolvable VAT; product VAT unchanged`);
+  }
 
   const pi = await getLinkedPurchaseInvoice(data.purchaseInvoiceId);
   if (pi.poId !== data.poId) {
@@ -271,6 +280,13 @@ export async function completeGrn(data, userId) {
         include: { category: true },
       });
       if (!product) throw ApiError.badRequest(`Product not found: ${line.productId}`);
+
+      await syncProductVatFromPo(
+        tx,
+        line.productId,
+        poVatPercentage,
+        `GRN ${grnNumber} / PO ${po.poNumber}`
+      );
 
       if (pendingUnits.length === 0) {
         throw ApiError.badRequest(`At least one barcode required for ${product.code}`);
