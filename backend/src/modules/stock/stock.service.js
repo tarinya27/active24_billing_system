@@ -63,7 +63,27 @@ const unitLookupInclude = {
       supplier: { select: { vatRegistrationNo: true } },
     },
   },
+  deliveryNote: {
+    select: {
+      dnNumber: true,
+      supplier: { select: { vatRegistrationNo: true } },
+    },
+  },
+  deliveryNoteItem: {
+    select: {
+      description: true,
+      purchasePrice: true,
+      sellingPrice: true,
+      warrantyMonths: true,
+      category: { select: { id: true, name: true } },
+    },
+  },
 };
+
+function resolveStockSource(unit) {
+  if (unit.deliveryNoteId || unit.deliveryNoteItemId) return 'DN';
+  return 'GRN';
+}
 
 function poLineForUnit(unit) {
   const grn = unit.grnItem?.grn;
@@ -74,6 +94,29 @@ function poLineForUnit(unit) {
 }
 
 function mapUnitForSale(unit) {
+  const stockSource = resolveStockSource(unit);
+
+  if (stockSource === 'DN') {
+    const dnItem = unit.deliveryNoteItem;
+    const warrantyMonths = unit.warrantyMonths ?? dnItem?.warrantyMonths ?? null;
+    const supplierTin = unit.deliveryNote?.supplier?.vatRegistrationNo || null;
+    return {
+      ...unit,
+      saleDetails: {
+        stockSource: 'DN',
+        category: dnItem?.category?.name || unit.product?.category?.name || null,
+        description: dnItem?.description?.trim() || unit.product?.name || null,
+        purchasePrice: Number(dnItem?.purchasePrice ?? unit.costPrice ?? 0),
+        sellingPrice: Number(unit.sellingPrice ?? dnItem?.sellingPrice ?? 0),
+        grnNumber: null,
+        poNumber: null,
+        purchaseInvoiceNo: null,
+        warrantyMonths,
+        supplierTin: supplierTin ? String(supplierTin).trim() : null,
+      },
+    };
+  }
+
   const grn = unit.grnItem?.grn;
   const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
   const poLine = poLineForUnit(unit);
@@ -87,6 +130,7 @@ function mapUnitForSale(unit) {
   return {
     ...unit,
     saleDetails: {
+      stockSource: 'GRN',
       category: poLine?.product?.category?.name
         || unit.grnItem?.category?.name
         || unit.product?.category?.name

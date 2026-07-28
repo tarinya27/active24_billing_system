@@ -903,6 +903,10 @@
   padding: 1mm 1.5mm;
   vertical-align: top;
   font-size: 9.5pt;
+}
+
+.tax-main-table th:not(.tax-col-price):not(.tax-col-amount):not(.tax-col-qty),
+.tax-main-table td:not(.tax-col-price):not(.tax-col-amount):not(.tax-col-qty) {
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
@@ -913,46 +917,68 @@
   font-weight: 700;
   text-align: center;
   vertical-align: middle;
-  padding: 1.2mm 1mm;
-  line-height: 1.15;
+  padding: 1.2mm 0.8mm;
+  line-height: 1.1;
+  font-size: 9pt;
   word-break: normal;
   overflow-wrap: normal;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .tax-col-item {
-  width: 26mm;
+  width: 13%;
   text-align: left;
   vertical-align: top;
 }
 
 .tax-col-desc {
-  width: auto;
+  width: 38%;
   text-align: left;
   line-height: 1.28;
 }
 
 .tax-col-qty {
-  width: 17mm;
+  width: 6%;
   text-align: center;
   vertical-align: middle;
 }
 
 .tax-col-price {
-  width: 17mm;
+  width: 21%;
   text-align: right;
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  padding-left: 1mm;
+  padding-right: 2mm;
 }
 
 .tax-col-amount {
-  width: 27mm;
+  width: 22%;
   text-align: right;
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  padding-left: 1mm;
+  padding-right: 2mm;
 }
 
 .tax-main-table thead .tax-col-item,
+.tax-main-table thead .tax-col-desc,
 .tax-main-table thead .tax-col-qty,
-.tax-main-table thead .tax-col-price {
+.tax-main-table thead .tax-col-price,
+.tax-main-table thead .tax-col-amount {
+  text-align: center;
   white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.tax-main-table tbody .tax-col-qty,
+.tax-main-table tbody .tax-col-price,
+.tax-main-table tbody .tax-col-amount {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
 }
 
 .tax-main-table tbody .tax-col-item,
@@ -1111,5 +1137,13 @@
     background: #d9d9d9 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .tax-main-table tbody .tax-col-qty,
+  .tax-main-table tbody .tax-col-price,
+  .tax-main-table tbody .tax-col-amount {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
   }
 }

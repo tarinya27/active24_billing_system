@@ -168,13 +168,20 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
       </div>
 
       <table className="tax-main-table">
+        <colgroup>
+          <col className="tax-col-item" />
+          <col className="tax-col-desc" />
+          <col className="tax-col-qty" />
+          <col className="tax-col-price" />
+          <col className="tax-col-amount" />
+        </colgroup>
         <thead>
           <tr>
             <th className="tax-col-item">Item</th>
-            <th className="tax-col-desc">Description of Good or Services</th>
-            <th className="tax-col-qty">Quantity</th>
+            <th className="tax-col-desc">Description</th>
+            <th className="tax-col-qty">Qty</th>
             <th className="tax-col-price">Unit Price</th>
-            <th className="tax-col-amount">Amount Excluding VAT (Rs.)</th>
+            <th className="tax-col-amount">Amount</th>
           </tr>
         </thead>
         <tbody>

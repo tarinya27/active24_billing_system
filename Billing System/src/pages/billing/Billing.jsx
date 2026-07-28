@@ -97,12 +97,13 @@ export default function Billing() {
         productId: unit.productId,
         productName: unit.product.name,
         productCode: unit.product.code,
+        stockSource: details.stockSource || 'GRN',
         category: details.category || unit.product?.category?.name || '—',
         description: details.description || unit.product?.name,
         purchasePrice: details.purchasePrice ?? Number(unit.costPrice ?? 0),
-        grnNumber: details.grnNumber || '—',
+        grnNumber: details.grnNumber || null,
         poNumber: details.poNumber || null,
-        purchaseInvoiceNo: details.purchaseInvoiceNo || '—',
+        purchaseInvoiceNo: details.purchaseInvoiceNo || null,
         supplierTin: details.supplierTin || null,
         warrantyMonths: details.warrantyMonths ?? null,
         unitPrice: Number(details.sellingPrice ?? unit.sellingPrice),
@@ -111,7 +112,8 @@ export default function Billing() {
       };
       setCartItems((prev) => [...prev, cartItem]);
       setLastScanned(cartItem);
-      toast.success(`${unit.product.name} added — GRN ${details.grnNumber || 'linked'}`);
+      const sourceLabel = cartItem.stockSource === 'DN' ? 'Delivery Note stock' : `GRN ${details.grnNumber || 'linked'}`;
+      toast.success(`${unit.product.name} added — ${sourceLabel}`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Unit not available'));
     }
@@ -240,7 +242,7 @@ export default function Billing() {
           <div className="glass-card p-4">
             <BarcodeInput onScan={handleBarcodeScan} placeholder="Scan unit barcode to add item..." />
             <p className="mt-2 text-xs text-slate-500">
-              Scan physical unit barcodes received via GRN. Product, PO, purchase invoice, and pricing details load automatically.
+              Scan physical unit barcodes from GRN or Delivery Note stock. Product and pricing details load automatically.
             </p>
           </div>
 
@@ -339,7 +341,11 @@ export default function Billing() {
                           <td className="py-2 pr-2">
                             <p className="font-medium truncate max-w-[140px]">{item.productName}</p>
                             <p className="font-mono text-[10px] text-slate-400">{item.barcode}</p>
-                            <p className="text-[10px] text-slate-400">{item.grnNumber} • {item.poNumber}</p>
+                            {item.stockSource !== 'DN' && (item.grnNumber || item.poNumber) && (
+                              <p className="text-[10px] text-slate-400">
+                                {[item.grnNumber, item.poNumber].filter(Boolean).join(' • ')}
+                              </p>
+                            )}
                           </td>
                           <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
                           <td className="py-2">

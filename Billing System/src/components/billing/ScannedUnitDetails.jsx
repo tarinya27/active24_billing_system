@@ -30,9 +30,13 @@ export default function ScannedUnitDetails({ item, highlight = false }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <DetailField label="Category" value={item.category} />
-        <DetailField label="GRN No." value={item.grnNumber} />
-        <DetailField label="PO No." value={item.poNumber} />
-        <DetailField label="Purchase Invoice No." value={item.purchaseInvoiceNo} />
+        {item.stockSource !== 'DN' && (
+          <>
+            <DetailField label="GRN No." value={item.grnNumber} />
+            <DetailField label="PO No." value={item.poNumber} />
+            <DetailField label="Purchase Invoice No." value={item.purchaseInvoiceNo} />
+          </>
+        )}
         <DetailField label="Purchase Price" value={formatCurrency(item.purchasePrice)} />
         <DetailField label="Selling Price" value={formatCurrency(item.unitPrice)} />
       </div>
@@ -44,8 +48,8 @@ export function ScannedUnitEmpty() {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center dark:border-slate-700">
       <ScanLine className="mb-3 h-8 w-8 text-slate-300" />
-      <p className="text-sm text-slate-500">Scan a unit barcode from GRN stock</p>
-      <p className="mt-1 text-xs text-slate-400">Product, GRN, PO, and invoice details will appear here</p>
+      <p className="text-sm text-slate-500">Scan a unit barcode from inventory</p>
+      <p className="mt-1 text-xs text-slate-400">Product and pricing details will appear here</p>
     </div>
   );
 }

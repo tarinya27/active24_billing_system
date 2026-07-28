@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, PackageCheck, Receipt, Trash2, Printer } from 'lucide-react';
+import { ArrowLeft, PackageCheck, Trash2, Printer } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -8,47 +8,33 @@ import Can from '../../components/auth/Can';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import BarcodeInput from '../../components/ui/BarcodeInput';
 import Modal from '../../components/ui/Modal';
-import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import DeliveryNotePrintView from '../../components/deliveryNotes/DeliveryNotePrintView';
 import { deliveryNotesApi } from '../../api/procurement';
-import { customersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate } from '../../utils/helpers';
-import { dnStatusLabel, PAYMENT_METHODS } from '../../utils/constants';
-import { PAYMENT_METHOD_API, PAYMENT_METHOD_LABEL } from '../../api/ops';
+import { dnStatusLabel } from '../../utils/constants';
 import { printElement } from '../../utils/printDocument';
-import { useAuth } from '../../context/AuthContext';
 
 export default function DeliveryNoteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [dn, setDn] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scanningProductId, setScanningProductId] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showDnPrint, setShowDnPrint] = useState(false);
-  const [customers, setCustomers] = useState([]);
-  const [invoiceForm, setInvoiceForm] = useState({ customerId: '', paymentMethod: 'Cash' });
-  const [creatingInvoice, setCreatingInvoice] = useState(false);
-  const [generatedInvoice, setGeneratedInvoice] = useState(null);
 
   const reload = async () => {
     const data = await deliveryNotesApi.get(id);
     setDn(data);
-    if (data.customerId) {
-      setInvoiceForm((f) => ({ ...f, customerId: data.customerId }));
-    }
   };
 
   useEffect(() => {
     reload()
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setLoading(false));
-    customersApi.list({ pageSize: 200 }).then((r) => setCustomers(r.items || r)).catch(() => {});
   }, [id]);
 
   const pendingByProduct = useMemo(() => {
@@ -64,14 +50,6 @@ export default function DeliveryNoteDetail() {
     if (!dn || dn.status !== 'DRAFT') return false;
     return dn.items.every((item) => (pendingByProduct[item.productId] || []).length === item.units);
   }, [dn, pendingByProduct]);
-
-  const inStockCount = useMemo(() => {
-    if (!dn) return 0;
-    return dn.items.reduce(
-      (sum, item) => sum + (item.productUnits || []).filter((u) => u.status === 'IN_STOCK').length,
-      0
-    );
-  }, [dn]);
 
   const handleScan = async (productId, barcode) => {
     const item = dn.items.find((i) => i.productId === productId);
@@ -130,47 +108,6 @@ export default function DeliveryNoteDetail() {
     }
   };
 
-  const handleCreateInvoice = async () => {
-    if (!invoiceForm.customerId) {
-      toast.error('Select a customer');
-      return;
-    }
-    setCreatingInvoice(true);
-    try {
-      const invoice = await deliveryNotesApi.createInvoice(dn.id, {
-        customerId: invoiceForm.customerId,
-        paymentMethod: PAYMENT_METHOD_API[invoiceForm.paymentMethod],
-      });
-      const customer = customers.find((c) => c.id === invoice.customerId) || invoice.customer;
-      setGeneratedInvoice({
-        ...invoice,
-        date: invoice.createdAt,
-        cashier: invoice.cashier?.name || user?.name,
-        paymentMethod: PAYMENT_METHOD_LABEL[invoice.paymentMethod] || invoice.paymentMethod,
-        customer,
-        items: invoice.items.map((item) => ({
-          productId: item.productId,
-          productName: item.product?.name,
-          productCode: item.product?.code,
-          categoryName: item.categoryName ?? null,
-          itemDescription: item.itemDescription ?? null,
-          barcode: item.productUnit?.barcode,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          quantity: 1,
-          warrantyMonths: item.warrantyMonths ?? null,
-        })),
-      });
-      setShowInvoiceModal(false);
-      toast.success('Invoice created from delivery note');
-      await reload();
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to create invoice'));
-    } finally {
-      setCreatingInvoice(false);
-    }
-  };
-
   if (loading) return <p className="py-16 text-center text-slate-500">Loading…</p>;
   if (!dn) return <p className="py-16 text-center text-slate-500">Delivery note not found</p>;
 
@@ -196,13 +133,6 @@ export default function DeliveryNoteDetail() {
                   onClick={() => setConfirmComplete(true)}
                 >
                   <PackageCheck className="h-4 w-4" /> Confirm Stock In
-                </button>
-              </Can>
-            )}
-            {(dn.status === 'COMPLETED' || dn.status === 'INVOICED') && inStockCount > 0 && (
-              <Can permission="invoices.create">
-                <button type="button" className="btn-primary" onClick={() => setShowInvoiceModal(true)}>
-                  <Receipt className="h-4 w-4" /> Create Invoice
                 </button>
               </Can>
             )}
@@ -352,45 +282,6 @@ export default function DeliveryNoteDetail() {
         confirmText="Cancel DN"
       />
 
-      <Modal isOpen={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Create Invoice from DN">
-        <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Creates a sales invoice for all <strong>{inStockCount}</strong> in-stock unit(s) on this delivery note.
-          </p>
-          <div>
-            <label className="label">Customer</label>
-            <select
-              className="select-field"
-              value={invoiceForm.customerId}
-              onChange={(e) => setInvoiceForm({ ...invoiceForm, customerId: e.target.value })}
-            >
-              <option value="">-- Select customer --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Payment Method</label>
-            <select
-              className="select-field"
-              value={invoiceForm.paymentMethod}
-              onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentMethod: e.target.value })}
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="btn-secondary" onClick={() => setShowInvoiceModal(false)}>Cancel</button>
-            <button type="button" className="btn-primary" disabled={creatingInvoice} onClick={handleCreateInvoice}>
-              {creatingInvoice ? 'Creating…' : 'Generate Invoice'}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
       <Modal
         isOpen={showDnPrint}
         onClose={() => setShowDnPrint(false)}
@@ -407,21 +298,6 @@ export default function DeliveryNoteDetail() {
             });
           }}
         />
-      </Modal>
-
-      <Modal
-        isOpen={Boolean(generatedInvoice)}
-        onClose={() => setGeneratedInvoice(null)}
-        title="Tax Invoice"
-        size="xl"
-      >
-        {generatedInvoice && (
-          <InvoicePrintView
-            invoice={generatedInvoice}
-            onClose={() => setGeneratedInvoice(null)}
-            onPrint={() => printElement('invoice-print-content')}
-          />
-        )}
       </Modal>
     </div>
   );
