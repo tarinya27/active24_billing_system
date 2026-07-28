@@ -6,6 +6,7 @@ const fulfillmentType = z.enum(['DELIVERY', 'COLLECTION']);
 const poLineSchema = z
   .object({
     productId: z.string().min(1).optional(),
+    categoryId: z.string().min(1).optional().nullable(),
     description: z.string().trim().max(500).optional(),
     quantity: z.coerce.number().int().positive(),
     costPrice: z.coerce.number().nonnegative(),

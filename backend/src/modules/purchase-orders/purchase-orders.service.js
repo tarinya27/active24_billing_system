@@ -19,7 +19,16 @@ const poInclude = {
   supplier: { select: { id: true, name: true, code: true, company: true, contactPerson: true, vatRate: true } },
   items: {
     include: {
-      product: { select: { id: true, code: true, name: true, categoryId: true, defaultSellingPrice: true } },
+      product: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          categoryId: true,
+          defaultSellingPrice: true,
+          category: { select: { id: true, name: true } },
+        },
+      },
     },
   },
   _count: { select: { grns: true, purchaseInvoices: true } },
@@ -244,7 +253,11 @@ async function resolvePoItems(items, supplierId, company, vatRate) {
 
     if (!productId) {
       const product = await findOrCreateProduct(
-        { description: description || 'PO line item', costPrice: line.costPrice },
+        {
+          description: description || 'PO line item',
+          costPrice: line.costPrice,
+          categoryId: line.categoryId || null,
+        },
         supplierId,
         company,
         resolvedVat
@@ -258,6 +271,12 @@ async function resolvePoItems(items, supplierId, company, vatRate) {
         resolvedVat,
         `PO line product ${productId}`
       );
+      if (line.categoryId) {
+        await prisma.product.update({
+          where: { id: productId },
+          data: { categoryId: line.categoryId },
+        });
+      }
     }
 
     resolved.push({
@@ -330,8 +349,10 @@ async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
     }
   }
 
+  const categoryFilter = line.categoryId ? { categoryId: line.categoryId } : {};
+
   let product = await prisma.product.findFirst({
-    where: { name: { equals: description, mode: 'insensitive' }, company },
+    where: { name: { equals: description, mode: 'insensitive' }, company, ...categoryFilter },
   });
   if (product) {
     await syncProductVatFromPo(prisma, product.id, resolvedVat, `PO import product ${product.code}`);
@@ -339,14 +360,21 @@ async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
   }
 
   product = await prisma.product.findFirst({
-    where: { name: { contains: description.slice(0, 40), mode: 'insensitive' }, company },
+    where: { name: { contains: description.slice(0, 40), mode: 'insensitive' }, company, ...categoryFilter },
   });
   if (product) {
     await syncProductVatFromPo(prisma, product.id, resolvedVat, `PO import product ${product.code}`);
     return product;
   }
 
-  const category = await getOrCreateImportCategory();
+  let categoryId = line.categoryId || null;
+  if (categoryId) {
+    const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
+    if (!category) throw ApiError.badRequest('Selected category not found');
+  } else {
+    categoryId = (await getOrCreateImportCategory()).id;
+  }
+
   const code = await uniqueProductCode(slugCode(description, 18) || 'PO-ITEM');
   const costPrice = Number(line.costPrice) || 0;
   const vatPercentage = vatForNewProduct(resolvedVat, `new product ${code}`);
@@ -355,7 +383,7 @@ async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
     data: {
       code,
       name: description,
-      categoryId: category.id,
+      categoryId,
       supplierId,
       company,
       purchasePrice: costPrice,

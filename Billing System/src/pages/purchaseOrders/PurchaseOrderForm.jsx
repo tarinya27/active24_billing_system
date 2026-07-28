@@ -4,7 +4,7 @@ import { Plus, Save, Printer } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import { purchaseOrdersApi } from '../../api/procurement';
-import { suppliersApi } from '../../api/masters';
+import { categoriesApi, suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import {
   PO_COMPANY,
@@ -15,7 +15,13 @@ import {
   splitPaymentTerms,
 } from '../../utils/poConstants';
 
-const emptyItem = () => ({ description: '', quantity: 1, costPrice: 0, warrantyMonths: '' });
+const emptyItem = () => ({
+  categoryId: '',
+  description: '',
+  quantity: 1,
+  costPrice: 0,
+  warrantyMonths: '',
+});
 
 const emptyForm = {
   supplierId: '',
@@ -44,6 +50,7 @@ export default function PurchaseOrderForm() {
   const navigate = useNavigate();
 
   const [suppliers, setSuppliers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [nextSerial, setNextSerial] = useState('—');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -52,10 +59,13 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     Promise.all([
       suppliersApi.list({ pageSize: 200, company: PO_COMPANY, isActive: 'true' }),
+      categoriesApi.list({ isActive: 'true' }),
       !isEdit ? purchaseOrdersApi.nextSerial(PO_COMPANY) : Promise.resolve(null),
     ])
-      .then(([s, serial]) => {
+      .then(([s, cats, serial]) => {
         setSuppliers(s.items || []);
+        const list = Array.isArray(cats) ? cats : cats?.items || [];
+        setCategories(list.filter((cat) => cat.isActive !== false));
         if (serial?.serial) setNextSerial(serial.serial);
       })
       .catch(() => toast.error('Failed to load form data'));
@@ -81,6 +91,7 @@ export default function PurchaseOrderForm() {
           collectedBy: po.collectedBy || '',
           vatRate: Number(po.vatRate ?? 0),
           items: po.items.map((i) => ({
+            categoryId: i.product?.categoryId || i.product?.category?.id || '',
             description: i.description || i.product?.name || '',
             quantity: i.quantity,
             costPrice: Number(i.costPrice),
@@ -136,6 +147,7 @@ export default function PurchaseOrderForm() {
     collectedBy: form.fulfillmentType === 'COLLECTION' ? form.collectedBy : '',
     vatRate,
     items: form.items.map((i) => ({
+      categoryId: i.categoryId || null,
       description: i.description.trim(),
       quantity: Number(i.quantity),
       costPrice: Number(i.costPrice),
@@ -152,6 +164,10 @@ export default function PurchaseOrderForm() {
     }
     if (!form.orderDate) {
       toast.error('PO date is required');
+      return false;
+    }
+    if (form.items.some((i) => !i.categoryId)) {
+      toast.error('Please select a category for all items');
       return false;
     }
     if (form.items.some((i) => !i.description.trim())) {
@@ -282,10 +298,11 @@ export default function PurchaseOrderForm() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-12">No</th>
+                  <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-44">Category</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Description of Goods</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-28">Quantity</th>
                   <th className="pb-3 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 w-36">Unit Price (Rs)</th>
@@ -299,6 +316,19 @@ export default function PurchaseOrderForm() {
                   return (
                     <tr key={index} className="border-b border-slate-50 dark:border-slate-800/50">
                       <td className="py-3 pr-3 align-top text-slate-600">{index + 1}</td>
+                      <td className="py-3 pr-3 align-top">
+                        <select
+                          value={item.categoryId}
+                          onChange={(e) => updateItem(index, { categoryId: e.target.value })}
+                          className="select-field"
+                          required
+                        >
+                          <option value="">-- Select --</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="py-3 pr-3 align-top">
                         <input
                           type="text"
