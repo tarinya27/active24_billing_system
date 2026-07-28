@@ -125,7 +125,7 @@ export default function ProductDetail() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <DetailCard title="Product Information">
-          <Field label="Product Code" value={product.code} />
+          <Field label="Inventory Code" value={product.code} />
           <Field label="Barcode" value={product.barcode} />
           <Field label="Category" value={product.category?.name} />
           <Field label="Brand" value={product.brand} />

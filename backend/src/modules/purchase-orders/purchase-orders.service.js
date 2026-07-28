@@ -14,6 +14,7 @@ import {
   vatForNewProduct,
   syncProductVatFromPo,
 } from '../../utils/productVat.js';
+import { generateInventoryCode } from '../products/products.utils.js';
 
 const poInclude = {
   supplier: { select: { id: true, name: true, code: true, company: true, contactPerson: true, vatRate: true } },
@@ -375,7 +376,9 @@ async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
     categoryId = (await getOrCreateImportCategory()).id;
   }
 
-  const code = await uniqueProductCode(slugCode(description, 18) || 'PO-ITEM');
+  const code = line.productCode
+    ? await uniqueProductCode(line.productCode)
+    : await generateInventoryCode(prisma, categoryId);
   const costPrice = Number(line.costPrice) || 0;
   const vatPercentage = vatForNewProduct(resolvedVat, `new product ${code}`);
 

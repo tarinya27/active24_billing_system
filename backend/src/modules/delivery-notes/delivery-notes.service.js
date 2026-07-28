@@ -4,7 +4,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 import { calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextDnNumber } from '../../utils/documentNumbers.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
-import { generateProductCode } from '../products/products.utils.js';
+import { generateInventoryCode } from '../products/products.utils.js';
 import { createInvoice } from '../invoices/invoices.service.js';
 
 const dnInclude = {
@@ -87,7 +87,7 @@ async function resolveDnProduct(tx, { categoryId, description, supplierId, purch
     });
   }
 
-  const code = await generateProductCode(tx);
+  const code = await generateInventoryCode(tx, categoryId);
   return tx.product.create({
     data: {
       code,

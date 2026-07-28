@@ -3,7 +3,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
 import { toCsv } from '../../utils/csv.js';
 import {
-  generateProductCode,
+  generateInventoryCode,
   mapProductResponse,
   PRODUCT_EXPORT_COLUMNS,
   normalizeImportRow,
@@ -242,7 +242,7 @@ export async function createProduct(data) {
   return prisma.$transaction(async (tx) => {
     await assertActiveCategory(payload.categoryId, tx);
     await assertActiveSupplier(payload.supplierId, tx);
-    const code = payload.code || (await generateProductCode(tx));
+    const code = payload.code || (await generateInventoryCode(tx, payload.categoryId));
     await assertCodeUnique(code);
     await assertBarcodeUnique(payload.barcode);
 
@@ -309,7 +309,7 @@ export async function updateProductStatus(id, isActive) {
 export async function duplicateProduct(id) {
   const source = await getProduct(id);
   return prisma.$transaction(async (tx) => {
-    const code = await generateProductCode(tx);
+    const code = await generateInventoryCode(tx, source.categoryId);
     let barcode = source.barcode ? `${source.barcode}-COPY` : null;
     if (barcode) {
       const clash = await tx.product.findFirst({ where: { barcode } });
@@ -368,7 +368,9 @@ export async function importProducts(rows) {
           throw new Error(`VAT cannot exceed ${maxVat}%`);
         }
 
-        const code = normalized.code || (await generateProductCode(tx));
+        const categoryId = await resolveCategoryIdForImport(normalized.categoryName, tx);
+        const supplierId = await resolveSupplierIdForImport(normalized.supplierName, tx);
+        const code = normalized.code || (await generateInventoryCode(tx, categoryId));
         if (normalized.code) {
           const codeClash = await tx.product.findFirst({ where: { code: normalized.code } });
           if (codeClash) throw new Error(`Duplicate product code: ${normalized.code}`);
@@ -377,9 +379,6 @@ export async function importProducts(rows) {
           const barcodeClash = await tx.product.findFirst({ where: { barcode: normalized.barcode } });
           if (barcodeClash) throw new Error(`Duplicate barcode: ${normalized.barcode}`);
         }
-
-        const categoryId = await resolveCategoryIdForImport(normalized.categoryName, tx);
-        const supplierId = await resolveSupplierIdForImport(normalized.supplierName, tx);
 
         await tx.product.create({
           data: {

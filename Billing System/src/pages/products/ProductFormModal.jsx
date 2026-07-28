@@ -56,6 +56,20 @@ export default function ProductFormModal({
   const profit = Math.round((sellingPrice - purchasePrice) * 100) / 100;
   const priceError = sellingPrice < purchasePrice;
 
+  const selectedCategory = useMemo(
+    () => activeCategories.find((c) => c.id === form.categoryId) || null,
+    [activeCategories, form.categoryId]
+  );
+
+  const inventoryCodePreview = useMemo(() => {
+    if (editing?.code) return editing.code;
+    if (!selectedCategory) return 'Select a category';
+    if (!selectedCategory.codePrefix) return 'Auto (PRD-#####) on save';
+    const next = (Number(selectedCategory.codeSequence) || 0) + 1;
+    const width = Math.max(2, String(next).length);
+    return `${selectedCategory.codePrefix}${String(next).padStart(width, '0')}`;
+  }, [editing, selectedCategory]);
+
   useEffect(() => {
     if (!isOpen) return;
     productsApi.meta().then((m) => setMaxVat(m.maxVat ?? 100)).catch(() => {});
@@ -104,13 +118,17 @@ export default function ProductFormModal({
     }
 
     const payload = {
-      ...form,
+      name: form.name.trim(),
       barcode: form.barcode.trim() || null,
       brand: form.brand.trim() || null,
+      description: form.description,
+      categoryId: form.categoryId,
       purchasePrice,
       defaultSellingPrice: sellingPrice,
       vatPercentage: vat,
       reorderLevel: Number(form.reorderLevel) || 0,
+      supplierId: form.supplierId,
+      isActive: form.isActive,
     };
 
     setSaving(true);
@@ -147,13 +165,21 @@ export default function ProductFormModal({
             <label className="label">Product Name *</label>
             <input className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Product name" />
           </div>
-          {editing && (
-            <div>
-              <label className="label">Product Code</label>
-              <input className="input-field font-mono text-sm" value={editing.code} readOnly disabled />
-            </div>
-          )}
-          <div className={editing ? '' : 'sm:col-span-2'}>
+          <div>
+            <label className="label">Inventory Code</label>
+            <input
+              className="input-field font-mono text-sm bg-slate-50 dark:bg-slate-800/50"
+              value={inventoryCodePreview}
+              readOnly
+              disabled
+            />
+            {!editing && (
+              <p className="mt-1 text-xs text-slate-500">
+                Generated automatically from the category prefix when you save.
+              </p>
+            )}
+          </div>
+          <div>
             <label className="label">Barcode</label>
             <BarcodeInput
               value={form.barcode}

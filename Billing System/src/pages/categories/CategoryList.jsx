@@ -11,10 +11,17 @@ import { useSearch } from '../../hooks/usePagination';
 import { categoriesApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 
+function normalizePrefixInput(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 20);
+}
+
 export default function CategoryList() {
   const { items: categories, loading, reload } = useResourceList(categoriesApi);
   const [statusFilter, setStatusFilter] = useState('all');
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(categories, ['name']);
+  const { searchQuery, setSearchQuery, filteredItems } = useSearch(categories, ['name', 'codePrefix']);
 
   const visible = useMemo(() => {
     if (statusFilter === 'active') return filteredItems.filter((c) => c.isActive !== false);
@@ -25,6 +32,7 @@ export default function CategoryList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState('');
+  const [codePrefix, setCodePrefix] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -32,6 +40,7 @@ export default function CategoryList() {
   const openCreate = () => {
     setEditing(null);
     setName('');
+    setCodePrefix('');
     setIsActive(true);
     setModalOpen(true);
   };
@@ -39,6 +48,7 @@ export default function CategoryList() {
   const openEdit = (category) => {
     setEditing(category);
     setName(category.name);
+    setCodePrefix(category.codePrefix || '');
     setIsActive(category.isActive !== false);
     setModalOpen(true);
   };
@@ -51,7 +61,11 @@ export default function CategoryList() {
     }
     setSaving(true);
     try {
-      const payload = { name: name.trim(), isActive };
+      const payload = {
+        name: name.trim(),
+        codePrefix: codePrefix.trim() || null,
+        isActive,
+      };
       if (editing) {
         await categoriesApi.update(editing.id, payload);
         toast.success('Category updated');
@@ -91,6 +105,15 @@ export default function CategoryList() {
 
   const columns = [
     { key: 'name', label: 'Category', render: (r) => <span className="font-medium">{r.name}</span> },
+    {
+      key: 'codePrefix',
+      label: 'Code Prefix',
+      render: (r) => (
+        <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
+          {r.codePrefix || '—'}
+        </span>
+      ),
+    },
     { key: 'productCount', label: 'Products', render: (r) => r.productCount ?? 0 },
     {
       key: 'status',
@@ -125,11 +148,15 @@ export default function CategoryList() {
     },
   ];
 
+  const previewNext = codePrefix
+    ? `${codePrefix}${String((editing?.codeSequence || 0) + 1).padStart(2, '0')}`
+    : null;
+
   return (
     <div>
       <PageHeader
         title="Categories"
-        subtitle="Organize products — categories must exist before adding products"
+        subtitle="Organize products — set an inventory code prefix to auto-generate codes (e.g. PRINT01)"
         actions={<button onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" /> Add Category</button>}
       />
 
@@ -156,7 +183,28 @@ export default function CategoryList() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label">Category Name *</label>
-            <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Networking" autoFocus />
+            <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Printers" autoFocus />
+          </div>
+          <div>
+            <label className="label">Inventory Code Prefix</label>
+            <input
+              className="input-field font-mono uppercase"
+              value={codePrefix}
+              onChange={(e) => setCodePrefix(normalizePrefixInput(e.target.value))}
+              placeholder="e.g. PRINT"
+              maxLength={20}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Used to auto-generate inventory codes (PRINT01, PRINT02…). Letters and numbers only.
+              {previewNext ? (
+                <> Next new item: <span className="font-mono font-medium text-slate-700 dark:text-slate-200">{previewNext}</span></>
+              ) : (
+                <> Leave blank to keep legacy auto codes (PRD-00001).</>
+              )}
+              {editing && (
+                <> Saving a new prefix will also renumber existing products in this category.</>
+              )}
+            </p>
           </div>
           <div>
             <label className="label">Status</label>
