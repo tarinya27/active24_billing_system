@@ -21,6 +21,9 @@ import PurchaseInvoiceDetail from '../pages/purchaseInvoices/PurchaseInvoiceDeta
 import GRNList from '../pages/grn/GRNList';
 import GRNForm from '../pages/grn/GRNForm';
 import GRNDetail from '../pages/grn/GRNDetail';
+import DeliveryNoteList from '../pages/deliveryNotes/DeliveryNoteList';
+import DeliveryNoteForm from '../pages/deliveryNotes/DeliveryNoteForm';
+import DeliveryNoteDetail from '../pages/deliveryNotes/DeliveryNoteDetail';
 import StockManagement from '../pages/stock/StockManagement';
 import Billing from '../pages/billing/Billing';
 import Reports from '../pages/reports/Reports';
@@ -89,6 +92,15 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute requiredPermission="grn.create" />}>
             <Route path="grn/new" element={<GRNForm />} />
           </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="delivery_notes.view" />}>
+            <Route path="delivery-notes" element={<DeliveryNoteList />} />
+            <Route path="delivery-notes/:id" element={<DeliveryNoteDetail />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="delivery_notes.create" />}>
+            <Route path="delivery-notes/new" element={<DeliveryNoteForm />} />
+          </Route>
+
           <Route path="stock" element={<StockManagement />} />
           <Route path="billing" element={<Billing />} />
           <Route path="reports" element={<Reports />} />

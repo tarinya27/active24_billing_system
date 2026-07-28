@@ -1,5 +1,17 @@
 import { prisma } from '../config/prisma.js';
 
+export async function nextDnNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `DN-${year}-`;
+  const latest = await prisma.deliveryNote.findFirst({
+    where: { dnNumber: { startsWith: prefix } },
+    orderBy: { dnNumber: 'desc' },
+    select: { dnNumber: true },
+  });
+  const next = latest ? parseInt(latest.dnNumber.slice(prefix.length), 10) + 1 : 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 export async function nextGrnNumber() {
   const year = new Date().getFullYear();
   const prefix = `GRN-${year}-`;

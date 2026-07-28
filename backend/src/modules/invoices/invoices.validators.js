@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createInvoiceSchema = z.object({
   customerId: z.string().min(1),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
+  deliveryNoteId: z.string().min(1).optional().nullable(),
   items: z
     .array(
       z.object({

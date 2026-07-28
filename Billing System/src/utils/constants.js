@@ -22,6 +22,15 @@ export const GRN_STATUS = {
 
 export const grnStatusLabel = (status) => GRN_STATUS[status] || status;
 
+export const DN_STATUS = {
+  DRAFT: 'Draft',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  INVOICED: 'Invoiced',
+};
+
+export const dnStatusLabel = (status) => DN_STATUS[status] || status;
+
 export const INVOICE_STATUS = {
   DRAFT: 'Draft',
   COMPLETED: 'Completed',

@@ -203,6 +203,7 @@ export async function createInvoice(payload, userId) {
         invoiceNumber,
         customerId: payload.customerId,
         cashierId: userId,
+        deliveryNoteId: payload.deliveryNoteId || null,
         paymentMethod: payload.paymentMethod,
         status: 'COMPLETED',
         creditStatus: isCredit ? 'OUTSTANDING' : null,

@@ -74,10 +74,18 @@ enum PaymentMethod {
 
 enum UnitStatus {
   PENDING_GRN
+  PENDING_DN
   IN_STOCK
   SOLD
   RETURNED
   VOID
+}
+
+enum DnStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+  INVOICED
 }
 
 enum SellingPriceMode {
@@ -87,6 +95,7 @@ enum SellingPriceMode {
 
 enum MovementType {
   GRN_IN
+  DN_IN
   SALE_OUT
   ADJUSTMENT
   RETURN
@@ -106,6 +115,7 @@ model User {
 
   invoices         Invoice[]         @relation("InvoiceCashier")
   grns             Grn[]             @relation("GrnReceivedBy")
+  deliveryNotes    DeliveryNote[]    @relation("DnReceivedBy")
   purchaseInvoices PurchaseInvoice[] @relation("PurchaseInvoiceCreatedBy")
   stockMovements   StockMovement[]
   activities       Activity[]
@@ -124,6 +134,7 @@ model Category {
   updatedAt DateTime  @updatedAt
   products  Product[]
   grnItems  GrnItem[]
+  dnItems   DeliveryNoteItem[]
 
   @@map("categories")
 }
@@ -148,6 +159,7 @@ model Supplier {
   purchaseOrders   PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
   grns             Grn[]
+  deliveryNotes    DeliveryNote[]
 
   @@map("suppliers")
 }
@@ -161,7 +173,8 @@ model Customer {
   type      CustomerType @default(WALK_IN)
   createdAt DateTime     @default(now())
 
-  invoices Invoice[]
+  invoices      Invoice[]
+  deliveryNotes DeliveryNote[]
 
   @@map("customers")
 }
@@ -190,6 +203,7 @@ model Product {
   poItems              PoItem[]
   purchaseInvoiceItems PurchaseInvoiceItem[]
   grnItems             GrnItem[]
+  dnItems              DeliveryNoteItem[]
   invoiceItems         InvoiceItem[]
   stockMovements       StockMovement[]
 
@@ -341,6 +355,53 @@ model GrnItem {
   @@map("grn_items")
 }
 
+// ---------- Delivery Notes (parallel stock-in + invoice path) ----------
+
+model DeliveryNote {
+  id           String     @id @default(cuid())
+  dnNumber     String     @unique
+  supplierId   String
+  supplier     Supplier   @relation(fields: [supplierId], references: [id])
+  customerId   String?
+  customer     Customer?  @relation(fields: [customerId], references: [id])
+  receivedDate DateTime   @default(now())
+  status       DnStatus   @default(DRAFT)
+  receivedById String?
+  receivedBy   User?      @relation("DnReceivedBy", fields: [receivedById], references: [id])
+  notes        String?
+  createdAt    DateTime   @default(now())
+
+  items    DeliveryNoteItem[]
+  units    ProductUnit[]
+  invoices Invoice[]
+
+  @@index([supplierId])
+  @@index([customerId])
+  @@map("delivery_notes")
+}
+
+model DeliveryNoteItem {
+  id               String           @id @default(cuid())
+  deliveryNoteId   String
+  deliveryNote     DeliveryNote     @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product          @relation(fields: [productId], references: [id])
+  categoryId       String?
+  category         Category?        @relation(fields: [categoryId], references: [id])
+  description      String?
+  purchasePrice    Decimal          @db.Decimal(12, 2)
+  costExVat        Decimal          @db.Decimal(12, 2)
+  sellingPrice     Decimal          @db.Decimal(12, 2)
+  sellingPriceMode SellingPriceMode @default(AUTO)
+  units            Int
+  warrantyMonths   Int?
+
+  productUnits ProductUnit[]
+
+  @@index([deliveryNoteId])
+  @@map("delivery_note_items")
+}
+
 // ---------- Serialized stock ----------
 
 model ProductUnit {
@@ -352,6 +413,10 @@ model ProductUnit {
   grnItem           GrnItem?         @relation(fields: [grnItemId], references: [id])
   purchaseInvoiceId String?
   purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id])
+  deliveryNoteId    String?
+  deliveryNote      DeliveryNote?    @relation(fields: [deliveryNoteId], references: [id])
+  deliveryNoteItemId String?
+  deliveryNoteItem  DeliveryNoteItem? @relation(fields: [deliveryNoteItemId], references: [id])
   costPrice         Decimal          @db.Decimal(12, 2)
   sellingPrice      Decimal          @db.Decimal(12, 2)
   warrantyMonths    Int?
@@ -363,33 +428,37 @@ model ProductUnit {
 
   @@index([productId])
   @@index([status])
+  @@index([deliveryNoteId])
   @@map("product_units")
 }
 
 // ---------- Sales invoices ----------
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id])
-  cashierId     String?
-  cashier       User?         @relation("InvoiceCashier", fields: [cashierId], references: [id])
-  paymentMethod PaymentMethod @default(CASH)
-  status        InvoiceStatus @default(COMPLETED)
-  creditStatus  CreditStatus?
-  dueDate       DateTime?
-  subtotal      Decimal       @default(0) @db.Decimal(14, 2)
-  totalDiscount Decimal       @default(0) @db.Decimal(14, 2)
-  vatAmount     Decimal       @default(0) @db.Decimal(14, 2)
-  grandTotal    Decimal       @default(0) @db.Decimal(14, 2)
-  createdAt     DateTime      @default(now())
+  id             String         @id @default(cuid())
+  invoiceNumber  String         @unique
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  cashierId      String?
+  cashier        User?          @relation("InvoiceCashier", fields: [cashierId], references: [id])
+  deliveryNoteId String?
+  deliveryNote   DeliveryNote?  @relation(fields: [deliveryNoteId], references: [id])
+  paymentMethod  PaymentMethod  @default(CASH)
+  status         InvoiceStatus  @default(COMPLETED)
+  creditStatus   CreditStatus?
+  dueDate        DateTime?
+  subtotal       Decimal        @default(0) @db.Decimal(14, 2)
+  totalDiscount  Decimal        @default(0) @db.Decimal(14, 2)
+  vatAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal     Decimal        @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime       @default(now())
 
   items    InvoiceItem[]
   payments InvoicePayment[]
 
   @@index([customerId])
   @@index([cashierId])
+  @@index([deliveryNoteId])
   @@map("invoices")
 }
 

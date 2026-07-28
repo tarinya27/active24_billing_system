@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, PackageCheck, Warehouse,
   Receipt, BarChart3, Settings, ChevronLeft, ChevronRight,
-  Boxes, Tags, Contact, UserCog, Truck, FileInput,
+  Boxes, Tags, Contact, UserCog, Truck,   FileInput, ClipboardList,
 } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 import { usePermission } from '../../hooks/usePermission';
@@ -17,6 +17,7 @@ const navItems = [
   { path: '/suppliers', label: 'Suppliers', icon: Truck, permission: 'suppliers.view' },
   { path: '/purchase-invoices', label: 'Purchase Invoices', icon: FileInput, permission: 'purchase_invoices.view' },
   { path: '/grn', label: 'Goods Received Notes', icon: PackageCheck, permission: 'grn.view' },
+  { path: '/delivery-notes', label: 'Delivery Notes', icon: ClipboardList, permission: 'delivery_notes.view' },
   { path: '/stock', label: 'Stock Management', icon: Warehouse, permission: 'stock.view' },
   { path: '/billing', label: 'Billing / Invoicing', icon: Receipt, permission: 'invoices.create' },
   { path: '/reports', label: 'Reports', icon: BarChart3, permission: 'reports.sales' },

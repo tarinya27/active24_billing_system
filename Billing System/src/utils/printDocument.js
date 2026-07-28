@@ -1,4 +1,5 @@
 import invoicePrintCss from '../styles/invoice-print.css?raw';
+import dnPrintCss from '../styles/dn-print.css?raw';
 
 const PRINT_BASE_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
@@ -9,7 +10,7 @@ const PRINT_BASE_CSS = `
     height: 297mm;
     background: #fff;
     color: #0f172a;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -31,6 +32,39 @@ const PRINT_BASE_CSS = `
   .text-xs { font-size: 0.75rem; line-height: 1rem; }
 `;
 
+/** DN-specific base: no forced page-height so content + @page margins stay on one A4 */
+const DN_PRINT_BASE_CSS = `
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body {
+    display: block;
+  }
+  #dn-print-content,
+  .dn-print {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+  .no-print { display: none !important; }
+`;
+
 function waitForImages(doc) {
   const images = Array.from(doc.images || []);
   const pending = images.filter((img) => !img.complete);
@@ -47,8 +81,23 @@ function waitForImages(doc) {
   );
 }
 
+function resolvePrintCss(elementId) {
+  if (elementId === 'dn-print-content') return dnPrintCss;
+  return invoicePrintCss;
+}
+
+function resolvePrintBaseCss(elementId) {
+  if (elementId === 'dn-print-content') return DN_PRINT_BASE_CSS;
+  return PRINT_BASE_CSS;
+}
+
+function resolvePrintTitle(elementId) {
+  if (elementId === 'dn-print-content') return 'Delivery Note';
+  return 'Invoice';
+}
+
 /**
- * Print a DOM element in an isolated iframe using invoice-only CSS.
+ * Print a DOM element in an isolated iframe using document-specific CSS.
  * Avoids global @media print rules from other stylesheets (e.g. PO print).
  */
 export function printElement(elementId) {
@@ -63,9 +112,13 @@ export function printElement(elementId) {
     return Promise.reject(new Error('Print target has no content'));
   }
 
+  const printCss = resolvePrintCss(elementId);
+  const baseCss = resolvePrintBaseCss(elementId);
+  const title = resolvePrintTitle(elementId);
+
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe');
-    iframe.setAttribute('title', 'Invoice print');
+    iframe.setAttribute('title', `${title} print`);
     iframe.setAttribute(
       'style',
       'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden',
@@ -111,12 +164,9 @@ export function printElement(elementId) {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Invoice</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>${PRINT_BASE_CSS}</style>
-  <style>${invoicePrintCss}</style>
+  <title>${title}</title>
+  <style>${baseCss}</style>
+  <style>${printCss}</style>
 </head>
 <body>${clone.outerHTML}</body>
 </html>`);

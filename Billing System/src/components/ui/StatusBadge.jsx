@@ -32,6 +32,7 @@ export default function StatusBadge({ status, className }) {
     Received: 'success',
     Draft: 'neutral',
     Completed: 'success',
+    Invoiced: 'info',
     Paid: 'success',
     Cancelled: 'danger',
     'In Stock': 'success',
