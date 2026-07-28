@@ -183,13 +183,14 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
             const discount = Number(it.discount ?? 0);
             const lineBase = Number(it.unitPrice ?? 0) * Number(qty);
             const amountExVat = lineBase - discount;
-            const productName = it.productName || it.product?.name || '—';
+            const itemLabel = it.categoryName || it.category || 'Others';
+            const productName = it.itemDescription || it.description || it.productName || it.product?.name || '—';
             const serialOrBarcode = it.barcode || it.serialNumber || '';
             const warrantyLabel = formatWarrantyLabel(it.warrantyMonths);
 
             return (
               <tr key={it.barcode || it.productId || i}>
-                <td className="tax-col-item">{it.productCode || 'Others'}</td>
+                <td className="tax-col-item">{itemLabel}</td>
                 <td className="tax-col-desc">
                   <div>{productName}</div>
                   {serialOrBarcode && <div>S/N - {serialOrBarcode}</div>}

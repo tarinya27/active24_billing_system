@@ -8,6 +8,18 @@ import { purchaseInvoicesApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate, isInvoiceReadyForGrn } from '../../utils/helpers';
 
+function lineCategory(item, invoice) {
+  const poLine = invoice.po?.items?.find((line) => line.productId === item.productId);
+  return poLine?.product?.category?.name || '—';
+}
+
+function lineDescription(item, invoice) {
+  const poLine = invoice?.po?.items?.find((line) => line.productId === item.productId);
+  const fromPo = poLine?.description?.trim();
+  if (fromPo) return fromPo;
+  return item.description?.trim() || item.product?.name || '—';
+}
+
 export default function PurchaseInvoiceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -94,9 +106,10 @@ export default function PurchaseInvoiceDetail() {
         <div className="glass-card p-6 lg:col-span-2">
           <h3 className="mb-4 text-sm font-semibold">Invoice Items & GRN Tally</h3>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-sm">
+            <table className="w-full min-w-[880px] border-separate border-spacing-y-2 text-sm">
               <thead>
                 <tr>
+                  <th className="px-4 pb-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</th>
                   <th className="px-4 pb-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
                   <th className="px-4 pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Unit Price</th>
                   <th className="px-4 pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Units</th>
@@ -111,9 +124,11 @@ export default function PurchaseInvoiceDetail() {
                   const t = tally?.lines?.find((l) => l.productId === item.productId);
                   return (
                     <tr key={item.id} className="rounded-2xl bg-slate-50/70 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900/40 dark:ring-slate-800">
-                      <td className="rounded-l-2xl px-4 py-4 align-top">
-                        <p className="font-medium text-slate-800 dark:text-slate-100">{item.description || item.product?.name}</p>
-                        <p className="mt-1 text-xs text-slate-400">{item.product?.code}</p>
+                      <td className="rounded-l-2xl px-4 py-4 align-top font-medium text-slate-700 dark:text-slate-200">
+                        {lineCategory(item, invoice)}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-medium text-slate-800 dark:text-slate-100">{lineDescription(item, invoice)}</p>
                       </td>
                       <td className="px-4 py-4 text-right align-top whitespace-nowrap text-slate-700 dark:text-slate-200">{formatCurrency(Number(item.unitPrice))}</td>
                       <td className="px-4 py-4 text-right align-top font-medium text-slate-700 dark:text-slate-200">{item.units}</td>

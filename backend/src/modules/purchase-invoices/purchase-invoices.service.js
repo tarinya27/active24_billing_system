@@ -6,11 +6,37 @@ import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 
 const piInclude = {
   supplier: { select: { id: true, name: true, code: true } },
-  po: { select: { id: true, poNumber: true, status: true } },
+  po: {
+    select: {
+      id: true,
+      poNumber: true,
+      status: true,
+      items: {
+        select: {
+          productId: true,
+          description: true,
+          product: {
+            select: {
+              id: true,
+              category: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  },
   createdBy: { select: { id: true, name: true } },
   items: {
     include: {
-      product: { select: { id: true, code: true, name: true, categoryId: true } },
+      product: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          categoryId: true,
+          category: { select: { id: true, name: true } },
+        },
+      },
     },
     orderBy: { id: 'asc' },
   },
@@ -113,6 +139,15 @@ export async function getPurchaseInvoiceTally(id) {
       }, {})
     : {};
 
+  const poCategoryByProduct = invoice.poId
+    ? Object.fromEntries(
+        (invoice.po?.items || []).map((line) => [
+          line.productId,
+          line.product?.category?.name || null,
+        ])
+      )
+    : {};
+
   const lines = invoice.items.map((item) => {
     const invoicedQty = item.units;
     const receivedQty = receivedMap[item.productId] || 0;
@@ -121,6 +156,7 @@ export async function getPurchaseInvoiceTally(id) {
       productId: item.productId,
       productCode: item.product.code,
       productName: item.product.name,
+      categoryName: poCategoryByProduct[item.productId] || null,
       description: item.description,
       unitPrice: item.unitPrice,
       orderedQty,

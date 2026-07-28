@@ -10,6 +10,18 @@ import { grnsApi } from '../../api/procurement';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { grnStatusLabel } from '../../utils/constants';
+import { formatWarrantyLabel } from '../../utils/warranty';
+
+function grnLineTitle(item) {
+  const description = item.description?.trim();
+  if (description) return description;
+  return item.product?.name || '—';
+}
+
+function grnLineMeta(item) {
+  const warranty = formatWarrantyLabel(item.warrantyMonths);
+  return warranty ? `Warranty: ${warranty}` : '';
+}
 
 export default function GRNDetail() {
   const { id } = useParams();
@@ -64,31 +76,70 @@ export default function GRNDetail() {
           {grn.notes && <div><p className="text-xs text-slate-500">Notes</p><p className="text-sm">{grn.notes}</p></div>}
         </div>
 
-        <div className="glass-card space-y-6 p-6 lg:col-span-2">
-          {grn.items.map((item) => (
-            <div key={item.id} className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-              <div className="mb-3 flex flex-wrap justify-between gap-2">
-                <div>
-                  <p className="font-medium">{item.product?.name}</p>
-                  <p className="text-xs text-slate-500">{item.product?.code} • {item.category?.name || 'No category'}</p>
-                  {item.description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{item.description}</p>}
+        <div className="glass-card p-6 lg:col-span-2">
+          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Received Items</h3>
+          <div className="space-y-4">
+            {grn.items.map((item) => {
+              const meta = grnLineMeta(item);
+              return (
+                <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5 dark:border-slate-800 dark:bg-slate-900/40">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400">
+                        {item.category?.name || 'Uncategorized'}
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                        {grnLineTitle(item)}
+                      </p>
+                      {meta && (
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{meta}</p>
+                      )}
+                    </div>
+
+                    <div className="grid shrink-0 grid-cols-3 gap-3 text-right text-xs sm:gap-4">
+                      <div>
+                        <p className="text-slate-500">Purchase</p>
+                        <p className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">{formatCurrency(Number(item.purchasePrice))}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Cost ex-VAT</p>
+                        <p className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">{formatCurrency(Number(item.costExVat))}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Sell</p>
+                        <p className="mt-0.5 font-semibold text-emerald-600">
+                          {formatCurrency(Number(item.sellingPrice))}
+                          <span className="ml-1 font-normal text-slate-500">({item.sellingPriceMode})</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-200/80 pt-4 dark:border-slate-700">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Serialized units ({item.productUnits?.length || 0})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.productUnits?.length ? item.productUnits.map((u) => (
+                        <span
+                          key={u.id}
+                          className={`rounded-full px-2.5 py-1 font-mono text-xs ${
+                            u.status === 'IN_STOCK'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                          }`}
+                        >
+                          {u.barcode}
+                        </span>
+                      )) : (
+                        <span className="text-xs text-slate-400">No units linked</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right text-sm">
-                  <p>Purchase: {formatCurrency(Number(item.purchasePrice))}</p>
-                  <p>Cost ex-VAT: {formatCurrency(Number(item.costExVat))}</p>
-                  <p className="font-semibold text-emerald-600">Sell: {formatCurrency(Number(item.sellingPrice))} ({item.sellingPriceMode})</p>
-                </div>
-              </div>
-              <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Serialized units ({item.productUnits?.length || 0})</p>
-              <div className="flex flex-wrap gap-2">
-                {item.productUnits?.map((u) => (
-                  <span key={u.id} className={`rounded-full px-2.5 py-1 font-mono text-xs ${u.status === 'IN_STOCK' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'}`}>
-                    {u.barcode}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       </div>
 

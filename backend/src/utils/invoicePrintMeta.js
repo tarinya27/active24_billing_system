@@ -31,3 +31,26 @@ export function resolveSupplierTinFromUnits(units = []) {
   const unique = [...new Set(tins)];
   return unique[0] || null;
 }
+
+function poLineForUnit(unit) {
+  const grn = unit.grnItem?.grn;
+  const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
+  const po = grn?.po || pi?.po;
+  if (!po?.items?.length) return null;
+  return po.items.find((line) => line.productId === unit.productId) || null;
+}
+
+export function resolveCategoryNameFromUnit(unit) {
+  const poLine = poLineForUnit(unit);
+  if (poLine?.product?.category?.name) return poLine.product.category.name;
+  if (unit.grnItem?.category?.name) return unit.grnItem.category.name;
+  if (unit.product?.category?.name) return unit.product.category.name;
+  return null;
+}
+
+export function resolveItemDescriptionFromUnit(unit, fallbackName) {
+  const poLine = poLineForUnit(unit);
+  if (poLine?.description?.trim()) return poLine.description.trim();
+  if (unit.grnItem?.description?.trim()) return unit.grnItem.description.trim();
+  return fallbackName || unit.product?.name || null;
+}

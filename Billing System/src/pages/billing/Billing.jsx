@@ -154,16 +154,23 @@ export default function Billing() {
         customer,
         poNumber: invoice.poNumber ?? resolveTaxInvoicePoNumber(cartItems),
         supplierTin: invoice.supplierTin ?? resolveTaxInvoiceSupplierTin(cartItems),
-        items: invoice.items.map((item) => ({
-          productId: item.productId,
-          productName: item.product?.name,
-          productCode: item.product?.code,
-          barcode: item.productUnit?.barcode,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          quantity: 1,
-          warrantyMonths: item.warrantyMonths ?? null,
-        })),
+        items: invoice.items.map((item) => {
+          const cartLine = cartItems.find(
+            (c) => c.barcode === item.productUnit?.barcode || c.productUnitId === item.productUnitId
+          );
+          return {
+            productId: item.productId,
+            productName: item.product?.name,
+            productCode: item.product?.code,
+            categoryName: item.categoryName ?? cartLine?.category ?? null,
+            itemDescription: item.itemDescription ?? cartLine?.description ?? null,
+            barcode: item.productUnit?.barcode,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            quantity: 1,
+            warrantyMonths: item.warrantyMonths ?? null,
+          };
+        }),
       };
       setGeneratedInvoice(viewInvoice);
       setShowPreview(true);
@@ -200,6 +207,8 @@ export default function Billing() {
           productId: item.productId,
           productName: item.product?.name,
           productCode: item.product?.code,
+          categoryName: item.categoryName ?? null,
+          itemDescription: item.itemDescription ?? null,
           barcode: item.productUnit?.barcode,
           unitPrice: item.unitPrice,
           discount: item.discount,

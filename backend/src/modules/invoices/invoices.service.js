@@ -4,7 +4,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 import { nextInvoiceNumber } from '../../utils/documentNumbers.js';
 import { CREDIT_TERM_DAYS } from '../../utils/enums.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
-import { resolvePoNumberFromUnits, resolveSupplierTinFromUnits } from '../../utils/invoicePrintMeta.js';
+import { resolvePoNumberFromUnits, resolveSupplierTinFromUnits, resolveCategoryNameFromUnit, resolveItemDescriptionFromUnit } from '../../utils/invoicePrintMeta.js';
 
 const invoiceInclude = {
   customer: true,
@@ -41,18 +41,44 @@ function serializeInvoice(inv) {
 const invoicePrintUnitInclude = {
   product: {
     select: {
+      name: true,
       supplier: { select: { vatRegistrationNo: true } },
+      category: { select: { name: true } },
     },
   },
   grnItem: {
     select: {
+      description: true,
+      category: { select: { name: true } },
       grn: {
         select: {
-          po: { select: { poNumber: true } },
+          po: {
+            select: {
+              poNumber: true,
+              items: {
+                select: {
+                  productId: true,
+                  description: true,
+                  product: { select: { category: { select: { name: true } } } },
+                },
+              },
+            },
+          },
           supplier: { select: { vatRegistrationNo: true } },
           purchaseInvoice: {
             select: {
-              po: { select: { poNumber: true } },
+              po: {
+                select: {
+                  poNumber: true,
+                  items: {
+                    select: {
+                      productId: true,
+                      description: true,
+                      product: { select: { category: { select: { name: true } } } },
+                    },
+                  },
+                },
+              },
               supplier: { select: { vatRegistrationNo: true } },
             },
           },
@@ -62,7 +88,18 @@ const invoicePrintUnitInclude = {
   },
   purchaseInvoice: {
     select: {
-      po: { select: { poNumber: true } },
+      po: {
+        select: {
+          poNumber: true,
+          items: {
+            select: {
+              productId: true,
+              description: true,
+              product: { select: { category: { select: { name: true } } } },
+            },
+          },
+        },
+      },
       supplier: { select: { vatRegistrationNo: true } },
     },
   },
@@ -78,11 +115,23 @@ async function enrichInvoicePrintMeta(invoice) {
     where: { id: { in: unitIds } },
     include: invoicePrintUnitInclude,
   });
+  const unitById = Object.fromEntries(units.map((u) => [u.id, u]));
 
   return {
     ...invoice,
     poNumber: resolvePoNumberFromUnits(units),
     supplierTin: resolveSupplierTinFromUnits(units),
+    items: invoice.items.map((item) => {
+      const unit = unitById[item.productUnitId];
+      const fallbackName = item.product?.name || unit?.product?.name;
+      return {
+        ...item,
+        categoryName: unit ? resolveCategoryNameFromUnit(unit) : null,
+        itemDescription: unit
+          ? resolveItemDescriptionFromUnit(unit, fallbackName)
+          : (item.description?.trim() || fallbackName || null),
+      };
+    }),
   };
 }
 

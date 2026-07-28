@@ -152,6 +152,8 @@ export default function DeliveryNoteDetail() {
           productId: item.productId,
           productName: item.product?.name,
           productCode: item.product?.code,
+          categoryName: item.categoryName ?? null,
+          itemDescription: item.itemDescription ?? null,
           barcode: item.productUnit?.barcode,
           unitPrice: item.unitPrice,
           discount: item.discount,

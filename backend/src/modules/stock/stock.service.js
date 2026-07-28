@@ -15,6 +15,12 @@ const unitInclude = {
   },
 };
 
+const poItemsSelect = {
+  productId: true,
+  description: true,
+  product: { select: { category: { select: { id: true, name: true } } } },
+};
+
 const unitLookupInclude = {
   product: {
     select: {
@@ -36,9 +42,15 @@ const unitLookupInclude = {
       grn: {
         select: {
           grnNumber: true,
-          po: { select: { poNumber: true } },
+          po: { select: { poNumber: true, items: { select: poItemsSelect } } },
           supplier: { select: { vatRegistrationNo: true } },
-          purchaseInvoice: { select: { id: true, supplierInvoiceNo: true } },
+          purchaseInvoice: {
+            select: {
+              id: true,
+              supplierInvoiceNo: true,
+              po: { select: { poNumber: true, items: { select: poItemsSelect } } },
+            },
+          },
         },
       },
     },
@@ -47,15 +59,24 @@ const unitLookupInclude = {
     select: {
       id: true,
       supplierInvoiceNo: true,
-      po: { select: { poNumber: true } },
+      po: { select: { poNumber: true, items: { select: poItemsSelect } } },
       supplier: { select: { vatRegistrationNo: true } },
     },
   },
 };
 
+function poLineForUnit(unit) {
+  const grn = unit.grnItem?.grn;
+  const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
+  const po = grn?.po || pi?.po;
+  if (!po?.items?.length) return null;
+  return po.items.find((line) => line.productId === unit.productId) || null;
+}
+
 function mapUnitForSale(unit) {
   const grn = unit.grnItem?.grn;
   const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
+  const poLine = poLineForUnit(unit);
   const warrantyMonths = unit.warrantyMonths ?? unit.grnItem?.warrantyMonths ?? null;
   const supplierTin = (
     grn?.supplier?.vatRegistrationNo
@@ -66,8 +87,14 @@ function mapUnitForSale(unit) {
   return {
     ...unit,
     saleDetails: {
-      category: unit.grnItem?.category?.name || unit.product?.category?.name || null,
-      description: unit.grnItem?.description || unit.product?.name || null,
+      category: poLine?.product?.category?.name
+        || unit.grnItem?.category?.name
+        || unit.product?.category?.name
+        || null,
+      description: poLine?.description?.trim()
+        || unit.grnItem?.description
+        || unit.product?.name
+        || null,
       purchasePrice: Number(unit.grnItem?.purchasePrice ?? unit.costPrice ?? 0),
       sellingPrice: Number(unit.sellingPrice ?? unit.grnItem?.sellingPrice ?? 0),
       grnNumber: grn?.grnNumber || null,
