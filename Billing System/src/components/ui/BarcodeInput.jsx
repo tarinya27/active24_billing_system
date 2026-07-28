@@ -10,6 +10,7 @@ export default function BarcodeInput({
   className = '',
   inputClassName = '',
   clearOnScan = false,
+  disabled = false,
 }) {
   const [internalValue, setInternalValue] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -22,6 +23,7 @@ export default function BarcodeInput({
   };
 
   const commitBarcode = () => {
+    if (disabled) return;
     const trimmed = String(value || '').trim();
     if (!trimmed) {
       toast.warning('Please enter a barcode');
@@ -55,11 +57,12 @@ export default function BarcodeInput({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          disabled={disabled}
           className={`input-field !pl-10 font-mono text-sm ${inputClassName}`}
           autoComplete="off"
         />
       </div>
-      <button type="button" onClick={handleScan} disabled={scanning} className="btn-primary whitespace-nowrap">
+      <button type="button" onClick={handleScan} disabled={disabled || scanning} className="btn-primary whitespace-nowrap">
         <Scan className={`h-4 w-4 ${scanning ? 'animate-pulse' : ''}`} />
         {scanning ? 'Scanning...' : 'Scan'}
       </button>

@@ -26,6 +26,7 @@ function customerLines(customer) {
 }
 
 function shortItemLabel(item) {
+  if (item.category?.name) return item.category.name;
   const name = item.product?.name || '';
   if (!name) return item.product?.code || '—';
   const words = name.trim().split(/\s+/);

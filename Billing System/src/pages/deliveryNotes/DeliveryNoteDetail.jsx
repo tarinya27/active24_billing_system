@@ -247,8 +247,12 @@ export default function DeliveryNoteDetail() {
             <div key={item.id} className="glass-card space-y-4 p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold text-slate-800 dark:text-white">{item.product?.name}</h3>
-                  <p className="text-xs text-slate-500">{item.product?.code}</p>
+                  <h3 className="font-semibold text-slate-800 dark:text-white">
+                    {item.category?.name || item.product?.name || 'Item'}
+                  </h3>
+                  {item.product?.code && (
+                    <p className="text-xs text-slate-500">{item.product.code}</p>
+                  )}
                   {item.description && <p className="mt-1 text-sm">{item.description}</p>}
                 </div>
                 <div className="text-right text-sm">

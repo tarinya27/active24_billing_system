@@ -4,6 +4,7 @@ import { parsePagination, listResult } from '../../utils/pagination.js';
 import { calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextDnNumber } from '../../utils/documentNumbers.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
+import { generateProductCode } from '../products/products.utils.js';
 import { createInvoice } from '../invoices/invoices.service.js';
 
 const dnInclude = {
@@ -55,6 +56,53 @@ function resolveSellingPrice(line) {
   return calcGrnAutoSellingPrice(line.purchasePrice);
 }
 
+/**
+ * Resolve inventory product for a DN line from category + description.
+ * Reuses an existing product in that category with the same name, otherwise creates one.
+ */
+async function resolveDnProduct(tx, { categoryId, description, supplierId, purchasePrice, sellingPrice }) {
+  const name = String(description || '').trim();
+  if (!name) throw ApiError.badRequest('Description is required');
+
+  const category = await tx.category.findUnique({ where: { id: categoryId }, select: { id: true, name: true, isActive: true } });
+  if (!category) throw ApiError.badRequest('Category not found');
+  if (category.isActive === false) throw ApiError.badRequest(`Category "${category.name}" is inactive`);
+
+  const existing = await tx.product.findFirst({
+    where: {
+      categoryId,
+      name: { equals: name, mode: 'insensitive' },
+      isActive: true,
+    },
+  });
+  if (existing) {
+    return tx.product.update({
+      where: { id: existing.id },
+      data: {
+        purchasePrice: Number(purchasePrice) || existing.purchasePrice,
+        defaultSellingPrice: Number(sellingPrice) || existing.defaultSellingPrice,
+        description: name,
+        supplierId: supplierId || existing.supplierId,
+      },
+    });
+  }
+
+  const code = await generateProductCode(tx);
+  return tx.product.create({
+    data: {
+      code,
+      name,
+      description: name,
+      categoryId,
+      supplierId,
+      company: 'ACTIVE24',
+      purchasePrice: Number(purchasePrice) || 0,
+      defaultSellingPrice: Number(sellingPrice) || calcGrnAutoSellingPrice(purchasePrice),
+      isActive: true,
+    },
+  });
+}
+
 export async function listDeliveryNotes(query) {
   const { skip, take, page, pageSize } = parsePagination(query);
   const where = {};
@@ -97,48 +145,122 @@ export async function createDeliveryNote(data, userId) {
     if (!customer) throw ApiError.badRequest('Customer not found');
   }
 
-  const productIds = data.lines.map((l) => l.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, code: true, categoryId: true, description: true },
-  });
-  const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
   for (const line of data.lines) {
-    if (!productMap[line.productId]) {
-      throw ApiError.badRequest(`Product not found: ${line.productId}`);
+    if (!line.categoryId) throw ApiError.badRequest('Select an item (category) for every line');
+    if (!String(line.description || '').trim()) {
+      throw ApiError.badRequest('Enter a description for every line');
     }
+    if (!Array.isArray(line.barcodes) || line.barcodes.length === 0) {
+      throw ApiError.badRequest('Scan barcodes for every item before creating the delivery note');
+    }
+  }
+
+  const categoryIds = [...new Set(data.lines.map((l) => l.categoryId))];
+  const categories = await prisma.category.findMany({
+    where: { id: { in: categoryIds } },
+    select: { id: true, name: true, isActive: true },
+  });
+  const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c]));
+  for (const id of categoryIds) {
+    if (!categoryMap[id]) throw ApiError.badRequest(`Category not found: ${id}`);
+  }
+
+  const allBarcodes = data.lines.flatMap((line) =>
+    line.barcodes.map((b) => String(b).trim()).filter(Boolean)
+  );
+  if (new Set(allBarcodes).size !== allBarcodes.length) {
+    throw ApiError.badRequest('Duplicate barcodes on this delivery note');
+  }
+
+  const existingUnits = await prisma.productUnit.findMany({
+    where: { barcode: { in: allBarcodes } },
+    select: { barcode: true },
+  });
+  if (existingUnits.length) {
+    throw ApiError.conflict(`Barcode already exists: ${existingUnits.map((u) => u.barcode).join(', ')}`);
   }
 
   const dnNumber = await nextDnNumber();
 
-  return prisma.deliveryNote.create({
-    data: {
-      dnNumber,
-      supplierId: data.supplierId,
-      customerId: data.customerId || null,
-      status: 'DRAFT',
-      receivedById: userId,
-      notes: data.notes || null,
-      items: {
-        create: data.lines.map((line) => {
-          const product = productMap[line.productId];
-          const sellingPrice = resolveSellingPrice(line);
-          const purchasePrice = Number(line.purchasePrice);
-          return {
-            productId: line.productId,
-            categoryId: line.categoryId || product.categoryId,
-            description: line.description?.trim() || product.description || null,
-            purchasePrice,
-            costExVat: purchasePrice,
-            sellingPrice,
-            sellingPriceMode: line.sellingPriceMode || 'AUTO',
-            units: Number(line.units),
-            warrantyMonths: normalizeWarrantyMonths(line.warrantyMonths),
-          };
-        }),
+  // Create DN + items from scanned barcodes, stock in immediately (ready for billing)
+  return prisma.$transaction(async (tx) => {
+    const dn = await tx.deliveryNote.create({
+      data: {
+        dnNumber,
+        supplierId: data.supplierId,
+        customerId: data.customerId || null,
+        status: 'DRAFT',
+        receivedById: userId,
+        notes: data.notes || null,
       },
-    },
-    include: dnInclude,
+    });
+
+    for (const line of data.lines) {
+      const sellingPrice = resolveSellingPrice(line);
+      const purchasePrice = Number(line.purchasePrice);
+      const barcodes = line.barcodes.map((b) => String(b).trim());
+      const warrantyMonths = normalizeWarrantyMonths(line.warrantyMonths);
+      const description = String(line.description).trim();
+
+      const product = await resolveDnProduct(tx, {
+        categoryId: line.categoryId,
+        description,
+        supplierId: data.supplierId,
+        purchasePrice,
+        sellingPrice,
+      });
+
+      const item = await tx.deliveryNoteItem.create({
+        data: {
+          deliveryNoteId: dn.id,
+          productId: product.id,
+          categoryId: line.categoryId,
+          description,
+          purchasePrice,
+          costExVat: purchasePrice,
+          sellingPrice,
+          sellingPriceMode: line.sellingPriceMode || 'AUTO',
+          units: barcodes.length,
+          warrantyMonths,
+        },
+      });
+
+      for (const barcode of barcodes) {
+        const unit = await tx.productUnit.create({
+          data: {
+            productId: product.id,
+            barcode,
+            deliveryNoteId: dn.id,
+            deliveryNoteItemId: item.id,
+            costPrice: purchasePrice,
+            sellingPrice,
+            warrantyMonths,
+            status: 'IN_STOCK',
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            productUnitId: unit.id,
+            type: 'DN_IN',
+            quantity: 1,
+            reference: dnNumber,
+            userId,
+          },
+        });
+      }
+    }
+
+    return tx.deliveryNote.update({
+      where: { id: dn.id },
+      data: {
+        status: 'COMPLETED',
+        receivedById: userId,
+        receivedDate: new Date(),
+      },
+      include: dnInclude,
+    });
   });
 }
 
