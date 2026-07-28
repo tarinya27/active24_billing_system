@@ -368,6 +368,7 @@ model DeliveryNote {
   status       DnStatus   @default(DRAFT)
   receivedById String?
   receivedBy   User?      @relation("DnReceivedBy", fields: [receivedById], references: [id])
+  invNo        String?
   notes        String?
   createdAt    DateTime   @default(now())
 

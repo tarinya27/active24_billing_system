@@ -29,6 +29,7 @@ const dnLineSchema = z.object({
 export const createDeliveryNoteSchema = z.object({
   supplierId: z.string().min(1),
   customerId: z.string().min(1).optional().nullable(),
+  invNo: z.string().trim().max(100).optional().or(z.literal('')),
   notes: z.string().trim().max(500).optional().or(z.literal('')),
   lines: z.array(dnLineSchema).min(1),
 }).superRefine((data, ctx) => {

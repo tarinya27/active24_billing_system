@@ -29,6 +29,7 @@ export default function DeliveryNoteForm() {
   const [form, setForm] = useState({
     supplierId: '',
     customerId: '',
+    invNo: '',
     notes: '',
     lines: [emptyLine()],
   });
@@ -132,7 +133,8 @@ export default function DeliveryNoteForm() {
       const dn = await deliveryNotesApi.create({
         supplierId: form.supplierId,
         customerId: form.customerId || null,
-        notes: form.notes,
+        invNo: form.invNo.trim() || null,
+        notes: form.notes.trim() || null,
         lines: form.lines.map((l) => ({
           categoryId: l.categoryId,
           description: String(l.description).trim(),
@@ -196,12 +198,22 @@ export default function DeliveryNoteForm() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="label">INV No (optional)</label>
+            <input
+              className="input-field"
+              value={form.invNo}
+              onChange={(e) => setForm({ ...form, invNo: e.target.value })}
+              placeholder="Supplier / reference invoice number"
+            />
+          </div>
           <div className="md:col-span-2">
-            <label className="label">Notes</label>
+            <label className="label">Remarks (optional)</label>
             <input
               className="input-field"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Shown on the printed delivery note"
             />
           </div>
         </section>

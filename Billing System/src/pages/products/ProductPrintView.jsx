@@ -29,7 +29,7 @@ export default function ProductPrintView({ products, settings, forPrint = false 
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr className="border-b border-slate-300">
-            {['Code', 'Barcode', 'Name', 'Category', 'Brand', 'Purchase', 'Selling', 'VAT%', 'Stock', 'Status'].map((h) => (
+            {['Code', 'Barcode', 'Name', 'Category', 'Purchase', 'Selling', 'VAT%', 'Stock', 'Status'].map((h) => (
               <th key={h} className="px-2 py-2 text-left font-semibold uppercase">{h}</th>
             ))}
           </tr>
@@ -41,7 +41,6 @@ export default function ProductPrintView({ products, settings, forPrint = false 
               <td className="px-2 py-2 font-mono">{p.barcode || '—'}</td>
               <td className="px-2 py-2">{p.name}</td>
               <td className="px-2 py-2">{p.category?.name || '—'}</td>
-              <td className="px-2 py-2">{p.brand || '—'}</td>
               <td className="px-2 py-2 text-right">{formatCurrency(Number(p.purchasePrice ?? 0))}</td>
               <td className="px-2 py-2 text-right">{formatCurrency(Number(p.sellingPrice ?? p.defaultSellingPrice ?? 0))}</td>
               <td className="px-2 py-2 text-right">{Number(p.vatPercentage ?? 0)}%</td>

@@ -153,7 +153,6 @@ export default function ProductList() {
     { key: 'barcode', label: 'Barcode', render: (r) => <span className="font-mono text-xs">{r.barcode || '—'}</span> },
     { key: 'name', label: 'Inventory Name', render: (r) => <span className="font-medium">{r.name}</span> },
     { key: 'category', label: 'Category', render: (r) => r.category?.name || '—' },
-    { key: 'brand', label: 'Brand', render: (r) => r.brand || '—' },
     { key: 'supplier', label: 'Supplier', render: (r) => r.supplier?.name || '—' },
     { key: 'purchasePrice', label: 'Purchase Price', render: (r) => formatCurrency(Number(r.purchasePrice ?? 0)) },
     { key: 'sellingPrice', label: 'Selling Price', render: (r) => formatCurrency(Number(r.sellingPrice ?? r.defaultSellingPrice ?? 0)) },

@@ -10,6 +10,8 @@ import {
 } from './products.utils.js';
 import {
   getProductStockMap,
+  getProductUnitBarcodesMap,
+  formatUnitBarcodes,
   assertActiveCategory,
   assertActiveSupplier,
   stripReadOnlyProductFields,
@@ -48,6 +50,7 @@ function buildWhere(query) {
       { barcode: { contains: query.search, mode: 'insensitive' } },
       { brand: { contains: query.search, mode: 'insensitive' } },
       { description: { contains: query.search, mode: 'insensitive' } },
+      { units: { some: { barcode: { contains: query.search, mode: 'insensitive' } } } },
     ];
   }
   if (query.categoryId) where.categoryId = query.categoryId;
@@ -73,11 +76,24 @@ function buildWhere(query) {
   return where;
 }
 
-function enrichProduct(product, stockOrMap) {
+function enrichProduct(product, stockOrMap, unitBarcodesMap) {
   const currentStock = typeof stockOrMap === 'number'
     ? stockOrMap
     : (stockOrMap?.get?.(product.id) ?? product._count?.units ?? 0);
-  return mapProductResponse(product, currentStock);
+  const mapped = mapProductResponse(product, currentStock);
+  if (!mapped.barcode?.trim()) {
+    const unitBarcodes = unitBarcodesMap?.get?.(product.id) ?? [];
+    mapped.barcode = formatUnitBarcodes(unitBarcodes);
+  }
+  return mapped;
+}
+
+async function enrichSingleProduct(product) {
+  const [stockMap, unitBarcodesMap] = await Promise.all([
+    getStockMap([product.id]),
+    getProductUnitBarcodesMap([product.id]),
+  ]);
+  return enrichProduct(product, stockMap, unitBarcodesMap);
 }
 
 function sortProducts(items, sortBy = 'createdAt', sortOrder = 'desc') {
@@ -145,8 +161,12 @@ export async function listProducts(query) {
 
   if (needsStockSort || needsLowStockFilter) {
     const all = await prisma.product.findMany({ where, include: includeRelations });
-    const stockMap = await getStockMap(all.map((p) => p.id));
-    let items = all.map((p) => enrichProduct(p, stockMap));
+    const productIds = all.map((p) => p.id);
+    const [stockMap, unitBarcodesMap] = await Promise.all([
+      getStockMap(productIds),
+      getProductUnitBarcodesMap(productIds),
+    ]);
+    let items = all.map((p) => enrichProduct(p, stockMap, unitBarcodesMap));
 
     if (needsLowStockFilter) {
       items = items.filter((p) => p.currentStock > 0 && p.currentStock <= p.reorderLevel);
@@ -164,16 +184,19 @@ export async function listProducts(query) {
     prisma.product.count({ where }),
   ]);
 
-  const stockMap = await getStockMap(rows.map((p) => p.id));
-  const items = rows.map((p) => enrichProduct(p, stockMap));
+  const productIds = rows.map((p) => p.id);
+  const [stockMap, unitBarcodesMap] = await Promise.all([
+    getStockMap(productIds),
+    getProductUnitBarcodesMap(productIds),
+  ]);
+  const items = rows.map((p) => enrichProduct(p, stockMap, unitBarcodesMap));
   return listResult(items, total, { page, pageSize });
 }
 
 export async function getProduct(id) {
   const product = await prisma.product.findUnique({ where: { id }, include: includeRelations });
   if (!product) throw ApiError.notFound('Product not found');
-  const stockMap = await getStockMap([id]);
-  return enrichProduct(product, stockMap);
+  return enrichSingleProduct(product);
 }
 
 /** Lookup active product by master barcode or product code (GRN scan). */
@@ -203,8 +226,7 @@ export async function lookupProductByBarcode(barcode) {
   });
   if (!product) throw ApiError.notFound(`No active product found for barcode: ${trimmed}`);
 
-  const stockMap = await getStockMap([product.id]);
-  return enrichProduct(product, stockMap);
+  return enrichSingleProduct(product);
 }
 
 export async function createProduct(data) {
@@ -261,8 +283,7 @@ export async function updateProduct(id, data) {
     data: payload,
     include: includeRelations,
   });
-  const stockMap = await getStockMap([id]);
-  return enrichProduct(product, stockMap);
+  return enrichSingleProduct(product);
 }
 
 export async function deleteProduct(id) {
@@ -272,8 +293,7 @@ export async function deleteProduct(id) {
     data: { isActive: false },
     include: includeRelations,
   });
-  const stockMap = await getStockMap([id]);
-  return enrichProduct(product, stockMap);
+  return enrichSingleProduct(product);
 }
 
 export async function updateProductStatus(id, isActive) {
@@ -283,8 +303,7 @@ export async function updateProductStatus(id, isActive) {
     data: { isActive },
     include: includeRelations,
   });
-  const stockMap = await getStockMap([id]);
-  return enrichProduct(product, stockMap);
+  return enrichSingleProduct(product);
 }
 
 export async function duplicateProduct(id) {

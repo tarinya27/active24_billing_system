@@ -86,7 +86,6 @@ export function productsToWorkbookRows(products) {
     Barcode: p.barcode || '',
     'Product Name': p.name || p.productName,
     Category: p.category?.name || '',
-    Brand: p.brand || '',
     Supplier: p.supplier?.name || '',
     'Purchase Price': Number(p.purchasePrice ?? 0),
     'Selling Price': Number(p.sellingPrice ?? p.defaultSellingPrice ?? 0),
@@ -108,7 +107,7 @@ export async function exportProductsExcel(products, filename = 'products.xlsx') 
 
 export function exportProductsCsv(products, filename = 'products.csv') {
   const headers = [
-    'Product Code', 'Barcode', 'Product Name', 'Category', 'Brand', 'Supplier',
+    'Product Code', 'Barcode', 'Product Name', 'Category', 'Supplier',
     'Purchase Price', 'Selling Price', 'VAT %', 'Current Stock', 'Reorder Level', 'Status', 'Description',
   ];
   const lines = [headers.join(',')];

@@ -62,7 +62,9 @@ export default function DeliveryNotePrintView({ dn, onClose, onPrint }) {
   const invoiceNos = (dn.invoices || [])
     .map((inv) => inv.invoiceNumber)
     .filter(Boolean);
-  const invNo = invoiceNos.length ? invoiceNos.join(', ') : '—';
+  const invNo = dn.invNo?.trim()
+    || (invoiceNos.length ? invoiceNos.join(', ') : '')
+    || '—';
   const remarks = dn.notes?.trim() || '';
   const metaRemarks = remarks || '—';
   const dnDate = formatDnDate(dn.receivedDate || dn.createdAt);

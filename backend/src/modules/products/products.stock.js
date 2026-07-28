@@ -18,6 +18,37 @@ export async function getProductStockMap(productIds, tx = prisma) {
   return new Map(counts.map((c) => [c.productId, c._count._all]));
 }
 
+export async function getProductUnitBarcodesMap(productIds, tx = prisma) {
+  if (!productIds.length) return new Map();
+  const units = await tx.productUnit.findMany({
+    where: { productId: { in: productIds } },
+    select: { productId: true, barcode: true, status: true },
+    orderBy: { barcode: 'asc' },
+  });
+
+  const buckets = new Map();
+  for (const unit of units) {
+    if (!buckets.has(unit.productId)) {
+      buckets.set(unit.productId, { inStock: [], all: [] });
+    }
+    const bucket = buckets.get(unit.productId);
+    bucket.all.push(unit.barcode);
+    if (unit.status === 'IN_STOCK') bucket.inStock.push(unit.barcode);
+  }
+
+  const map = new Map();
+  for (const [productId, { inStock, all }] of buckets) {
+    const barcodes = (inStock.length ? inStock : all).sort();
+    map.set(productId, [...new Set(barcodes)]);
+  }
+  return map;
+}
+
+export function formatUnitBarcodes(barcodes = []) {
+  if (!barcodes.length) return null;
+  return barcodes.length === 1 ? barcodes[0] : barcodes.join(', ');
+}
+
 export function computeProfit(purchasePrice, sellingPrice) {
   return Math.round((Number(sellingPrice) - Number(purchasePrice)) * 100) / 100;
 }

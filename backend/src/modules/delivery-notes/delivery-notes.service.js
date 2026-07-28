@@ -191,7 +191,8 @@ export async function createDeliveryNote(data, userId) {
         customerId: data.customerId || null,
         status: 'DRAFT',
         receivedById: userId,
-        notes: data.notes || null,
+        invNo: data.invNo?.trim() || null,
+        notes: data.notes?.trim() || null,
       },
     });
 

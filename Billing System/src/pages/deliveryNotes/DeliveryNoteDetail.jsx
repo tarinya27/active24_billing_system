@@ -217,7 +217,7 @@ export default function DeliveryNoteDetail() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="glass-card p-4">
           <p className="text-xs text-slate-500">Status</p>
           <StatusBadge status={dnStatusLabel(dn.status)} />
@@ -231,13 +231,20 @@ export default function DeliveryNoteDetail() {
           <p className="font-medium">{dn.customer?.name || '—'}</p>
         </div>
         <div className="glass-card p-4">
+          <p className="text-xs text-slate-500">INV No</p>
+          <p className="font-medium">{dn.invNo || '—'}</p>
+        </div>
+        <div className="glass-card p-4">
           <p className="text-xs text-slate-500">Received By</p>
           <p className="font-medium">{dn.receivedBy?.name || '—'}</p>
         </div>
       </div>
 
       {dn.notes && (
-        <div className="glass-card mb-6 p-4 text-sm text-slate-600 dark:text-slate-300">{dn.notes}</div>
+        <div className="glass-card mb-6 p-4">
+          <p className="text-xs text-slate-500">Remarks</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{dn.notes}</p>
+        </div>
       )}
 
       <div className="space-y-4">
