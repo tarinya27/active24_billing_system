@@ -21,6 +21,7 @@ import { formatCurrency } from '../../utils/helpers';
 import { downloadBlob, exportProductsCsv, exportProductsExcel } from '../../utils/productExport';
 import ProductFormModal from './ProductFormModal';
 import ProductPrintView from './ProductPrintView';
+import InventoryBarcodesCell from '../../components/products/InventoryBarcodesCell';
 
 const SORT_OPTIONS = [
   { value: 'name', label: 'Inventory Name' },
@@ -150,7 +151,7 @@ export default function ProductList() {
 
   const columns = [
     { key: 'code', label: 'Inventory Code', render: (r) => <span className="font-mono text-xs">{r.code}</span> },
-    { key: 'barcode', label: 'Barcode', render: (r) => <span className="font-mono text-xs">{r.barcode || '—'}</span> },
+    { key: 'barcode', label: 'Barcode', render: (r) => <InventoryBarcodesCell item={r} /> },
     { key: 'name', label: 'Inventory Name', render: (r) => <span className="font-medium">{r.name}</span> },
     { key: 'category', label: 'Category', render: (r) => r.category?.name || '—' },
     { key: 'supplier', label: 'Supplier', render: (r) => r.supplier?.name || '—' },

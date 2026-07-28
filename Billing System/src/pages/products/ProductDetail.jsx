@@ -13,6 +13,7 @@ import { formatCurrency, formatDateTime, getStockStatus } from '../../utils/help
 import ProductFormModal from './ProductFormModal';
 import { useResourceList } from '../../hooks/useResourceList';
 import { categoriesApi, suppliersApi } from '../../api/masters';
+import { InventoryBarcodesGrid } from '../../components/products/InventoryBarcodesCell';
 
 function DetailCard({ title, children }) {
   return (
@@ -102,7 +103,7 @@ export default function ProductDetail() {
     <div>
       <PageHeader
         title={product.name}
-        subtitle={`${product.code}${product.barcode ? ` • ${product.barcode}` : ''}`}
+        subtitle={`${product.code}${product.barcodeCount > 1 ? ` • ${product.barcodeCount} barcodes` : product.unitBarcodes?.[0] ? ` • ${product.unitBarcodes[0]}` : product.barcode && !String(product.barcode).includes(',') ? ` • ${product.barcode}` : ''}`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link to="/products" className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</Link>
@@ -126,7 +127,12 @@ export default function ProductDetail() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <DetailCard title="Product Information">
           <Field label="Inventory Code" value={product.code} />
-          <Field label="Barcode" value={product.barcode} />
+          <div className="sm:col-span-2">
+            <p className="text-xs text-slate-500">Barcodes</p>
+            <div className="mt-1">
+              <InventoryBarcodesGrid item={product} />
+            </div>
+          </div>
           <Field label="Category" value={product.category?.name} />
           <Field label="Brand" value={product.brand} />
           <Field label="VAT %" value={`${Number(product.vatPercentage ?? 0)}%`} />

@@ -38,7 +38,11 @@ export default function ProductPrintView({ products, settings, forPrint = false 
           {products.map((p) => (
             <tr key={p.id} className="border-b border-slate-200">
               <td className="px-2 py-2 font-mono">{p.code}</td>
-              <td className="px-2 py-2 font-mono">{p.barcode || '—'}</td>
+              <td className="px-2 py-2 font-mono">
+                {Array.isArray(p.unitBarcodes) && p.unitBarcodes.length > 1
+                  ? `${p.unitBarcodes[0]} (+${p.unitBarcodes.length - 1})`
+                  : (p.unitBarcodes?.[0] || p.barcode || '—')}
+              </td>
               <td className="px-2 py-2">{p.name}</td>
               <td className="px-2 py-2">{p.category?.name || '—'}</td>
               <td className="px-2 py-2 text-right">{formatCurrency(Number(p.purchasePrice ?? 0))}</td>

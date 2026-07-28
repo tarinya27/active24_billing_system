@@ -81,10 +81,14 @@ function enrichProduct(product, stockOrMap, unitBarcodesMap) {
     ? stockOrMap
     : (stockOrMap?.get?.(product.id) ?? product._count?.units ?? 0);
   const mapped = mapProductResponse(product, currentStock);
+  const fromUnits = unitBarcodesMap?.get?.(product.id) ?? [];
   if (!mapped.barcode?.trim()) {
-    const unitBarcodes = unitBarcodesMap?.get?.(product.id) ?? [];
-    mapped.barcode = formatUnitBarcodes(unitBarcodes);
+    mapped.unitBarcodes = fromUnits;
+    mapped.barcode = formatUnitBarcodes(fromUnits);
+  } else {
+    mapped.unitBarcodes = fromUnits.length ? fromUnits : [String(mapped.barcode).trim()];
   }
+  mapped.barcodeCount = mapped.unitBarcodes?.length ?? 0;
   return mapped;
 }
 
