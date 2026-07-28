@@ -21,6 +21,8 @@ async function clearDummyData() {
     counts.invoices = (await tx.invoice.deleteMany()).count;
     counts.stockMovements = (await tx.stockMovement.deleteMany()).count;
     counts.productUnits = (await tx.productUnit.deleteMany()).count;
+    counts.deliveryNoteItems = (await tx.deliveryNoteItem.deleteMany()).count;
+    counts.deliveryNotes = (await tx.deliveryNote.deleteMany()).count;
     counts.grnItems = (await tx.grnItem.deleteMany()).count;
     counts.grns = (await tx.grn.deleteMany()).count;
     counts.purchaseInvoiceItems = (await tx.purchaseInvoiceItem.deleteMany()).count;

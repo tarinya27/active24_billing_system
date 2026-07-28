@@ -39,7 +39,6 @@ export default function ProductList() {
 
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [brand, setBrand] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [stockAvailability, setStockAvailability] = useState('');
@@ -48,7 +47,6 @@ export default function ProductList() {
   const [priceField, setPriceField] = useState('selling');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [brands, setBrands] = useState([]);
   const [settings, setSettings] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,7 +58,6 @@ export default function ProductList() {
   const queryParams = useMemo(() => ({
     search: search || undefined,
     categoryId: categoryId || undefined,
-    brand: brand || undefined,
     supplierId: supplierId || undefined,
     isActive: statusFilter || undefined,
     stockAvailability: stockAvailability || undefined,
@@ -69,7 +66,7 @@ export default function ProductList() {
     priceField,
     sortBy,
     sortOrder,
-  }), [search, categoryId, brand, supplierId, statusFilter, stockAvailability, minPrice, maxPrice, priceField, sortBy, sortOrder]);
+  }), [search, categoryId, supplierId, statusFilter, stockAvailability, minPrice, maxPrice, priceField, sortBy, sortOrder]);
 
   const {
     items: products,
@@ -83,16 +80,15 @@ export default function ProductList() {
     changePageSize,
     setPage,
   } = useServerList(productsApi, queryParams, [
-    search, categoryId, brand, supplierId, statusFilter, stockAvailability,
+    search, categoryId, supplierId, statusFilter, stockAvailability,
     minPrice, maxPrice, priceField, sortBy, sortOrder,
   ]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId, brand, supplierId, statusFilter, stockAvailability, minPrice, maxPrice, priceField, sortBy, sortOrder, setPage]);
+  }, [search, categoryId, supplierId, statusFilter, stockAvailability, minPrice, maxPrice, priceField, sortBy, sortOrder, setPage]);
 
   useEffect(() => {
-    productsApi.brands().then(setBrands).catch(() => {});
     settingsApi.get().then(setSettings).catch(() => {});
   }, []);
 
@@ -258,10 +254,6 @@ export default function ProductList() {
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="select-field">
             <option value="">All Categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={brand} onChange={(e) => setBrand(e.target.value)} className="select-field">
-            <option value="">All Brands</option>
-            {brands.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
           <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="select-field">
             <option value="">All Suppliers</option>
