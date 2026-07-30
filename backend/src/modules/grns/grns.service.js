@@ -5,6 +5,7 @@ import { calcCostExVat, calcGrnAutoSellingPrice } from '../../utils/pricing.js';
 import { nextGrnNumber } from '../../utils/documentNumbers.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 import { resolvePoVatPercentage, syncProductVatFromPo } from '../../utils/productVat.js';
+import { roleHasPermission } from '../../rbac/permissions.js';
 
 const grnInclude = {
   supplier: { select: { id: true, name: true, code: true } },
@@ -356,6 +357,84 @@ export async function completeGrn(data, userId) {
     });
 
     return tx.grn.findUnique({ where: { id: grn.id }, include: grnInclude });
+  });
+}
+
+/**
+ * Edit a completed GRN: notes, line descriptions, and selling prices.
+ * Selling price changes sync to linked ProductUnits that are still IN_STOCK.
+ */
+export async function updateGrn(id, data, user) {
+  const grn = await getGrn(id);
+  if (grn.status === 'CANCELLED') {
+    throw ApiError.badRequest('Cancelled GRNs cannot be edited');
+  }
+  if (grn.status !== 'COMPLETED' && grn.status !== 'DRAFT') {
+    throw ApiError.badRequest('Only completed or draft GRNs can be edited');
+  }
+
+  const canEditDescription = roleHasPermission(user.role, 'grn.edit_description');
+  const canSetPrice = roleHasPermission(user.role, 'grn.set_price');
+  if (!canEditDescription && !canSetPrice) {
+    throw ApiError.forbidden('You do not have permission to edit this GRN');
+  }
+
+  const itemsById = Object.fromEntries(grn.items.map((item) => [item.id, item]));
+  const lineUpdates = Array.isArray(data.items) ? data.items : [];
+
+  for (const line of lineUpdates) {
+    if (!itemsById[line.id]) {
+      throw ApiError.badRequest(`GRN line not found: ${line.id}`);
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (data.notes !== undefined && canEditDescription) {
+      await tx.grn.update({
+        where: { id },
+        data: { notes: data.notes?.trim() ? data.notes.trim() : null },
+      });
+    }
+
+    for (const line of lineUpdates) {
+      const existing = itemsById[line.id];
+      const patch = {};
+
+      if (line.description !== undefined && canEditDescription) {
+        const desc = String(line.description || '').trim();
+        patch.description = desc || null;
+      }
+
+      if (canSetPrice && (line.sellingPriceMode !== undefined || line.sellingPrice !== undefined)) {
+        const mode = line.sellingPriceMode || existing.sellingPriceMode || 'AUTO';
+        const sellingPrice = mode === 'MANUAL'
+          ? Number(line.sellingPrice ?? existing.sellingPrice)
+          : calcGrnAutoSellingPrice(existing.purchasePrice);
+
+        if (Number.isNaN(sellingPrice) || sellingPrice < 0) {
+          throw ApiError.badRequest(`Invalid selling price for ${existing.product?.code || existing.id}`);
+        }
+
+        patch.sellingPriceMode = mode;
+        patch.sellingPrice = sellingPrice;
+      }
+
+      if (!Object.keys(patch).length) continue;
+
+      await tx.grnItem.update({ where: { id: line.id }, data: patch });
+
+      if (patch.sellingPrice !== undefined) {
+        await tx.productUnit.updateMany({
+          where: {
+            grnItemId: line.id,
+            status: 'IN_STOCK',
+          },
+          data: { sellingPrice: patch.sellingPrice },
+        });
+      }
+    }
+
+    return tx.grn.findUnique({ where: { id }, include: grnInclude });
   });
 }
 

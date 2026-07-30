@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -57,6 +57,11 @@ export default function GRNDetail() {
       <PageHeader title={grn.grnNumber} subtitle={`Received ${formatDate(grn.receivedDate)}`} actions={
         <div className="flex gap-2">
           <button onClick={() => navigate('/grn')} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> Back</button>
+          {grn.status !== 'CANCELLED' && (
+            <Can anyOf={['grn.edit_description', 'grn.set_price']}>
+              <Link to={`/grn/${id}/edit`} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</Link>
+            </Can>
+          )}
           {grn.status === 'COMPLETED' && (
             <Can permission="grn.cancel">
               <button onClick={() => setConfirmCancel(true)} className="btn-danger">Cancel GRN</button>

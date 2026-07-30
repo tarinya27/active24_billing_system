@@ -11,7 +11,6 @@ import {
 import {
   getProductStockMap,
   getProductUnitBarcodesMap,
-  formatUnitBarcodes,
   assertActiveCategory,
   assertActiveSupplier,
   stripReadOnlyProductFields,
@@ -82,13 +81,13 @@ function enrichProduct(product, stockOrMap, unitBarcodesMap) {
     : (stockOrMap?.get?.(product.id) ?? product._count?.units ?? 0);
   const mapped = mapProductResponse(product, currentStock);
   const fromUnits = unitBarcodesMap?.get?.(product.id) ?? [];
-  if (!mapped.barcode?.trim()) {
-    mapped.unitBarcodes = fromUnits;
-    mapped.barcode = formatUnitBarcodes(fromUnits);
-  } else {
-    mapped.unitBarcodes = fromUnits.length ? fromUnits : [String(mapped.barcode).trim()];
-  }
-  mapped.barcodeCount = mapped.unitBarcodes?.length ?? 0;
+  const masterBarcode = mapped.barcode?.trim() || null;
+  // Keep product.barcode as master-only; unit serials live in unitBarcodes for list/detail UI.
+  mapped.barcode = masterBarcode;
+  mapped.unitBarcodes = fromUnits.length
+    ? fromUnits
+    : (masterBarcode ? [masterBarcode] : []);
+  mapped.barcodeCount = mapped.unitBarcodes.length;
   return mapped;
 }
 
@@ -282,12 +281,24 @@ export async function updateProduct(id, data) {
   if (payload.categoryId) await assertActiveCategory(payload.categoryId);
   if (payload.supplierId) await assertActiveSupplier(payload.supplierId);
 
-  const product = await prisma.product.update({
-    where: { id },
-    data: payload,
-    include: includeRelations,
+  const categoryChanged = Boolean(payload.categoryId && payload.categoryId !== existing.categoryId);
+
+  return prisma.$transaction(async (tx) => {
+    const dataToSave = { ...payload };
+    if (categoryChanged) {
+      // Move to new category prefix sequence (e.g. NB → PS becomes PS01)
+      dataToSave.code = await generateInventoryCode(tx, payload.categoryId);
+    }
+
+    const product = await tx.product.update({
+      where: { id },
+      data: dataToSave,
+      include: includeRelations,
+    });
+    const stockMap = await getStockMap([id]);
+    const unitBarcodesMap = await getProductUnitBarcodesMap([id]);
+    return enrichProduct(product, stockMap, unitBarcodesMap);
   });
-  return enrichSingleProduct(product);
 }
 
 export async function deleteProduct(id) {

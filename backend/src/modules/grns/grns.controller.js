@@ -26,6 +26,11 @@ export const complete = asyncHandler(async (req, res) => {
   res.status(201).json({ data: grn, error: null });
 });
 
+export const update = asyncHandler(async (req, res) => {
+  const grn = await service.updateGrn(req.params.id, req.body, req.user);
+  res.json({ data: grn, error: null });
+});
+
 export const cancel = asyncHandler(async (req, res) => {
   const grn = await service.cancelGrn(req.params.id, req.user.id, req.body?.reason);
   res.json({ data: grn, error: null });

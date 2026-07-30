@@ -369,16 +369,27 @@ async function findOrCreateProduct(line, supplierId, company, resolvedVat) {
   }
 
   let categoryId = line.categoryId || null;
+  let categoryMeta = null;
   if (categoryId) {
-    const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
-    if (!category) throw ApiError.badRequest('Selected category not found');
+    categoryMeta = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true, codePrefix: true },
+    });
+    if (!categoryMeta) throw ApiError.badRequest('Selected category not found');
   } else {
     categoryId = (await getOrCreateImportCategory()).id;
+    categoryMeta = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true, codePrefix: true },
+    });
   }
 
-  const code = line.productCode
-    ? await uniqueProductCode(line.productCode)
-    : await generateInventoryCode(prisma, categoryId);
+  // Prefer category inventory-code prefix (e.g. NB01) over PO slug codes
+  const code = categoryMeta?.codePrefix
+    ? await generateInventoryCode(prisma, categoryId)
+    : (line.productCode
+      ? await uniqueProductCode(line.productCode)
+      : await generateInventoryCode(prisma, categoryId));
   const costPrice = Number(line.costPrice) || 0;
   const vatPercentage = vatForNewProduct(resolvedVat, `new product ${code}`);
 

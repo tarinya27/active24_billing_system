@@ -30,6 +30,7 @@ export const purchaseInvoicesApi = {
 export const grnsApi = {
   list: (params = {}) => api.get('/grns', { params }).then((r) => r.data.data),
   get: (id) => api.get(`/grns/${id}`).then((r) => r.data.data),
+  update: (id, payload) => api.patch(`/grns/${id}`, payload).then((r) => r.data.data),
   reserveBarcode: (payload) => api.post('/grns/reserve-barcode', payload).then((r) => r.data.data),
   removePendingUnit: (id) => api.delete(`/grns/pending-unit/${id}`).then((r) => r.data.data),
   complete: (payload) => api.post('/grns/complete', payload).then((r) => r.data.data),

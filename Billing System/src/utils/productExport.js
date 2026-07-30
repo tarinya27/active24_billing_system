@@ -83,7 +83,9 @@ export async function readImportFile(file) {
 export function productsToWorkbookRows(products) {
   return products.map((p) => ({
     'Product Code': p.code || p.productCode,
-    Barcode: p.barcode || '',
+    Barcode: Array.isArray(p.unitBarcodes) && p.unitBarcodes.length
+      ? p.unitBarcodes.join(', ')
+      : (p.barcode || ''),
     'Product Name': p.name || p.productName,
     Category: p.category?.name || '',
     Supplier: p.supplier?.name || '',

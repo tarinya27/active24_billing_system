@@ -21,6 +21,7 @@ import PurchaseInvoiceDetail from '../pages/purchaseInvoices/PurchaseInvoiceDeta
 import GRNList from '../pages/grn/GRNList';
 import GRNForm from '../pages/grn/GRNForm';
 import GRNDetail from '../pages/grn/GRNDetail';
+import GRNEdit from '../pages/grn/GRNEdit';
 import DeliveryNoteList from '../pages/deliveryNotes/DeliveryNoteList';
 import DeliveryNoteForm from '../pages/deliveryNotes/DeliveryNoteForm';
 import DeliveryNoteDetail from '../pages/deliveryNotes/DeliveryNoteDetail';
@@ -91,6 +92,9 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute requiredPermission="grn.create" />}>
             <Route path="grn/new" element={<GRNForm />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="grn.edit_description" />}>
+            <Route path="grn/:id/edit" element={<GRNEdit />} />
           </Route>
 
           <Route element={<ProtectedRoute requiredPermission="delivery_notes.view" />}>

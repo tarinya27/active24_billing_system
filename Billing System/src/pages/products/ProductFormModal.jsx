@@ -74,9 +74,20 @@ export default function ProductFormModal({
     if (!isOpen) return;
     productsApi.meta().then((m) => setMaxVat(m.maxVat ?? 100)).catch(() => {});
     if (editing) {
+      // Never load joined unit barcodes into the editable master barcode field
+      const masterBarcode = (() => {
+        const raw = String(editing.barcode || '').trim();
+        if (!raw) return '';
+        if (raw.includes(',')) return '';
+        if (Array.isArray(editing.unitBarcodes) && editing.unitBarcodes.length > 1) {
+          // Display-only enrichment — editable field stays empty unless true master barcode
+          return editing.unitBarcodes.length === 1 && editing.unitBarcodes[0] === raw ? raw : '';
+        }
+        return raw;
+      })();
       setForm({
         name: editing.name || editing.productName || '',
-        barcode: editing.barcode || '',
+        barcode: masterBarcode,
         description: editing.description || '',
         brand: editing.brand || '',
         categoryId: editing.category?.id || editing.categoryId || '',
@@ -180,14 +191,16 @@ export default function ProductFormModal({
             )}
           </div>
           <div>
-            <label className="label">Barcode</label>
+            <label className="label">Barcode (optional master)</label>
             <BarcodeInput
               value={form.barcode}
               onChange={(barcode) => setForm({ ...form, barcode })}
               onScan={(barcode) => setForm({ ...form, barcode })}
               placeholder="Scan or enter barcode…"
             />
-            <p className="mt-1 text-xs text-slate-500">Type manually or use a scanner — press Enter or Scan to confirm.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Optional product-level barcode only (max 64 characters). Unit serials from GRN/DN are managed in stock — not edited here.
+            </p>
           </div>
           <div>
             <label className="label">Brand</label>

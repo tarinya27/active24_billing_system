@@ -36,3 +36,15 @@ export const completeGrnSchema = z.object({
 export const cancelGrnSchema = z.object({
   reason: z.string().trim().max(300).optional(),
 });
+
+const updateGrnLineSchema = z.object({
+  id: z.string().min(1),
+  description: z.string().trim().max(500).optional().nullable().or(z.literal('')),
+  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
+  sellingPrice: z.coerce.number().nonnegative().optional(),
+});
+
+export const updateGrnSchema = z.object({
+  notes: z.string().trim().max(500).optional().nullable().or(z.literal('')),
+  items: z.array(updateGrnLineSchema).optional(),
+});

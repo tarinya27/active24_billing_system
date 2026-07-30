@@ -154,7 +154,7 @@ export function mapProductResponse(product, currentStock = 0) {
 
 export const PRODUCT_EXPORT_COLUMNS = [
   { header: 'Product Code', value: (r) => r.code },
-  { header: 'Barcode', value: (r) => r.barcode || '' },
+  { header: 'Barcode', value: (r) => (Array.isArray(r.unitBarcodes) && r.unitBarcodes.length ? r.unitBarcodes.join(', ') : (r.barcode || '')) },
   { header: 'Product Name', value: (r) => r.name },
   { header: 'Category', value: (r) => r.category?.name || '' },
   { header: 'Brand', value: (r) => r.brand || '' },

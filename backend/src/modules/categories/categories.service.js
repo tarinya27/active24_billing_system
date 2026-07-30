@@ -105,19 +105,19 @@ export async function updateCategory(id, data) {
     await assertPrefixUnique(nextPrefix, id);
   }
 
-  const shouldReassign = nextPrefix !== undefined && Boolean(nextPrefix);
+  // Effective prefix after this update — re-sync product codes whenever one is set
+  // so older PO slug codes (e.g. DELL-LATITUDE-3590) become NB01, NB02, …
+  const effectivePrefix = nextPrefix !== undefined ? nextPrefix : existing.codePrefix;
 
   return prisma.$transaction(async (tx) => {
     let codeSequence = existing.codeSequence ?? 0;
+    let productsRenumbered = 0;
 
-    if (nextPrefix !== undefined) {
-      if (!nextPrefix) {
-        codeSequence = 0;
-      } else if (shouldReassign) {
-        codeSequence = await reassignCategoryProductCodes(tx, id, nextPrefix);
-      } else {
-        codeSequence = await resolveSequenceForPrefix(nextPrefix, existing.codeSequence, tx);
-      }
+    if (nextPrefix !== undefined && !nextPrefix) {
+      codeSequence = 0;
+    } else if (effectivePrefix) {
+      codeSequence = await reassignCategoryProductCodes(tx, id, effectivePrefix);
+      productsRenumbered = codeSequence;
     }
 
     const category = await tx.category.update({
@@ -126,11 +126,12 @@ export async function updateCategory(id, data) {
         ...(name !== undefined ? { name } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
         ...(nextPrefix !== undefined ? { codePrefix: nextPrefix, codeSequence } : {}),
+        ...(nextPrefix === undefined && effectivePrefix ? { codeSequence } : {}),
       },
       include: { _count: { select: { products: true } } },
     });
 
-    return mapCategory(category);
+    return { ...mapCategory(category), productsRenumbered };
   });
 }
 

@@ -67,8 +67,13 @@ export default function CategoryList() {
         isActive,
       };
       if (editing) {
-        await categoriesApi.update(editing.id, payload);
-        toast.success('Category updated');
+        const updated = await categoriesApi.update(editing.id, payload);
+        const n = Number(updated?.productsRenumbered) || 0;
+        toast.success(
+          n > 0
+            ? `Category updated — ${n} inventory code${n === 1 ? '' : 's'} renumbered`
+            : 'Category updated'
+        );
       } else {
         await categoriesApi.create(payload);
         toast.success('Category created');
@@ -201,8 +206,8 @@ export default function CategoryList() {
               ) : (
                 <> Leave blank to keep legacy auto codes (PRD-00001).</>
               )}
-              {editing && (
-                <> Saving a new prefix will also renumber existing products in this category.</>
+              {editing && codePrefix && (
+                <> Saving updates all product inventory codes in this category to match this prefix.</>
               )}
             </p>
           </div>
