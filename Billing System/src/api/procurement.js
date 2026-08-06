@@ -41,6 +41,7 @@ export const deliveryNotesApi = {
   list: (params = {}) => api.get('/delivery-notes', { params }).then((r) => r.data.data),
   get: (id) => api.get(`/delivery-notes/${id}`).then((r) => r.data.data),
   create: (payload) => api.post('/delivery-notes', payload).then((r) => r.data.data),
+  update: (id, payload) => api.patch(`/delivery-notes/${id}`, payload).then((r) => r.data.data),
   reserveBarcode: (payload) => api.post('/delivery-notes/reserve-barcode', payload).then((r) => r.data.data),
   removePendingUnit: (id) => api.delete(`/delivery-notes/pending-unit/${id}`).then((r) => r.data.data),
   complete: (deliveryNoteId) => api.post('/delivery-notes/complete', { deliveryNoteId }).then((r) => r.data.data),

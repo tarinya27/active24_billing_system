@@ -53,6 +53,18 @@ export const cancelDeliveryNoteSchema = z.object({
   reason: z.string().trim().max(300).optional(),
 });
 
+const updateDnLineSchema = z.object({
+  id: z.string().min(1),
+  description: z.string().trim().max(500).optional().nullable().or(z.literal('')),
+  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
+  sellingPrice: z.coerce.number().nonnegative().optional(),
+});
+
+export const updateDeliveryNoteSchema = z.object({
+  notes: z.string().trim().max(500).optional().nullable().or(z.literal('')),
+  items: z.array(updateDnLineSchema).optional(),
+});
+
 export const createInvoiceFromDnSchema = z.object({
   customerId: z.string().min(1).optional(),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']).default('CASH'),

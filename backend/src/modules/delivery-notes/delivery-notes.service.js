@@ -380,6 +380,81 @@ export async function completeDeliveryNote(deliveryNoteId, userId) {
   });
 }
 
+/**
+ * Edit saved delivery notes without changing barcode quantity.
+ * Keeps stock links intact and only updates DN metadata/prices.
+ */
+export async function updateDeliveryNote(id, data, userId) {
+  const dn = await getDeliveryNote(id);
+  if (dn.status === 'CANCELLED') {
+    throw ApiError.conflict('Cancelled delivery notes cannot be edited');
+  }
+
+  const itemsById = Object.fromEntries(dn.items.map((item) => [item.id, item]));
+  const lineUpdates = Array.isArray(data.items) ? data.items : [];
+
+  for (const line of lineUpdates) {
+    if (!itemsById[line.id]) {
+      throw ApiError.badRequest(`Delivery note line not found: ${line.id}`);
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (data.notes !== undefined) {
+      await tx.deliveryNote.update({
+        where: { id },
+        data: {
+          notes: data.notes?.trim() ? data.notes.trim() : null,
+          receivedById: userId,
+        },
+      });
+    }
+
+    for (const line of lineUpdates) {
+      const existing = itemsById[line.id];
+      const patch = {};
+
+      if (line.description !== undefined) {
+        const description = String(line.description || '').trim();
+        patch.description = description || null;
+      }
+
+      if (line.sellingPriceMode !== undefined || line.sellingPrice !== undefined) {
+        const sellingPriceMode = line.sellingPriceMode || existing.sellingPriceMode || 'AUTO';
+        const sellingPrice = sellingPriceMode === 'MANUAL'
+          ? Number(line.sellingPrice ?? existing.sellingPrice)
+          : calcGrnAutoSellingPrice(existing.purchasePrice);
+
+        if (Number.isNaN(sellingPrice)) {
+          throw ApiError.badRequest('Manual selling price is required');
+        }
+
+        patch.sellingPriceMode = sellingPriceMode;
+        patch.sellingPrice = sellingPrice;
+      }
+
+      if (!Object.keys(patch).length) continue;
+
+      await tx.deliveryNoteItem.update({
+        where: { id: line.id },
+        data: patch,
+      });
+
+      if (patch.sellingPrice !== undefined) {
+        await tx.productUnit.updateMany({
+          where: {
+            deliveryNoteItemId: line.id,
+            status: 'IN_STOCK',
+          },
+          data: { sellingPrice: patch.sellingPrice },
+        });
+      }
+    }
+
+    return tx.deliveryNote.findUnique({ where: { id }, include: dnInclude });
+  });
+}
+
 export async function cancelDeliveryNote(id, userId, reason) {
   const dn = await getDeliveryNote(id);
   if (dn.status === 'CANCELLED') throw ApiError.badRequest('Delivery note is already cancelled');

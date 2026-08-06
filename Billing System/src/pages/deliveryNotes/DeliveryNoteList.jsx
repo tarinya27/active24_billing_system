@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, Plus } from 'lucide-react';
+import { Eye, Plus, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
@@ -50,16 +50,34 @@ export default function DeliveryNoteList() {
       key: 'actions',
       label: '',
       render: (row) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/delivery-notes/${row.id}`);
-          }}
-          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600 dark:hover:bg-slate-800"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
+        <div className="flex items-center justify-end gap-1">
+          {row.status !== 'CANCELLED' && (
+            <Can permission="delivery_notes.create">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/delivery-notes/${row.id}/edit`);
+                }}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600 dark:hover:bg-slate-800"
+                title="Edit"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </Can>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/delivery-notes/${row.id}`);
+            }}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600 dark:hover:bg-slate-800"
+            title="View"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+        </div>
       ),
     },
   ];

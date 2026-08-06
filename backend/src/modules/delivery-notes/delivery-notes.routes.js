@@ -6,6 +6,7 @@ import {
   reserveDnBarcodeSchema,
   completeDeliveryNoteSchema,
   cancelDeliveryNoteSchema,
+  updateDeliveryNoteSchema,
   createInvoiceFromDnSchema,
 } from './delivery-notes.validators.js';
 import * as controller from './delivery-notes.controller.js';
@@ -20,6 +21,7 @@ router.post('/reserve-barcode', requirePermission('delivery_notes.create'), vali
 router.delete('/pending-unit/:id', requirePermission('delivery_notes.create'), controller.removePendingUnit);
 router.post('/complete', requirePermission('delivery_notes.create'), validate(completeDeliveryNoteSchema), controller.complete);
 router.get('/:id', requirePermission('delivery_notes.view'), controller.getOne);
+router.patch('/:id', requirePermission('delivery_notes.create'), validate(updateDeliveryNoteSchema), controller.update);
 router.post('/:id/cancel', requirePermission('delivery_notes.cancel'), validate(cancelDeliveryNoteSchema), controller.cancel);
 router.post('/:id/create-invoice', requirePermission('invoices.create'), validate(createInvoiceFromDnSchema), controller.createInvoice);
 

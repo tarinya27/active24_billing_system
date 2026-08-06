@@ -25,6 +25,7 @@ import GRNEdit from '../pages/grn/GRNEdit';
 import DeliveryNoteList from '../pages/deliveryNotes/DeliveryNoteList';
 import DeliveryNoteForm from '../pages/deliveryNotes/DeliveryNoteForm';
 import DeliveryNoteDetail from '../pages/deliveryNotes/DeliveryNoteDetail';
+import DeliveryNoteEdit from '../pages/deliveryNotes/DeliveryNoteEdit';
 import StockManagement from '../pages/stock/StockManagement';
 import Billing from '../pages/billing/Billing';
 import Reports from '../pages/reports/Reports';
@@ -103,6 +104,7 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute requiredPermission="delivery_notes.create" />}>
             <Route path="delivery-notes/new" element={<DeliveryNoteForm />} />
+            <Route path="delivery-notes/:id/edit" element={<DeliveryNoteEdit />} />
           </Route>
 
           <Route path="stock" element={<StockManagement />} />

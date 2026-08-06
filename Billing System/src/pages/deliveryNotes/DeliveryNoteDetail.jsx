@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, PackageCheck, Trash2, Printer } from 'lucide-react';
+import { ArrowLeft, PackageCheck, Trash2, Printer, Pencil } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -124,6 +124,13 @@ export default function DeliveryNoteDetail() {
             <button type="button" className="btn-secondary" onClick={() => setShowDnPrint(true)}>
               <Printer className="h-4 w-4" /> Print DN
             </button>
+            {dn.status !== 'CANCELLED' && (
+              <Can permission="delivery_notes.create">
+                <button type="button" className="btn-secondary" onClick={() => navigate(`/delivery-notes/${id}/edit`)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </button>
+              </Can>
+            )}
             {dn.status === 'DRAFT' && (
               <Can permission="delivery_notes.create">
                 <button

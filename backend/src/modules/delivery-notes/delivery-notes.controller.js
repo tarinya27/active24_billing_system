@@ -31,6 +31,11 @@ export const complete = asyncHandler(async (req, res) => {
   res.json({ data: dn, error: null });
 });
 
+export const update = asyncHandler(async (req, res) => {
+  const dn = await service.updateDeliveryNote(req.params.id, req.body, req.user.id);
+  res.json({ data: dn, error: null });
+});
+
 export const cancel = asyncHandler(async (req, res) => {
   const dn = await service.cancelDeliveryNote(req.params.id, req.user.id, req.body?.reason);
   res.json({ data: dn, error: null });
