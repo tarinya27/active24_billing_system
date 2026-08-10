@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import Modal from '../ui/Modal';
 
 function parseBarcodes(item) {
@@ -49,35 +50,38 @@ export default function InventoryBarcodesCell({ item }) {
         </button>
       </div>
 
-      <Modal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        title={`Barcodes — ${item?.name || item?.code || 'Item'}`}
-        size="sm"
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-slate-500">
-            {barcodes.length} serialized unit{barcodes.length === 1 ? '' : 's'}
-          </p>
-          <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/40">
-            <div className="flex flex-wrap gap-2">
-              {barcodes.map((code) => (
-                <span
-                  key={code}
-                  className="rounded-full bg-white px-2.5 py-1 font-mono text-xs text-slate-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700"
-                >
-                  {code}
-                </span>
-              ))}
+      {open && createPortal(
+        <Modal
+          isOpen={open}
+          onClose={() => setOpen(false)}
+          title={`Barcodes — ${item?.name || item?.code || 'Item'}`}
+          size="sm"
+        >
+          <div className="min-w-0 space-y-3 whitespace-normal">
+            <p className="text-xs text-slate-500">
+              {barcodes.length} serialized unit{barcodes.length === 1 ? '' : 's'}
+            </p>
+            <div className="min-h-0 max-h-[min(18rem,calc(90vh-12rem))] overflow-y-auto overscroll-contain rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+              <div className="flex flex-wrap gap-2">
+                {barcodes.map((code) => (
+                  <span
+                    key={code}
+                    className="rounded-full bg-white px-2.5 py-1 font-mono text-xs text-slate-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700"
+                  >
+                    {code}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
+                Close
+              </button>
             </div>
           </div>
-          <div className="flex justify-end">
-            <button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
-              Close
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </Modal>,
+        document.body
+      )}
     </>
   );
 }
