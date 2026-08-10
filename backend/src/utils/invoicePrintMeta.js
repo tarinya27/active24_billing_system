@@ -20,7 +20,8 @@ export function resolveSupplierTinFromUnits(units = []) {
       const grn = unit.grnItem?.grn;
       const pi = unit.purchaseInvoice || grn?.purchaseInvoice;
       return (
-        grn?.supplier?.vatRegistrationNo
+        unit.deliveryNote?.supplier?.vatRegistrationNo
+        || grn?.supplier?.vatRegistrationNo
         || pi?.supplier?.vatRegistrationNo
         || unit.product?.supplier?.vatRegistrationNo
         || null
@@ -41,6 +42,7 @@ function poLineForUnit(unit) {
 }
 
 export function resolveCategoryNameFromUnit(unit) {
+  if (unit.deliveryNoteItem?.category?.name) return unit.deliveryNoteItem.category.name;
   const poLine = poLineForUnit(unit);
   if (poLine?.product?.category?.name) return poLine.product.category.name;
   if (unit.grnItem?.category?.name) return unit.grnItem.category.name;
@@ -49,6 +51,7 @@ export function resolveCategoryNameFromUnit(unit) {
 }
 
 export function resolveItemDescriptionFromUnit(unit, fallbackName) {
+  if (unit.deliveryNoteItem?.description?.trim()) return unit.deliveryNoteItem.description.trim();
   const poLine = poLineForUnit(unit);
   if (poLine?.description?.trim()) return poLine.description.trim();
   if (unit.grnItem?.description?.trim()) return unit.grnItem.description.trim();

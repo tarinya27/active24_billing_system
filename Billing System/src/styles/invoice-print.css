@@ -487,11 +487,12 @@
   html,
   body {
     width: 210mm;
-    height: 297mm;
+    min-height: 297mm;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -506,7 +507,8 @@
   .invoice-print {
     width: 186mm !important;
     min-height: 273mm !important;
-    max-height: 273mm !important;
+    max-height: none !important;
+    height: auto !important;
     margin: 0 auto !important;
     padding: 0 !important;
     background: white !important;
@@ -516,10 +518,7 @@
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
-    page-break-after: avoid !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   #invoice-print-content .invoice-header,
@@ -1126,7 +1125,6 @@
 
   .tax-header,
   .tax-left-info,
-  .tax-main-table,
   .tax-bank-row,
   .tax-signature-table {
     break-inside: avoid;

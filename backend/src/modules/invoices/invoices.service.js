@@ -10,6 +10,7 @@ const invoiceInclude = {
   customer: true,
   cashier: { select: { id: true, name: true } },
   items: {
+    orderBy: { id: 'asc' },
     include: {
       product: { select: { id: true, code: true, name: true } },
       productUnit: { select: { id: true, barcode: true } },
@@ -101,6 +102,19 @@ const invoicePrintUnitInclude = {
         },
       },
       supplier: { select: { vatRegistrationNo: true } },
+    },
+  },
+  deliveryNote: {
+    select: {
+      dnNumber: true,
+      supplier: { select: { vatRegistrationNo: true } },
+    },
+  },
+  deliveryNoteItem: {
+    select: {
+      description: true,
+      category: { select: { name: true } },
+      warrantyMonths: true,
     },
   },
 };
@@ -205,6 +219,7 @@ export async function createInvoice(payload, userId) {
       include: {
         product: { select: { id: true, code: true, name: true } },
         grnItem: { select: { warrantyMonths: true } },
+        deliveryNoteItem: { select: { warrantyMonths: true } },
       },
     });
 
@@ -225,7 +240,7 @@ export async function createInvoice(payload, userId) {
     const lineItems = payload.items.map((item) => {
       const unit = unitByBarcode[item.barcode];
       const warrantyMonths = normalizeWarrantyMonths(
-        unit.warrantyMonths ?? unit.grnItem?.warrantyMonths
+        unit.warrantyMonths ?? unit.grnItem?.warrantyMonths ?? unit.deliveryNoteItem?.warrantyMonths
       );
       return {
         unit,

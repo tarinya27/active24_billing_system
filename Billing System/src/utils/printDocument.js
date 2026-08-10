@@ -7,7 +7,8 @@ const PRINT_BASE_CSS = `
     margin: 0;
     padding: 0;
     width: 210mm;
-    height: 297mm;
+    min-height: 297mm;
+    height: auto;
     background: #fff;
     color: #0f172a;
     font-family: Arial, Helvetica, sans-serif;
@@ -23,10 +24,13 @@ const PRINT_BASE_CSS = `
   .invoice-print {
     width: 186mm;
     min-height: 273mm;
+    height: auto;
+    max-height: none;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     background: #fff;
+    overflow: visible;
   }
   .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
   .text-xs { font-size: 0.75rem; line-height: 1rem; }

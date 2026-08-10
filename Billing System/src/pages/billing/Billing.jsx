@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ShoppingCart, Trash2, Receipt, History } from 'lucide-react';
 import PreviousInvoicesDrawer from '../../components/billing/PreviousInvoicesDrawer';
 import { toast } from 'react-toastify';
@@ -33,6 +33,8 @@ export default function Billing() {
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const scanLockRef = useRef(false);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -83,11 +85,10 @@ export default function Billing() {
 
   const handleBarcodeScan = async (barcode) => {
     const trimmed = barcode.trim();
-    if (!trimmed) return;
-    if (cartItems.some((i) => i.barcode === trimmed)) {
-      toast.warning('Unit already in cart');
-      return;
-    }
+    if (!trimmed || scanLockRef.current) return;
+
+    scanLockRef.current = true;
+    setScanning(true);
     try {
       const unit = await stockApi.lookup(trimmed);
       const details = unit.saleDetails || {};
@@ -110,12 +111,26 @@ export default function Billing() {
         discount: 0,
         quantity: 1,
       };
-      setCartItems((prev) => [...prev, cartItem]);
+
+      let added = false;
+      setCartItems((prev) => {
+        if (prev.some((i) => i.barcode === cartItem.barcode)) return prev;
+        added = true;
+        return [...prev, cartItem];
+      });
+      if (!added) {
+        toast.warning('Unit already in cart');
+        return;
+      }
+
       setLastScanned(cartItem);
       const sourceLabel = cartItem.stockSource === 'DN' ? 'Delivery Note stock' : `GRN ${details.grnNumber || 'linked'}`;
       toast.success(`${unit.product.name} added — ${sourceLabel}`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Unit not available'));
+    } finally {
+      scanLockRef.current = false;
+      setScanning(false);
     }
   };
 
@@ -161,16 +176,17 @@ export default function Billing() {
             (c) => c.barcode === item.productUnit?.barcode || c.productUnitId === item.productUnitId
           );
           return {
+            id: item.id,
             productId: item.productId,
             productName: item.product?.name,
             productCode: item.product?.code,
             categoryName: item.categoryName ?? cartLine?.category ?? null,
             itemDescription: item.itemDescription ?? cartLine?.description ?? null,
-            barcode: item.productUnit?.barcode,
+            barcode: item.productUnit?.barcode || cartLine?.barcode,
             unitPrice: item.unitPrice,
             discount: item.discount,
             quantity: 1,
-            warrantyMonths: item.warrantyMonths ?? null,
+            warrantyMonths: item.warrantyMonths ?? cartLine?.warrantyMonths ?? null,
           };
         }),
       };
@@ -206,6 +222,7 @@ export default function Billing() {
         poNumber: full.poNumber ?? null,
         supplierTin: full.supplierTin ?? null,
         items: full.items.map((item) => ({
+          id: item.id,
           productId: item.productId,
           productName: item.product?.name,
           productCode: item.product?.code,
@@ -240,9 +257,14 @@ export default function Billing() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3 space-y-4">
           <div className="glass-card p-4">
-            <BarcodeInput onScan={handleBarcodeScan} placeholder="Scan unit barcode to add item..." />
+            <BarcodeInput
+              onScan={handleBarcodeScan}
+              placeholder="Scan unit barcode to add item..."
+              clearOnScan
+              disabled={scanning}
+            />
             <p className="mt-2 text-xs text-slate-500">
-              Scan physical unit barcodes from GRN or Delivery Note stock. Product and pricing details load automatically.
+              Scan each unit barcode separately. Different barcodes become separate invoice lines.
             </p>
           </div>
 

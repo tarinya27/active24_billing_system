@@ -80,7 +80,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
   ].filter(Boolean);
 
   const items = Array.isArray(invoice.items) ? invoice.items : [];
-  const emptyRowCount = Math.max(12 - items.length, 8);
+  const emptyRowCount = Math.max(0, 10 - items.length);
 
   const paymentModeLabel = (() => {
     const m = (invoice.paymentMethod || '').toLowerCase();
@@ -185,7 +185,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
             const warrantyLabel = formatWarrantyLabel(it.warrantyMonths);
 
             return (
-              <tr key={it.barcode || it.productId || i}>
+              <tr key={it.id || it.barcode || `${it.productId || 'item'}-${i}`}>
                 <td className="tax-col-item">{itemLabel}</td>
                 <td className="tax-col-desc">
                   <div>{productName}</div>
