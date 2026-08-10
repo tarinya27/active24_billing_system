@@ -73,13 +73,10 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
 
   const poNo = displayTaxInvoiceField(invoice.poNumber || invoice.po?.poNumber);
   const sofNo = invoice.sofNo || '—';
-  const supplierTin = displayTaxInvoiceField(invoice.supplierTin);
-  const purchaserTin = invoice.customer?.tin || invoice.customer?.vatNo || '—';
 
   const placeOfSupplyLines = [
     invoice.customer?.name,
     invoice.customer?.address,
-    purchaserTin !== '—' ? `VAT Registration No. ${purchaserTin}` : null,
   ].filter(Boolean);
 
   const items = Array.isArray(invoice.items) ? invoice.items : [];
@@ -111,7 +108,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
         </div>
 
         <div className="tax-header-right">
-          <div className="tax-title">Tax Invoice</div>
+          <div className="tax-title">Invoice</div>
           <div className="tax-vat-reg">VAT Reg No. {COMPANY_VAT_REG}</div>
           <table className="tax-info-table">
             <tbody>
@@ -124,12 +121,8 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
                 <td className="tax-info-value">{sofNo}</td>
               </tr>
               <tr>
-                <td className="tax-info-label">Tax Invoice #</td>
+                <td className="tax-info-label">Invoice #</td>
                 <td className="tax-info-value">{invoice.invoiceNumber}</td>
-              </tr>
-              <tr>
-                <td className="tax-info-label">Purchaser&apos;s TIN</td>
-                <td className="tax-info-value">{purchaserTin}</td>
               </tr>
               <tr>
                 <td className="tax-info-label tax-info-label-top">Place of Supply</td>
@@ -148,10 +141,6 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
         <div className="tax-left-info-row">
           <span className="tax-left-info-label">Date of Invoice</span>
           <span className="tax-left-info-value">{invoiceDate}</span>
-        </div>
-        <div className="tax-left-info-row">
-          <span className="tax-left-info-label">Supplier&apos;s TIN</span>
-          <span className="tax-left-info-value">{supplierTin}</span>
         </div>
         <div className="tax-left-info-row">
           <span className="tax-left-info-label">Telephone</span>
