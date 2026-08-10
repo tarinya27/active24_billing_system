@@ -399,13 +399,27 @@ export async function updateDeliveryNote(id, data, userId) {
     }
   }
 
+  let nextSupplierId;
+  if (data.supplierId !== undefined) {
+    const supplier = await prisma.supplier.findUnique({
+      where: { id: data.supplierId },
+      select: { id: true, isActive: true },
+    });
+    if (!supplier) throw ApiError.badRequest('Supplier not found');
+    if (supplier.isActive === false) throw ApiError.badRequest('Selected supplier is inactive');
+    nextSupplierId = supplier.id;
+  }
+
   return prisma.$transaction(async (tx) => {
-    if (data.notes !== undefined) {
+    if (data.notes !== undefined || nextSupplierId !== undefined) {
       await tx.deliveryNote.update({
         where: { id },
         data: {
-          notes: data.notes?.trim() ? data.notes.trim() : null,
           receivedById: userId,
+          ...(data.notes !== undefined
+            ? { notes: data.notes?.trim() ? data.notes.trim() : null }
+            : {}),
+          ...(nextSupplierId !== undefined ? { supplierId: nextSupplierId } : {}),
         },
       });
     }

@@ -61,6 +61,7 @@ const updateDnLineSchema = z.object({
 });
 
 export const updateDeliveryNoteSchema = z.object({
+  supplierId: z.string().min(1).optional(),
   notes: z.string().trim().max(500).optional().nullable().or(z.literal('')),
   items: z.array(updateDnLineSchema).optional(),
 });
