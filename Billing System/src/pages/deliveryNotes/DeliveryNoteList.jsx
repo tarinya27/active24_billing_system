@@ -1,30 +1,56 @@
+import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, Plus, Pencil } from 'lucide-react';
-import { useState } from 'react';
 import PageHeader from '../../components/ui/PageHeader';
-import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Pagination from '../../components/ui/Pagination';
 import Can from '../../components/auth/Can';
-import { usePagination, useSearch } from '../../hooks/usePagination';
-import { useResourceList } from '../../hooks/useResourceList';
+import { useServerList } from '../../hooks/useServerList';
 import { deliveryNotesApi } from '../../api/procurement';
 import { formatDate } from '../../utils/helpers';
 import { dnStatusLabel } from '../../utils/constants';
 
+const EMPTY_FILTERS = {
+  serialNo: '',
+  status: 'All',
+};
+
+function listParams(applied) {
+  const params = { pageSize: 20 };
+  if (applied.serialNo?.trim()) params.serialNo = applied.serialNo.trim();
+  if (applied.status && applied.status !== 'All') params.status = applied.status;
+  return params;
+}
+
 export default function DeliveryNoteList() {
   const navigate = useNavigate();
-  const { items: notes, loading } = useResourceList(deliveryNotesApi);
-  const [statusFilter, setStatusFilter] = useState('All');
-  const { searchQuery, setSearchQuery, filteredItems: searched } = useSearch(notes, [
-    'dnNumber',
-    'notes',
-    'supplier.name',
-    'customer.name',
-  ]);
-  const filtered = statusFilter === 'All' ? searched : searched.filter((d) => d.status === statusFilter);
-  const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filtered);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [applied, setApplied] = useState(EMPTY_FILTERS);
+
+  const queryParams = useMemo(() => listParams(applied), [applied]);
+
+  const {
+    items: notes,
+    loading,
+    goToPage,
+    total: totalItems,
+    page,
+    totalPages,
+    setPage,
+  } = useServerList(deliveryNotesApi, queryParams, [queryParams]);
+
+  const handleSearch = (e) => {
+    e?.preventDefault();
+    setPage(1);
+    setApplied({ ...filters });
+  };
+
+  const handleClear = () => {
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+    setApplied(EMPTY_FILTERS);
+  };
 
   const columns = [
     {
@@ -101,32 +127,62 @@ export default function DeliveryNoteList() {
         Existing PO → PI → GRN → Billing flow is unchanged.
       </div>
 
-      <div className="glass-card mb-6 p-4">
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search delivery notes..." className="flex-1" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-field !w-auto">
-            <option value="All">All Statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="INVOICED">Invoiced</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
+      <form onSubmit={handleSearch} className="glass-card mb-6 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Serial No.
+            </label>
+            <input
+              type="text"
+              value={filters.serialNo}
+              onChange={(e) => setFilters((prev) => ({ ...prev, serialNo: e.target.value }))}
+              placeholder="e.g. DN-2026-0003 or unit S/N"
+              className="input-field"
+            />
+          </div>
+          <div className="lg:w-48">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Status
+            </label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+              className="select-field"
+            >
+              <option value="All">All Statuses</option>
+              <option value="DRAFT">Draft</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="INVOICED">Invoiced</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleClear} className="btn-secondary">
+              Clear
+            </button>
+            <button type="submit" className="btn-primary min-w-[100px]">
+              Search
+            </button>
+          </div>
         </div>
-      </div>
+      </form>
 
       <div className="glass-card p-4">
         {loading ? (
           <p className="py-12 text-center text-sm text-slate-500">Loading…</p>
+        ) : notes.length === 0 ? (
+          <p className="py-12 text-center text-sm text-slate-500">No delivery notes found.</p>
         ) : (
           <>
-            <DataTable columns={columns} data={paginatedItems} onRowClick={(row) => navigate(`/delivery-notes/${row.id}`)} />
+            <DataTable columns={columns} data={notes} onRowClick={(row) => navigate(`/delivery-notes/${row.id}`)} />
             <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
               <Pagination
-                currentPage={currentPage}
+                currentPage={page}
                 totalPages={totalPages}
                 onPageChange={goToPage}
                 totalItems={totalItems}
-                itemsPerPage={itemsPerPage}
+                itemsPerPage={20}
               />
             </div>
           </>

@@ -106,13 +106,15 @@ async function resolveDnProduct(tx, { categoryId, description, supplierId, purch
 export async function listDeliveryNotes(query) {
   const { skip, take, page, pageSize } = parsePagination(query);
   const where = {};
-  if (query.search) {
+
+  const serialTerm = String(query.serialNo || query.search || '').trim();
+  if (serialTerm) {
     where.OR = [
-      { dnNumber: { contains: query.search, mode: 'insensitive' } },
-      { notes: { contains: query.search, mode: 'insensitive' } },
-      { supplier: { name: { contains: query.search, mode: 'insensitive' } } },
+      { dnNumber: { contains: serialTerm, mode: 'insensitive' } },
+      { units: { some: { barcode: { contains: serialTerm, mode: 'insensitive' } } } },
     ];
   }
+
   if (query.status) where.status = query.status;
   if (query.supplierId) where.supplierId = query.supplierId;
 
