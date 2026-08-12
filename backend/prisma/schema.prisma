@@ -544,6 +544,8 @@ model Settings {
   companyPhone         String        @default("")
   companyEmail         String        @default("")
   invoicePrefix        String        @default("INV-2026-")
+  invoiceNextSeq       Int           @default(1)
+  invoiceNumberPad     Int           @default(4)
   defaultPaymentMethod PaymentMethod @default(CASH)
   vatRate              Decimal       @default(0) @db.Decimal(5, 2)
   vatEnabled           Boolean       @default(true)

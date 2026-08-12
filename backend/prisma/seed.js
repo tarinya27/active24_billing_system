@@ -35,6 +35,8 @@ async function seedSettings() {
       companyPhone: '+94 11 456 7890',
       companyEmail: 'info@active24.lk',
       invoicePrefix: 'INV-2026-',
+      invoiceNextSeq: 1,
+      invoiceNumberPad: 4,
       defaultPaymentMethod: 'CASH',
       vatRate: 0,
       vatEnabled: true,

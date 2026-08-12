@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 
 const sections = [
   { id: 'general', title: 'General Settings', fields: [{ key: 'companyName', label: 'Company Name', type: 'text' }, { key: 'companyAddress', label: 'Address', type: 'textarea' }, { key: 'companyPhone', label: 'Phone', type: 'text' }, { key: 'companyEmail', label: 'Email', type: 'email' }] },
-  { id: 'invoice', title: 'Invoice Preferences', fields: [{ key: 'invoicePrefix', label: 'Invoice Prefix', type: 'text' }, { key: 'defaultPaymentMethod', label: 'Default Payment Method', type: 'select', options: PAYMENT_METHODS }, { key: 'autoPrint', label: 'Auto Print After Invoice', type: 'toggle' }] },
+  { id: 'invoice', title: 'Invoice Preferences', fields: [{ key: 'invoiceNumber', label: 'Invoice Number', type: 'text', hint: 'Changing this renumbers all existing invoices in order, starting from this number. The next new invoice continues the sequence.' }, { key: 'defaultPaymentMethod', label: 'Default Payment Method', type: 'select', options: PAYMENT_METHODS }, { key: 'autoPrint', label: 'Auto Print After Invoice', type: 'toggle' }] },
   { id: 'vat', title: 'VAT Settings', fields: [{ key: 'vatEnabled', label: 'Enable VAT', type: 'toggle' }, { key: 'vatRate', label: 'VAT Rate (%)', type: 'number' }] },
   { id: 'user', title: 'User Preferences', fields: [{ key: 'notificationsEnabled', label: 'Enable Notifications', type: 'toggle' }, { key: 'lowStockThreshold', label: 'Low Stock Threshold', type: 'number' }] },
 ];
@@ -27,6 +27,7 @@ export default function Settings() {
 
   const handleSave = async () => {
     if (!settings) return;
+    const previousNumber = settings.invoiceNumber;
     setSaving(true);
     try {
       const payload = {
@@ -34,7 +35,7 @@ export default function Settings() {
         companyAddress: settings.companyAddress,
         companyPhone: settings.companyPhone,
         companyEmail: settings.companyEmail || '',
-        invoicePrefix: settings.invoicePrefix,
+        invoiceNumber: settings.invoiceNumber,
         defaultPaymentMethod: PAYMENT_METHOD_API[settings.defaultPaymentMethod] || settings.defaultPaymentMethod,
         vatEnabled: settings.vatEnabled,
         vatRate: settings.vatRate,
@@ -45,7 +46,14 @@ export default function Settings() {
       };
       const updated = await settingsApi.update(payload);
       setSettings(updated);
-      toast.success('Settings saved successfully');
+      const renumbered = Number(updated.invoicesRenumbered || 0);
+      if (renumbered > 0) {
+        toast.success(`Settings saved. Renumbered ${renumbered} invoice(s). Next: ${updated.invoiceNumber}`);
+      } else if (previousNumber !== updated.invoiceNumber) {
+        toast.success(`Settings saved. Next invoice number: ${updated.invoiceNumber}`);
+      } else {
+        toast.success('Settings saved successfully');
+      }
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -100,7 +108,12 @@ export default function Settings() {
                       <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${settings[field.key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   ) : (
-                    <input type={field.type} value={settings[field.key] ?? ''} onChange={(e) => handleChange(field.key, field.type === 'number' ? parseFloat(e.target.value) : e.target.value)} className="input-field" />
+                    <>
+                      <input type={field.type} value={settings[field.key] ?? ''} onChange={(e) => handleChange(field.key, field.type === 'number' ? parseFloat(e.target.value) : e.target.value)} className="input-field" placeholder={field.key === 'invoiceNumber' ? 'e.g. INV-100 or INV-2026-0100' : undefined} />
+                      {field.hint && (
+                        <p className="mt-1.5 text-xs text-slate-500">{field.hint}</p>
+                      )}
+                    </>
                   )}
                 </div>
               ))}

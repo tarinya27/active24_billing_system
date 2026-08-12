@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { nextInvoiceNumber } from '../../utils/documentNumbers.js';
+import { allocateInvoiceNumber } from '../../utils/documentNumbers.js';
 import { CREDIT_TERM_DAYS } from '../../utils/enums.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 import { resolvePoNumberFromUnits, resolveSupplierTinFromUnits, resolveCategoryNameFromUnit, resolveItemDescriptionFromUnit } from '../../utils/invoicePrintMeta.js';
@@ -319,7 +319,7 @@ export async function createInvoice(payload, userId) {
     const vatAmount = afterDiscount * vatRate;
     const grandTotal = afterDiscount + vatAmount;
 
-    const invoiceNumber = await nextInvoiceNumber(settings?.invoicePrefix || 'INV-2026-');
+    const invoiceNumber = await allocateInvoiceNumber(tx);
     const isCredit = payload.paymentMethod === 'CREDIT';
     const dueDate = isCredit
       ? new Date(Date.now() + CREDIT_TERM_DAYS * 24 * 60 * 60 * 1000)
