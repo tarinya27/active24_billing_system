@@ -179,10 +179,12 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
             const discount = Number(it.discount ?? 0);
             const lineBase = Number(it.unitPrice ?? 0) * Number(qty);
             const amountExVat = lineBase - discount;
-            const itemLabel = it.categoryName || it.category || 'Others';
+            const itemLabel = it.itemType === 'SERVICE'
+              ? (it.categoryName === 'Item' || it.chargeKind === 'ITEM' ? 'Item' : 'Service')
+              : (it.categoryName || it.category || 'Others');
             const productName = it.itemDescription || it.description || it.productName || it.product?.name || '—';
-            const serialOrBarcode = it.barcode || it.serialNumber || '';
-            const warrantyLabel = formatWarrantyLabel(it.warrantyMonths);
+            const serialOrBarcode = it.itemType === 'SERVICE' ? '' : (it.barcode || it.serialNumber || '');
+            const warrantyLabel = it.itemType === 'SERVICE' ? null : formatWarrantyLabel(it.warrantyMonths);
 
             return (
               <tr key={it.id || it.barcode || `${it.productId || 'item'}-${i}`}>

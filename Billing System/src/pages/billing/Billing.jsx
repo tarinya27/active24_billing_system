@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ShoppingCart, Trash2, Receipt, History } from 'lucide-react';
+import { ShoppingCart, Trash2, Receipt, History, Plus, Wrench, ChevronDown, Package } from 'lucide-react';
 import PreviousInvoicesDrawer from '../../components/billing/PreviousInvoicesDrawer';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
@@ -35,6 +35,12 @@ export default function Billing() {
   const [lastScanned, setLastScanned] = useState(null);
   const [scanning, setScanning] = useState(false);
   const scanLockRef = useRef(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [manualFormOpen, setManualFormOpen] = useState(false);
+  const [manualKind, setManualKind] = useState('SERVICE'); // 'ITEM' | 'SERVICE'
+  const [manualDraft, setManualDraft] = useState({ description: '', amount: '' });
+  const [editingManualId, setEditingManualId] = useState(null);
+  const addMenuRef = useRef(null);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -52,6 +58,17 @@ export default function Billing() {
     loadCustomers();
     settingsApi.get().then(setSettings).catch(() => {});
   }, [loadCustomers]);
+
+  useEffect(() => {
+    if (!addMenuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target)) {
+        setAddMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [addMenuOpen]);
 
   useEffect(() => {
     if (!showPreview || !generatedInvoice || !settings?.autoPrint) return undefined;
@@ -93,6 +110,8 @@ export default function Billing() {
       const unit = await stockApi.lookup(trimmed);
       const details = unit.saleDetails || {};
       const cartItem = {
+        lineType: 'PRODUCT',
+        cartKey: `product:${unit.barcode}`,
         barcode: unit.barcode,
         productUnitId: unit.id,
         productId: unit.productId,
@@ -114,7 +133,7 @@ export default function Billing() {
 
       let added = false;
       setCartItems((prev) => {
-        if (prev.some((i) => i.barcode === cartItem.barcode)) return prev;
+        if (prev.some((i) => i.lineType !== 'SERVICE' && i.barcode === cartItem.barcode)) return prev;
         added = true;
         return [...prev, cartItem];
       });
@@ -134,22 +153,129 @@ export default function Billing() {
     }
   };
 
-  const updateItem = (barcode, field, value) => {
+  const updateItem = (cartKey, field, value) => {
     setCartItems((prev) =>
-      prev.map((i) => (i.barcode === barcode ? { ...i, [field]: value } : i))
+      prev.map((i) => (i.cartKey === cartKey ? { ...i, [field]: value } : i))
     );
   };
 
-  const removeItem = (barcode) => {
-    setCartItems((prev) => prev.filter((i) => i.barcode !== barcode));
-    setLastScanned((prev) => (prev?.barcode === barcode ? null : prev));
+  const removeItem = (cartKey) => {
+    setCartItems((prev) => prev.filter((i) => i.cartKey !== cartKey));
+    setLastScanned((prev) => (prev?.cartKey === cartKey ? null : prev));
   };
 
+  const resetManualForm = () => {
+    setManualDraft({ description: '', amount: '' });
+    setEditingManualId(null);
+    setManualFormOpen(false);
+    setAddMenuOpen(false);
+  };
+
+  const openManualForm = (kind) => {
+    setManualKind(kind);
+    setEditingManualId(null);
+    setManualDraft({ description: '', amount: '' });
+    setManualFormOpen(true);
+    setAddMenuOpen(false);
+  };
+
+  const handleAddOrUpdateManualLine = () => {
+    const description = String(manualDraft.description || '').trim();
+    const amount = Number(manualDraft.amount);
+    const kindLabel = manualKind === 'ITEM' ? 'Item' : 'Service';
+    if (!description) {
+      toast.error(`${kindLabel} description is required`);
+      return;
+    }
+    if (!(amount > 0)) {
+      toast.error(`${kindLabel} amount must be greater than 0`);
+      return;
+    }
+
+    if (editingManualId) {
+      setCartItems((prev) => prev.map((item) => (
+        item.cartKey === editingManualId
+          ? {
+              ...item,
+              chargeKind: manualKind,
+              description,
+              productName: description,
+              category: kindLabel,
+              unitPrice: amount,
+            }
+          : item
+      )));
+      toast.success(`${kindLabel} updated`);
+    } else {
+      const cartKey = `manual:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setCartItems((prev) => [
+        ...prev,
+        {
+          lineType: 'SERVICE',
+          chargeKind: manualKind,
+          cartKey,
+          description,
+          productName: description,
+          category: kindLabel,
+          unitPrice: amount,
+          discount: 0,
+          quantity: 1,
+          barcode: null,
+        },
+      ]);
+      toast.success(`${kindLabel} added to invoice`);
+    }
+    resetManualForm();
+  };
+
+  const startEditManualLine = (item) => {
+    const kind = item.chargeKind === 'ITEM' ? 'ITEM' : 'SERVICE';
+    setManualKind(kind);
+    setEditingManualId(item.cartKey);
+    setManualDraft({
+      description: item.description || item.productName || '',
+      amount: String(item.unitPrice ?? ''),
+    });
+    setManualFormOpen(true);
+    setAddMenuOpen(false);
+  };
+
+  const productCartItems = cartItems.filter((i) => i.lineType !== 'SERVICE');
+  const serviceCartItems = cartItems.filter((i) => i.lineType === 'SERVICE');
   const totals = calculateInvoiceTotals(cartItems);
+
+  const mapInvoiceItemForView = (item, cartSnapshot = []) => {
+    const isService = item.itemType === 'SERVICE';
+    const cartLine = cartSnapshot.find((c) => (
+      isService
+        ? c.lineType === 'SERVICE' && (c.description === item.description || c.productName === item.description)
+        : c.barcode === item.productUnit?.barcode || c.productUnitId === item.productUnitId
+    ));
+    return {
+      id: item.id,
+      itemType: item.itemType || (isService ? 'SERVICE' : 'PRODUCT'),
+      productId: item.productId,
+      productName: isService ? (item.description || 'Service') : item.product?.name,
+      productCode: item.product?.code,
+      categoryName: isService
+        ? (cartLine?.category || (cartLine?.chargeKind === 'ITEM' ? 'Item' : 'Service'))
+        : (item.categoryName ?? cartLine?.category ?? null),
+      itemDescription: isService
+        ? (item.description || item.itemDescription || 'Service')
+        : (item.itemDescription ?? cartLine?.description ?? null),
+      description: item.description || null,
+      barcode: isService ? null : (item.productUnit?.barcode || cartLine?.barcode),
+      unitPrice: item.unitPrice,
+      discount: item.discount,
+      quantity: Number(item.quantity ?? 1),
+      warrantyMonths: isService ? null : (item.warrantyMonths ?? cartLine?.warrantyMonths ?? null),
+      chargeKind: isService ? (cartLine?.chargeKind || 'SERVICE') : undefined,
+    };
+  };
 
   const handleGenerateInvoice = async () => {
     if (cartItems.length === 0) {
-      toast.error('Scan at least one unit barcode');
+      toast.error('Add at least one product or service');
       return;
     }
     if (!selectedCustomer) {
@@ -161,7 +287,12 @@ export default function Billing() {
       const invoice = await invoicesApi.create({
         customerId: selectedCustomer,
         paymentMethod: PAYMENT_METHOD_API[paymentMethod],
-        items: cartItems.map((i) => ({ barcode: i.barcode, discount: i.discount || 0 })),
+        items: productCartItems.map((i) => ({ barcode: i.barcode, discount: i.discount || 0 })),
+        services: serviceCartItems.map((i) => ({
+          description: i.description || i.productName,
+          unitPrice: Number(i.unitPrice),
+          discount: i.discount || 0,
+        })),
       });
       const viewInvoice = {
         ...invoice,
@@ -169,31 +300,15 @@ export default function Billing() {
         cashier: invoice.cashier?.name || user?.name,
         paymentMethod: PAYMENT_METHOD_LABEL[invoice.paymentMethod] || invoice.paymentMethod,
         customer,
-        poNumber: invoice.poNumber ?? resolveTaxInvoicePoNumber(cartItems),
-        supplierTin: invoice.supplierTin ?? resolveTaxInvoiceSupplierTin(cartItems),
-        items: invoice.items.map((item) => {
-          const cartLine = cartItems.find(
-            (c) => c.barcode === item.productUnit?.barcode || c.productUnitId === item.productUnitId
-          );
-          return {
-            id: item.id,
-            productId: item.productId,
-            productName: item.product?.name,
-            productCode: item.product?.code,
-            categoryName: item.categoryName ?? cartLine?.category ?? null,
-            itemDescription: item.itemDescription ?? cartLine?.description ?? null,
-            barcode: item.productUnit?.barcode || cartLine?.barcode,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            quantity: 1,
-            warrantyMonths: item.warrantyMonths ?? cartLine?.warrantyMonths ?? null,
-          };
-        }),
+        poNumber: invoice.poNumber ?? resolveTaxInvoicePoNumber(productCartItems),
+        supplierTin: invoice.supplierTin ?? resolveTaxInvoiceSupplierTin(productCartItems),
+        items: invoice.items.map((item) => mapInvoiceItemForView(item, cartItems)),
       };
       setGeneratedInvoice(viewInvoice);
       setShowPreview(true);
       setCartItems([]);
       setLastScanned(null);
+      resetManualForm();
       toast.success('Invoice generated successfully!');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to create invoice'));
@@ -221,19 +336,7 @@ export default function Billing() {
         customer: invCustomer,
         poNumber: full.poNumber ?? null,
         supplierTin: full.supplierTin ?? null,
-        items: full.items.map((item) => ({
-          id: item.id,
-          productId: item.productId,
-          productName: item.product?.name,
-          productCode: item.product?.code,
-          categoryName: item.categoryName ?? null,
-          itemDescription: item.itemDescription ?? null,
-          barcode: item.productUnit?.barcode,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          quantity: 1,
-          warrantyMonths: item.warrantyMonths ?? null,
-        })),
+        items: full.items.map((item) => mapInvoiceItemForView(item)),
       });
       setShowPreviousInvoices(false);
       setShowPreview(true);
@@ -263,9 +366,98 @@ export default function Billing() {
               clearOnScan
               disabled={scanning}
             />
-            <p className="mt-2 text-xs text-slate-500">
-              Scan each unit barcode separately. Different barcodes become separate invoice lines.
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="relative" ref={addMenuRef}>
+                <button
+                  type="button"
+                  className="btn-secondary !py-2 !text-sm"
+                  onClick={() => setAddMenuOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={addMenuOpen}
+                >
+                  <Plus className="h-4 w-4" /> Add
+                  <ChevronDown className={`h-4 w-4 transition-transform ${addMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {addMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 z-20 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                      onClick={() => openManualForm('ITEM')}
+                    >
+                      <Package className="h-4 w-4 text-slate-500" /> Item
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                      onClick={() => openManualForm('SERVICE')}
+                    >
+                      <Wrench className="h-4 w-4 text-slate-500" /> Service
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Scan barcodes, or use Add → Item / Service for description and amount (no barcode).
+              </p>
+            </div>
+
+            {manualFormOpen && (
+              <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {manualKind === 'ITEM' ? (
+                    <Package className="h-4 w-4 text-primary-600" />
+                  ) : (
+                    <Wrench className="h-4 w-4 text-primary-600" />
+                  )}
+                  {editingManualId
+                    ? (manualKind === 'ITEM' ? 'Edit Item' : 'Edit Service')
+                    : (manualKind === 'ITEM' ? 'Add Item' : 'Add Service')}
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="md:col-span-2">
+                    <label className="label">
+                      {manualKind === 'ITEM' ? 'Item Description' : 'Service Description'}
+                    </label>
+                    <input
+                      className="input-field"
+                      value={manualDraft.description}
+                      onChange={(e) => setManualDraft((prev) => ({ ...prev, description: e.target.value }))}
+                      placeholder={
+                        manualKind === 'ITEM'
+                          ? 'e.g. Extra cable / accessories'
+                          : 'e.g. CCTV Installation and Configuration'
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Amount</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="input-field"
+                      value={manualDraft.amount}
+                      onChange={(e) => setManualDraft((prev) => ({ ...prev, amount: e.target.value }))}
+                      placeholder="15000.00"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn-secondary !py-2 !text-sm" onClick={resetManualForm}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn-primary !py-2 !text-sm" onClick={handleAddOrUpdateManualLine}>
+                    {editingManualId ? 'Update' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {lastScanned && (
@@ -275,13 +467,41 @@ export default function Billing() {
             </div>
           )}
 
-          {cartItems.length > 0 && (
+          {productCartItems.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold">All Scanned Items ({cartItems.length})</h3>
+              <h3 className="text-sm font-semibold">Scanned Products ({productCartItems.length})</h3>
               <div className="space-y-3">
-                {cartItems.map((item) => (
-                  <ScannedUnitDetails key={item.barcode} item={item} />
+                {productCartItems.map((item) => (
+                  <ScannedUnitDetails key={item.cartKey} item={item} />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {serviceCartItems.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Items & Services ({serviceCartItems.length})</h3>
+              <div className="space-y-2">
+                {serviceCartItems.map((item) => {
+                  const kindLabel = item.chargeKind === 'ITEM' ? 'Item' : 'Service';
+                  return (
+                    <div key={item.cartKey} className="glass-card flex items-start justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">{kindLabel}</p>
+                        <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{item.description}</p>
+                        <p className="mt-1 text-sm text-emerald-600">{formatCurrency(item.unitPrice)}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
+                          Edit
+                        </button>
+                        <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -299,7 +519,7 @@ export default function Billing() {
               <ShoppingCart className="h-5 w-5 text-primary-600" />
               <h3 className="font-semibold">Current Invoice</h3>
               <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-950 dark:text-primary-400">
-                {cartItems.length} units
+                {cartItems.length} line{cartItems.length === 1 ? '' : 's'}
               </span>
             </div>
 
@@ -348,7 +568,7 @@ export default function Billing() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800">
-                      <th className="pb-2 text-left">Unit</th>
+                      <th className="pb-2 text-left">Line</th>
                       <th className="pb-2 text-right">Price</th>
                       <th className="pb-2 text-right">Disc.</th>
                       <th className="pb-2 text-right">Total</th>
@@ -357,16 +577,27 @@ export default function Billing() {
                   </thead>
                   <tbody>
                     {cartItems.map((item) => {
-                      const lineTotal = item.unitPrice - (item.discount || 0);
+                      const isService = item.lineType === 'SERVICE';
+                      const lineTotal = (Number(item.unitPrice) * Number(item.quantity || 1)) - (item.discount || 0);
                       return (
-                        <tr key={item.barcode} className="border-b border-slate-50 dark:border-slate-800/50">
+                        <tr key={item.cartKey} className="border-b border-slate-50 dark:border-slate-800/50">
                           <td className="py-2 pr-2">
-                            <p className="font-medium truncate max-w-[140px]">{item.productName}</p>
-                            <p className="font-mono text-[10px] text-slate-400">{item.barcode}</p>
-                            {item.stockSource !== 'DN' && (item.grnNumber || item.poNumber) && (
-                              <p className="text-[10px] text-slate-400">
-                                {[item.grnNumber, item.poNumber].filter(Boolean).join(' • ')}
+                            <p className="font-medium truncate max-w-[140px]">
+                              {isService ? item.description : item.productName}
+                            </p>
+                            {isService ? (
+                              <p className="text-[10px] text-primary-600">
+                                {item.chargeKind === 'ITEM' ? 'Item' : 'Service'}
                               </p>
+                            ) : (
+                              <>
+                                <p className="font-mono text-[10px] text-slate-400">{item.barcode}</p>
+                                {item.stockSource !== 'DN' && (item.grnNumber || item.poNumber) && (
+                                  <p className="text-[10px] text-slate-400">
+                                    {[item.grnNumber, item.poNumber].filter(Boolean).join(' • ')}
+                                  </p>
+                                )}
+                              </>
                             )}
                           </td>
                           <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
@@ -375,15 +606,22 @@ export default function Billing() {
                               type="number"
                               min="0"
                               value={item.discount || 0}
-                              onChange={(e) => updateItem(item.barcode, 'discount', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => updateItem(item.cartKey, 'discount', parseFloat(e.target.value) || 0)}
                               className="input-field !w-16 !py-1 text-right !text-xs ml-auto"
                             />
                           </td>
                           <td className="py-2 text-right font-semibold">{formatCurrency(lineTotal)}</td>
                           <td className="py-2">
-                            <button type="button" onClick={() => removeItem(item.barcode)} className="text-red-400 hover:text-red-600">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              {isService && (
+                                <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
+                                  Edit
+                                </button>
+                              )}
+                              <button type="button" onClick={() => removeItem(item.cartKey)} className="text-red-400 hover:text-red-600">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -392,7 +630,7 @@ export default function Billing() {
                 </table>
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">Scan unit barcodes to add items</p>
+              <p className="py-8 text-center text-sm text-slate-400">Scan barcodes or Add → Item / Service</p>
             )}
 
             <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
@@ -404,7 +642,7 @@ export default function Billing() {
             </div>
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setCartItems([]); setLastScanned(null); }} className="btn-secondary flex-1" disabled={cartItems.length === 0}>Clear</button>
+              <button type="button" onClick={() => { setCartItems([]); setLastScanned(null); resetManualForm(); }} className="btn-secondary flex-1" disabled={cartItems.length === 0}>Clear</button>
               <button type="button" onClick={handleGenerateInvoice} className="btn-primary flex-1" disabled={cartItems.length === 0 || submitting}>
                 <Receipt className="h-4 w-4" /> {submitting ? 'Processing…' : 'Generate Invoice'}
               </button>

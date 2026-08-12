@@ -93,6 +93,11 @@ enum SellingPriceMode {
   AUTO
 }
 
+enum InvoiceItemType {
+  PRODUCT
+  SERVICE
+}
+
 enum MovementType {
   GRN_IN
   DN_IN
@@ -466,15 +471,18 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id            String      @id @default(cuid())
+  id            String          @id @default(cuid())
   invoiceId     String
-  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  productUnitId String      @unique
-  productUnit   ProductUnit @relation(fields: [productUnitId], references: [id])
-  productId     String
-  product       Product     @relation(fields: [productId], references: [id])
-  unitPrice      Decimal     @db.Decimal(12, 2)
-  discount       Decimal     @default(0) @db.Decimal(12, 2)
+  invoice       Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemType      InvoiceItemType @default(PRODUCT)
+  description   String?
+  quantity      Int             @default(1)
+  productUnitId String?         @unique
+  productUnit   ProductUnit?    @relation(fields: [productUnitId], references: [id])
+  productId     String?
+  product       Product?        @relation(fields: [productId], references: [id])
+  unitPrice      Decimal         @db.Decimal(12, 2)
+  discount       Decimal         @default(0) @db.Decimal(12, 2)
   warrantyMonths Int?
 
   @@index([invoiceId])
