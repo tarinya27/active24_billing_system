@@ -16,6 +16,11 @@ export const create = asyncHandler(async (req, res) => {
   res.status(201).json({ data: invoice, error: null });
 });
 
+export const update = asyncHandler(async (req, res) => {
+  const invoice = await service.updateInvoice(req.params.id, req.body, req.user);
+  res.json({ data: invoice, error: null });
+});
+
 export const settle = asyncHandler(async (req, res) => {
   const invoice = await service.settleCredit(req.params.id, req.body, req.user.id);
   res.json({ data: invoice, error: null });

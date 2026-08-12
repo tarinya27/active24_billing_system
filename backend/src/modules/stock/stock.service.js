@@ -224,13 +224,20 @@ export async function listUnits(query) {
   return listResult(items, total, { page, pageSize });
 }
 
-export async function lookupUnitByBarcode(barcode) {
+export async function lookupUnitByBarcode(barcode, { forInvoiceId } = {}) {
   const unit = await prisma.productUnit.findUnique({
     where: { barcode },
-    include: unitLookupInclude,
+    include: {
+      ...unitLookupInclude,
+      invoiceItem: { select: { invoiceId: true } },
+    },
   });
   if (!unit) throw ApiError.notFound('Unit not found for this barcode');
-  if (unit.status !== 'IN_STOCK') {
+
+  const linkedToEditingInvoice = Boolean(
+    forInvoiceId && unit.invoiceItem?.invoiceId === forInvoiceId
+  );
+  if (unit.status !== 'IN_STOCK' && !linkedToEditingInvoice) {
     throw ApiError.conflict(`Unit is not available for sale (status: ${unit.status})`);
   }
   return mapUnitForSale(unit);

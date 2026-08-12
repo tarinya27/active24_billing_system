@@ -411,6 +411,87 @@ export async function createInvoice(payload, userId) {
   return enrichInvoicePrintMeta(serializeInvoice(invoice));
 }
 
+export async function updateInvoice(id, payload, user) {
+  const existing = await prisma.invoice.findUnique({
+    where: { id },
+    include: { payments: true },
+  });
+  if (!existing) throw ApiError.notFound('Invoice not found');
+  if (existing.status === 'CANCELLED') {
+    throw ApiError.conflict('Cancelled invoices cannot be edited');
+  }
+
+  const canViewAll = user.role === 'MANAGER' || user.role === 'ADMIN';
+  if (!canViewAll && existing.cashierId !== user.id) {
+    throw ApiError.forbidden('You can only edit your own invoices');
+  }
+
+  const customer = await prisma.customer.findUnique({ where: { id: payload.customerId } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+
+  const userId = user.id;
+  const isCredit = payload.paymentMethod === 'CREDIT';
+  const wasPaidCredit = existing.paymentMethod === 'CREDIT' && existing.creditStatus === 'PAID';
+  const grandTotal = Number(existing.grandTotal);
+  const dueDate = isCredit
+    ? (existing.dueDate || new Date(Date.now() + CREDIT_TERM_DAYS * 24 * 60 * 60 * 1000))
+    : null;
+
+  const invoice = await prisma.$transaction(async (tx) => {
+    await tx.invoicePayment.deleteMany({ where: { invoiceId: id } });
+
+    const paymentCreate = (() => {
+      if (!isCredit) {
+        return {
+          create: {
+            amount: grandTotal,
+            method: payload.paymentMethod,
+            receivedById: userId,
+          },
+        };
+      }
+      if (wasPaidCredit) {
+        return {
+          create: {
+            amount: grandTotal,
+            method: existing.payments[0]?.method || 'CASH',
+            receivedById: userId,
+          },
+        };
+      }
+      return undefined;
+    })();
+
+    const updated = await tx.invoice.update({
+      where: { id },
+      data: {
+        customerId: payload.customerId,
+        paymentMethod: payload.paymentMethod,
+        creditStatus: isCredit
+          ? (wasPaidCredit ? 'PAID' : 'OUTSTANDING')
+          : null,
+        dueDate,
+        payments: paymentCreate,
+      },
+      include: invoiceInclude,
+    });
+
+    await tx.activity.create({
+      data: {
+        type: 'invoice',
+        title: `Invoice ${existing.invoiceNumber} updated`,
+        description: `Customer/payment updated — ${customer.name}`,
+        amount: grandTotal,
+        userId,
+      },
+    });
+
+    return updated;
+  });
+
+  return enrichInvoicePrintMeta(serializeInvoice(invoice));
+}
+
 export async function settleCredit(id, payload, userId) {
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice) throw ApiError.notFound('Invoice not found');

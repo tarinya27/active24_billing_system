@@ -41,6 +41,8 @@ export default function Billing() {
   const [manualDraft, setManualDraft] = useState({ description: '', amount: '' });
   const [editingManualId, setEditingManualId] = useState(null);
   const addMenuRef = useRef(null);
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
+  const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -101,13 +103,20 @@ export default function Billing() {
   };
 
   const handleBarcodeScan = async (barcode) => {
+    if (editingInvoiceId) {
+      toast.info('Items are locked while editing. Change customer or payment method only.');
+      return;
+    }
     const trimmed = barcode.trim();
     if (!trimmed || scanLockRef.current) return;
 
     scanLockRef.current = true;
     setScanning(true);
     try {
-      const unit = await stockApi.lookup(trimmed);
+      const unit = await stockApi.lookup(
+        trimmed,
+        editingInvoiceId ? { forInvoiceId: editingInvoiceId } : {}
+      );
       const details = unit.saleDetails || {};
       const cartItem = {
         lineType: 'PRODUCT',
@@ -154,12 +163,14 @@ export default function Billing() {
   };
 
   const updateItem = (cartKey, field, value) => {
+    if (editingInvoiceId) return;
     setCartItems((prev) =>
       prev.map((i) => (i.cartKey === cartKey ? { ...i, [field]: value } : i))
     );
   };
 
   const removeItem = (cartKey) => {
+    if (editingInvoiceId) return;
     setCartItems((prev) => prev.filter((i) => i.cartKey !== cartKey));
     setLastScanned((prev) => (prev?.cartKey === cartKey ? null : prev));
   };
@@ -273,6 +284,14 @@ export default function Billing() {
     };
   };
 
+  const clearBillingCart = () => {
+    setCartItems([]);
+    setLastScanned(null);
+    resetManualForm();
+    setEditingInvoiceId(null);
+    setEditingInvoiceNumber('');
+  };
+
   const handleGenerateInvoice = async () => {
     if (cartItems.length === 0) {
       toast.error('Add at least one product or service');
@@ -283,17 +302,26 @@ export default function Billing() {
       return;
     }
     setSubmitting(true);
+    const wasEditing = Boolean(editingInvoiceId);
+    const payload = wasEditing
+      ? {
+          customerId: selectedCustomer,
+          paymentMethod: PAYMENT_METHOD_API[paymentMethod],
+        }
+      : {
+          customerId: selectedCustomer,
+          paymentMethod: PAYMENT_METHOD_API[paymentMethod],
+          items: productCartItems.map((i) => ({ barcode: i.barcode, discount: i.discount || 0 })),
+          services: serviceCartItems.map((i) => ({
+            description: i.description || i.productName,
+            unitPrice: Number(i.unitPrice),
+            discount: i.discount || 0,
+          })),
+        };
     try {
-      const invoice = await invoicesApi.create({
-        customerId: selectedCustomer,
-        paymentMethod: PAYMENT_METHOD_API[paymentMethod],
-        items: productCartItems.map((i) => ({ barcode: i.barcode, discount: i.discount || 0 })),
-        services: serviceCartItems.map((i) => ({
-          description: i.description || i.productName,
-          unitPrice: Number(i.unitPrice),
-          discount: i.discount || 0,
-        })),
-      });
+      const invoice = wasEditing
+        ? await invoicesApi.update(editingInvoiceId, payload)
+        : await invoicesApi.create(payload);
       const viewInvoice = {
         ...invoice,
         date: invoice.createdAt,
@@ -306,12 +334,10 @@ export default function Billing() {
       };
       setGeneratedInvoice(viewInvoice);
       setShowPreview(true);
-      setCartItems([]);
-      setLastScanned(null);
-      resetManualForm();
-      toast.success('Invoice generated successfully!');
+      clearBillingCart();
+      toast.success(wasEditing ? 'Invoice updated successfully!' : 'Invoice generated successfully!');
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to create invoice'));
+      toast.error(getErrorMessage(err, wasEditing ? 'Failed to update invoice' : 'Failed to create invoice'));
     } finally {
       setSubmitting(false);
     }
@@ -345,6 +371,71 @@ export default function Billing() {
     }
   };
 
+  const loadInvoiceForEdit = async (invoice) => {
+    try {
+      const full = await invoicesApi.get(invoice.id || invoice);
+      if (full.status === 'CANCELLED') {
+        toast.error('Cancelled invoices cannot be edited');
+        return;
+      }
+
+      const nextCart = (full.items || []).map((item) => {
+        if (item.itemType === 'SERVICE') {
+          const description = item.description || item.itemDescription || 'Service';
+          const isItem = item.categoryName === 'Item';
+          return {
+            lineType: 'SERVICE',
+            chargeKind: isItem ? 'ITEM' : 'SERVICE',
+            cartKey: `manual:${item.id}`,
+            description,
+            productName: description,
+            category: isItem ? 'Item' : 'Service',
+            unitPrice: Number(item.unitPrice),
+            discount: Number(item.discount || 0),
+            quantity: Number(item.quantity || 1),
+            barcode: null,
+          };
+        }
+
+        const barcode = item.productUnit?.barcode || item.barcode;
+        return {
+          lineType: 'PRODUCT',
+          cartKey: `product:${barcode}`,
+          barcode,
+          productUnitId: item.productUnitId || item.productUnit?.id,
+          productId: item.productId,
+          productName: item.product?.name || item.productName || 'Product',
+          productCode: item.product?.code || item.productCode,
+          stockSource: 'GRN',
+          category: item.categoryName || '—',
+          description: item.itemDescription || item.product?.name || item.productName,
+          purchasePrice: 0,
+          grnNumber: null,
+          poNumber: null,
+          purchaseInvoiceNo: null,
+          supplierTin: null,
+          warrantyMonths: item.warrantyMonths ?? null,
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount || 0),
+          quantity: Number(item.quantity || 1),
+        };
+      });
+
+      setCartItems(nextCart);
+      setSelectedCustomer(full.customerId);
+      setPaymentMethod(PAYMENT_METHOD_LABEL[full.paymentMethod] || 'Cash');
+      setEditingInvoiceId(full.id);
+      setEditingInvoiceNumber(full.invoiceNumber);
+      setLastScanned(null);
+      resetManualForm();
+      setShowPreview(false);
+      setShowPreviousInvoices(false);
+      toast.success(`Editing ${full.invoiceNumber} — customer & payment only`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to load invoice for editing'));
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -359,6 +450,7 @@ export default function Billing() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3 space-y-4">
+          {!editingInvoiceId && (
           <div className="glass-card p-4">
             <BarcodeInput
               onScan={handleBarcodeScan}
@@ -459,8 +551,16 @@ export default function Billing() {
               </div>
             )}
           </div>
+          )}
 
-          {lastScanned && (
+          {editingInvoiceId && (
+            <div className="glass-card p-4 text-sm text-slate-600 dark:text-slate-300">
+              Editing <span className="font-semibold text-slate-800 dark:text-slate-100">{editingInvoiceNumber}</span>.
+              Only customer and payment method can be changed. Items, prices, and totals stay fixed.
+            </div>
+          )}
+
+          {lastScanned && !editingInvoiceId && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-primary-600">Last Scanned</h3>
               <ScannedUnitDetails item={lastScanned} highlight />
@@ -469,7 +569,9 @@ export default function Billing() {
 
           {productCartItems.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Scanned Products ({productCartItems.length})</h3>
+              <h3 className="text-sm font-semibold">
+                {editingInvoiceId ? 'Products' : 'Scanned Products'} ({productCartItems.length})
+              </h3>
               <div className="space-y-3">
                 {productCartItems.map((item) => (
                   <ScannedUnitDetails key={item.cartKey} item={item} />
@@ -491,14 +593,16 @@ export default function Billing() {
                         <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{item.description}</p>
                         <p className="mt-1 text-sm text-emerald-600">{formatCurrency(item.unitPrice)}</p>
                       </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
-                          Edit
-                        </button>
-                        <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                      {!editingInvoiceId && (
+                        <div className="flex shrink-0 gap-2">
+                          <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
+                            Edit
+                          </button>
+                          <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -506,7 +610,7 @@ export default function Billing() {
             </div>
           )}
 
-          {cartItems.length === 0 && !lastScanned && (
+          {cartItems.length === 0 && !lastScanned && !editingInvoiceId && (
             <div className="glass-card p-4">
               <ScannedUnitEmpty />
             </div>
@@ -522,6 +626,17 @@ export default function Billing() {
                 {cartItems.length} line{cartItems.length === 1 ? '' : 's'}
               </span>
             </div>
+
+            {editingInvoiceId && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-900 dark:bg-amber-950/30">
+                <span className="font-medium text-amber-900 dark:text-amber-300">
+                  Editing {editingInvoiceNumber} — customer & payment only
+                </span>
+                <button type="button" className="font-semibold text-amber-800 hover:underline dark:text-amber-200" onClick={clearBillingCart}>
+                  Cancel edit
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>
@@ -601,27 +716,33 @@ export default function Billing() {
                             )}
                           </td>
                           <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
-                          <td className="py-2">
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.discount || 0}
-                              onChange={(e) => updateItem(item.cartKey, 'discount', parseFloat(e.target.value) || 0)}
-                              className="input-field !w-16 !py-1 text-right !text-xs ml-auto"
-                            />
+                          <td className="py-2 text-right">
+                            {editingInvoiceId ? (
+                              <span>{formatCurrency(item.discount || 0)}</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.discount || 0}
+                                onChange={(e) => updateItem(item.cartKey, 'discount', parseFloat(e.target.value) || 0)}
+                                className="input-field !w-16 !py-1 text-right !text-xs ml-auto"
+                              />
+                            )}
                           </td>
                           <td className="py-2 text-right font-semibold">{formatCurrency(lineTotal)}</td>
                           <td className="py-2">
-                            <div className="flex items-center justify-end gap-1">
-                              {isService && (
-                                <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
-                                  Edit
+                            {!editingInvoiceId && (
+                              <div className="flex items-center justify-end gap-1">
+                                {isService && (
+                                  <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
+                                    Edit
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => removeItem(item.cartKey)} className="text-red-400 hover:text-red-600">
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                              )}
-                              <button type="button" onClick={() => removeItem(item.cartKey)} className="text-red-400 hover:text-red-600">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -642,9 +763,12 @@ export default function Billing() {
             </div>
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setCartItems([]); setLastScanned(null); resetManualForm(); }} className="btn-secondary flex-1" disabled={cartItems.length === 0}>Clear</button>
+              <button type="button" onClick={clearBillingCart} className="btn-secondary flex-1" disabled={cartItems.length === 0 && !editingInvoiceId}>Clear</button>
               <button type="button" onClick={handleGenerateInvoice} className="btn-primary flex-1" disabled={cartItems.length === 0 || submitting}>
-                <Receipt className="h-4 w-4" /> {submitting ? 'Processing…' : 'Generate Invoice'}
+                <Receipt className="h-4 w-4" />
+                {submitting
+                  ? 'Processing…'
+                  : (editingInvoiceId ? 'Update Invoice' : 'Generate Invoice')}
               </button>
             </div>
           </div>
@@ -654,7 +778,17 @@ export default function Billing() {
       <Modal isOpen={showPreview} onClose={() => setShowPreview(false)} title="Invoice Preview — A4" size="xl">
         {generatedInvoice && (
           <div className="rounded-lg bg-slate-100 p-4 dark:bg-slate-950">
-            <InvoicePrintView invoice={generatedInvoice} settings={settings} onClose={() => setShowPreview(false)} onPrint={handlePrint} />
+            <InvoicePrintView
+              invoice={generatedInvoice}
+              settings={settings}
+              onClose={() => setShowPreview(false)}
+              onPrint={handlePrint}
+              onEdit={
+                generatedInvoice.status === 'CANCELLED'
+                  ? undefined
+                  : () => loadInvoiceForEdit(generatedInvoice)
+              }
+            />
           </div>
         )}
       </Modal>
@@ -664,6 +798,7 @@ export default function Billing() {
         onClose={() => setShowPreviousInvoices(false)}
         customers={customers}
         onViewInvoice={openInvoicePreview}
+        onEditInvoice={loadInvoiceForEdit}
       />
     </div>
   );

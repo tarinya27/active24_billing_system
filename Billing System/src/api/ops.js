@@ -13,7 +13,8 @@ function createResource(base) {
 export const stockApi = {
   summary: (params = {}) => api.get('/stock/summary', { params }).then((r) => r.data.data),
   listUnits: (params = {}) => api.get('/stock/units', { params }).then((r) => r.data.data),
-  lookup: (barcode) => api.get(`/stock/units/lookup/${encodeURIComponent(barcode)}`).then((r) => r.data.data),
+  lookup: (barcode, params = {}) =>
+    api.get(`/stock/units/lookup/${encodeURIComponent(barcode)}`, { params }).then((r) => r.data.data),
   movements: (params = {}) => api.get('/stock/movements', { params }).then((r) => r.data.data),
   adjust: (productUnitId, reason) =>
     api.post('/stock/adjust', { productUnitId, reason }).then((r) => r.data.data),
@@ -23,6 +24,7 @@ export const invoicesApi = {
   list: (params = {}) => api.get('/invoices', { params }).then((r) => r.data.data),
   get: (id) => api.get(`/invoices/${id}`).then((r) => r.data.data),
   create: (payload) => api.post('/invoices', payload).then((r) => r.data.data),
+  update: (id, payload) => api.patch(`/invoices/${id}`, payload).then((r) => r.data.data),
   settle: (id, payload) => api.post(`/invoices/${id}/settle`, payload).then((r) => r.data.data),
   cancel: (id) => api.post(`/invoices/${id}/cancel`).then((r) => r.data.data),
 };

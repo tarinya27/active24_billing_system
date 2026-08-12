@@ -11,7 +11,7 @@ const serviceLineSchema = z.object({
   discount: z.coerce.number().min(0).default(0),
 });
 
-export const createInvoiceSchema = z.object({
+const invoiceLinesSchema = z.object({
   customerId: z.string().min(1),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
   deliveryNoteId: z.string().min(1).optional().nullable(),
@@ -27,6 +27,12 @@ export const createInvoiceSchema = z.object({
       path: ['items'],
     });
   }
+});
+
+export const createInvoiceSchema = invoiceLinesSchema;
+export const updateInvoiceSchema = z.object({
+  customerId: z.string().min(1),
+  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
 });
 
 export const settleCreditSchema = z.object({

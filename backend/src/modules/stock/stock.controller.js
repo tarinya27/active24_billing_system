@@ -12,7 +12,9 @@ export const listUnits = asyncHandler(async (req, res) => {
 });
 
 export const lookup = asyncHandler(async (req, res) => {
-  const unit = await service.lookupUnitByBarcode(req.params.barcode);
+  const unit = await service.lookupUnitByBarcode(req.params.barcode, {
+    forInvoiceId: req.query.forInvoiceId || undefined,
+  });
   res.json({ data: unit, error: null });
 });
 

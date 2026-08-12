@@ -65,7 +65,7 @@ function amountInWords(amount) {
   return `${numberToWordsEnglish(Math.floor(Number(amount ?? 0)))}.`;
 }
 
-export default function InvoicePrintView({ invoice, settings: _settings, onClose, onPrint }) {
+export default function InvoicePrintView({ invoice, settings: _settings, onClose, onPrint, onEdit }) {
   if (!invoice) return null;
 
   const invoiceDate = formatShortDate(invoice.date || invoice.createdAt);
@@ -276,10 +276,17 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
         </tbody>
       </table>
 
-      {!onClose || !onPrint ? null : (
+      {!onClose && !onPrint && !onEdit ? null : (
         <div className="no-print invoice-actions">
-          <button type="button" onClick={onClose} className="btn-secondary">Close</button>
-          <button type="button" onClick={onPrint} className="btn-primary">Print Invoice</button>
+          {onClose && (
+            <button type="button" onClick={onClose} className="btn-secondary">Close</button>
+          )}
+          {onEdit && (
+            <button type="button" onClick={onEdit} className="btn-secondary">Edit Invoice</button>
+          )}
+          {onPrint && (
+            <button type="button" onClick={onPrint} className="btn-primary">Print Invoice</button>
+          )}
         </div>
       )}
     </div>
