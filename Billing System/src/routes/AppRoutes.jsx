@@ -28,6 +28,7 @@ import DeliveryNoteDetail from '../pages/deliveryNotes/DeliveryNoteDetail';
 import DeliveryNoteEdit from '../pages/deliveryNotes/DeliveryNoteEdit';
 import StockManagement from '../pages/stock/StockManagement';
 import Billing from '../pages/billing/Billing';
+import InvoiceHistory from '../pages/billing/InvoiceHistory';
 import Reports from '../pages/reports/Reports';
 import Settings from '../pages/settings/Settings';
 
@@ -109,6 +110,9 @@ export default function AppRoutes() {
 
           <Route path="stock" element={<StockManagement />} />
           <Route path="billing" element={<Billing />} />
+          <Route element={<ProtectedRoute anyOf={['invoices.view_all', 'invoices.view_own']} />}>
+            <Route path="invoice-history" element={<InvoiceHistory />} />
+          </Route>
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

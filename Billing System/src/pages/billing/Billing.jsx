@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ShoppingCart, Trash2, Receipt, History, Plus, Wrench, ChevronDown, Package } from 'lucide-react';
-import PreviousInvoicesDrawer from '../../components/billing/PreviousInvoicesDrawer';
+import { useSearchParams } from 'react-router-dom';
+import { ShoppingCart, Trash2, Receipt, Plus, Wrench, ChevronDown, Package } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import BarcodeInput from '../../components/ui/BarcodeInput';
 import Modal from '../../components/ui/Modal';
 import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import WalkInCustomerForm from '../../components/billing/WalkInCustomerForm';
+import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import ScannedUnitDetails, { ScannedUnitEmpty } from '../../components/billing/ScannedUnitDetails';
 import { customersApi } from '../../api/masters';
 import { stockApi, invoicesApi, settingsApi, PAYMENT_METHOD_API, PAYMENT_METHOD_LABEL } from '../../api/ops';
@@ -23,13 +24,13 @@ import {
 
 export default function Billing() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [settings, setSettings] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [showPreview, setShowPreview] = useState(false);
-  const [showPreviousInvoices, setShowPreviousInvoices] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
@@ -350,27 +351,6 @@ export default function Billing() {
     });
   };
 
-  const openInvoicePreview = async (invoice) => {
-    try {
-      const full = await invoicesApi.get(invoice.id);
-      const invCustomer = customers.find((c) => c.id === full.customerId) || full.customer;
-      setGeneratedInvoice({
-        ...full,
-        date: full.createdAt,
-        cashier: full.cashier?.name,
-        paymentMethod: PAYMENT_METHOD_LABEL[full.paymentMethod] || full.paymentMethod,
-        customer: invCustomer,
-        poNumber: full.poNumber ?? null,
-        supplierTin: full.supplierTin ?? null,
-        items: full.items.map((item) => mapInvoiceItemForView(item)),
-      });
-      setShowPreviousInvoices(false);
-      setShowPreview(true);
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    }
-  };
-
   const loadInvoiceForEdit = async (invoice) => {
     try {
       const full = await invoicesApi.get(invoice.id || invoice);
@@ -429,23 +409,28 @@ export default function Billing() {
       setLastScanned(null);
       resetManualForm();
       setShowPreview(false);
-      setShowPreviousInvoices(false);
       toast.success(`Editing ${full.invoiceNumber} — customer & payment only`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to load invoice for editing'));
     }
   };
 
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return undefined;
+    loadInvoiceForEdit({ id: editId }).finally(() => {
+      setSearchParams({}, { replace: true });
+    });
+    return undefined;
+    // Load once when arriving from Invoice History
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   return (
     <div>
       <PageHeader
         title="Billing / Sales Invoice"
         subtitle="PO → Purchase Invoice → GRN → Sales — scan unit barcodes to sell"
-        actions={
-          <button type="button" onClick={() => setShowPreviousInvoices(true)} className="btn-secondary">
-            <History className="h-4 w-4" /> Previous Invoices
-          </button>
-        }
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
@@ -641,11 +626,11 @@ export default function Billing() {
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-500">Customer</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="select-field !text-sm">
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <CustomerSearchSelect
+                  customers={customers}
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                />
               </div>
               {customer && (
                 <div className="rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/50">
@@ -792,14 +777,6 @@ export default function Billing() {
           </div>
         )}
       </Modal>
-
-      <PreviousInvoicesDrawer
-        isOpen={showPreviousInvoices}
-        onClose={() => setShowPreviousInvoices(false)}
-        customers={customers}
-        onViewInvoice={openInvoicePreview}
-        onEditInvoice={loadInvoiceForEdit}
-      />
     </div>
   );
 }

@@ -14,9 +14,9 @@ function FullScreenLoader() {
 }
 
 // Guards nested routes. Optionally requires a specific permission to enter.
-export default function ProtectedRoute({ requiredPermission }) {
+export default function ProtectedRoute({ requiredPermission, anyOf }) {
   const { isAuthenticated, loading } = useAuth();
-  const { can } = usePermission();
+  const { can, canAny } = usePermission();
   const location = useLocation();
 
   if (loading) return <FullScreenLoader />;
@@ -26,6 +26,10 @@ export default function ProtectedRoute({ requiredPermission }) {
   }
 
   if (requiredPermission && !can(requiredPermission)) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (anyOf && !canAny(anyOf)) {
     return <Navigate to="/" replace />;
   }
 

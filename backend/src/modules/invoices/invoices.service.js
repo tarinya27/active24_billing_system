@@ -180,6 +180,13 @@ async function enrichInvoicePrintMeta(invoice) {
   };
 }
 
+function parseDateBoundary(value, endOfDay) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const date = new Date(endOfDay ? `${raw}T23:59:59.999` : `${raw}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function listInvoices(query, user) {
   const { skip, take, page, pageSize } = parsePagination(query);
   const where = {};
@@ -189,20 +196,37 @@ export async function listInvoices(query, user) {
     where.cashierId = user.id;
   }
 
-  if (query.search) {
-    where.OR = [
-      { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-      { customer: { name: { contains: query.search, mode: 'insensitive' } } },
+  const search = String(query.search || '').trim();
+  if (search) {
+    const or = [
+      { invoiceNumber: { contains: search, mode: 'insensitive' } },
+      { customer: { name: { contains: search, mode: 'insensitive' } } },
+      { customer: { mobile: { contains: search, mode: 'insensitive' } } },
     ];
+    const numeric = Number(String(search).replace(/,/g, ''));
+    if (Number.isFinite(numeric) && /^\d+(\.\d+)?$/.test(String(search).replace(/,/g, ''))) {
+      or.push({ grandTotal: numeric });
+    }
+    where.OR = or;
   }
+
   if (query.paymentMethod) where.paymentMethod = query.paymentMethod;
   if (query.status) where.status = query.status;
+  if (query.customerId) where.customerId = query.customerId;
+
+  const dateFrom = parseDateBoundary(query.dateFrom, false);
+  const dateTo = parseDateBoundary(query.dateTo, true);
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom) where.createdAt.gte = dateFrom;
+    if (dateTo) where.createdAt.lte = dateTo;
+  }
 
   const [items, total] = await Promise.all([
     prisma.invoice.findMany({
       where,
       include: {
-        customer: { select: { id: true, name: true, mobile: true } },
+        customer: { select: { id: true, name: true, mobile: true, address: true } },
         cashier: { select: { name: true } },
         _count: { select: { items: true } },
       },
@@ -213,7 +237,17 @@ export async function listInvoices(query, user) {
     prisma.invoice.count({ where }),
   ]);
 
-  return listResult(items, total, { page, pageSize });
+  return listResult(
+    items.map((inv) => ({
+      ...inv,
+      subtotal: Number(inv.subtotal),
+      totalDiscount: Number(inv.totalDiscount),
+      vatAmount: Number(inv.vatAmount),
+      grandTotal: Number(inv.grandTotal),
+    })),
+    total,
+    { page, pageSize }
+  );
 }
 
 export async function getInvoice(id, user) {

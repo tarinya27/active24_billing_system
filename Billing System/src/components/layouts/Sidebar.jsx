@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, PackageCheck, Warehouse,
   Receipt, BarChart3, Settings, ChevronLeft, ChevronRight,
-  Boxes, Tags, Contact, UserCog, Truck,   FileInput, ClipboardList,
+  Boxes, Tags, Contact, UserCog, Truck,   FileInput, ClipboardList, History,
 } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 import { usePermission } from '../../hooks/usePermission';
@@ -20,14 +20,19 @@ const navItems = [
   { path: '/delivery-notes', label: 'Delivery Notes', icon: ClipboardList, permission: 'delivery_notes.view' },
   { path: '/stock', label: 'Stock Management', icon: Warehouse, permission: 'stock.view' },
   { path: '/billing', label: 'Billing / Invoicing', icon: Receipt, permission: 'invoices.create' },
+  { path: '/invoice-history', label: 'Invoice History', icon: History, permission: ['invoices.view_all', 'invoices.view_own'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, permission: 'reports.sales' },
   { path: '/users', label: 'Users', icon: UserCog, permission: 'users.view_all' },
   { path: '/settings', label: 'Settings', icon: Settings, permission: 'settings.view' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {
-  const { can } = usePermission();
-  const visibleNavItems = navItems.filter((item) => !item.permission || can(item.permission));
+  const { can, canAny } = usePermission();
+  const visibleNavItems = navItems.filter((item) => {
+    if (!item.permission) return true;
+    if (Array.isArray(item.permission)) return canAny(item.permission);
+    return can(item.permission);
+  });
   return (
     <aside
       className={cn(
