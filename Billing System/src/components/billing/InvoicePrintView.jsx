@@ -125,7 +125,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
                 <td className="tax-info-value">{invoice.invoiceNumber}</td>
               </tr>
               <tr>
-                <td className="tax-info-label tax-info-label-top">Place of Supply</td>
+                <td className="tax-info-label tax-info-label-top">Ship to</td>
                 <td className="tax-info-value tax-info-value-multiline">
                   {placeOfSupplyLines.length > 0
                     ? placeOfSupplyLines.map((line) => <div key={line}>{line}</div>)
