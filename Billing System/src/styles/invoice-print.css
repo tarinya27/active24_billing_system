@@ -983,6 +983,33 @@
 .tax-main-table tbody .tax-col-item,
 .tax-main-table tbody .tax-col-desc {
   hyphens: auto;
+  vertical-align: top;
+}
+
+.tax-main-table tbody .tax-col-qty,
+.tax-main-table tbody .tax-col-price,
+.tax-main-table tbody .tax-col-amount {
+  vertical-align: top;
+}
+
+.tax-main-table tbody .tax-col-desc {
+  white-space: pre-wrap;
+}
+
+.tax-barcode-block {
+  margin-top: 0.8mm;
+}
+
+.tax-barcode-label {
+  margin-bottom: 0.3mm;
+  font-weight: 600;
+}
+
+.tax-barcode-line {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9pt;
+  line-height: 1.35;
+  word-break: break-all;
 }
 
 .tax-main-table tbody .tax-col-desc > div {

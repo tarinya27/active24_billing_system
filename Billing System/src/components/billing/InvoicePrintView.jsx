@@ -28,6 +28,14 @@ function formatRs(amount) {
   return `Rs${formatNumber(amount)}`;
 }
 
+function MultilineText({ text, className = '' }) {
+  if (text == null || text === '') return null;
+  const lines = String(text).split(/\r?\n/);
+  return lines.map((line, index) => (
+    <div key={`${index}-${line}`} className={className}>{line || '\u00A0'}</div>
+  ));
+}
+
 function numberToWordsEnglish(n) {
   const ones = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
   const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -71,8 +79,8 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
   const invoiceDate = formatShortDate(invoice.date || invoice.createdAt);
   const dateOfSupply = invoiceDate;
 
-  const poNo = displayTaxInvoiceField(invoice.poNumber || invoice.po?.poNumber);
-  const sofNo = invoice.sofNo || '—';
+  const poNo = displayTaxInvoiceField(invoice.poNo || invoice.poNumber || invoice.po?.poNumber);
+  const sofNo = displayTaxInvoiceField(invoice.sofNo);
 
   const placeOfSupplyLines = [
     invoice.customer?.name,
@@ -183,15 +191,25 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
               ? (it.categoryName === 'Item' || it.chargeKind === 'ITEM' ? 'Item' : 'Service')
               : (it.categoryName || it.category || 'Others');
             const productName = it.itemDescription || it.description || it.productName || it.product?.name || '—';
-            const serialOrBarcode = it.itemType === 'SERVICE' ? '' : (it.barcode || it.serialNumber || '');
+            const barcodes = (it.barcodes?.length ? it.barcodes : (it.barcode ? [it.barcode] : []))
+              .filter(Boolean);
+            const singleBarcode = barcodes.length === 1 ? barcodes[0] : '';
             const warrantyLabel = it.itemType === 'SERVICE' ? null : formatWarrantyLabel(it.warrantyMonths);
 
             return (
               <tr key={it.id || it.barcode || `${it.productId || 'item'}-${i}`}>
                 <td className="tax-col-item">{itemLabel}</td>
                 <td className="tax-col-desc">
-                  <div>{productName}</div>
-                  {serialOrBarcode && <div>S/N - {serialOrBarcode}</div>}
+                  <MultilineText text={productName} />
+                  {singleBarcode && <div>S/N - {singleBarcode}</div>}
+                  {barcodes.length > 1 && (
+                    <div className="tax-barcode-block">
+                      <div className="tax-barcode-label">Barcodes:</div>
+                      {barcodes.map((code) => (
+                        <div key={code} className="tax-barcode-line">{code}</div>
+                      ))}
+                    </div>
+                  )}
                   {warrantyLabel && <div>Warranty: {warrantyLabel}</div>}
                 </td>
                 <td className="tax-col-qty">{qty}</td>

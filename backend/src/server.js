@@ -4,7 +4,7 @@ import { prisma } from './config/prisma.js';
 
 const app = createApp();
 
-const server = app.listen(env.port, () => {
+const server = app.listen(env.port, '0.0.0.0', () => {
   // eslint-disable-next-line no-console
   console.log(`Active24 API listening on http://localhost:${env.port} (${env.nodeEnv})`);
 });

@@ -44,6 +44,8 @@ export default function Billing() {
   const addMenuRef = useRef(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
+  const [poNo, setPoNo] = useState('');
+  const [sofNo, setSofNo] = useState('');
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -119,10 +121,12 @@ export default function Billing() {
         editingInvoiceId ? { forInvoiceId: editingInvoiceId } : {}
       );
       const details = unit.saleDetails || {};
+      const unitPrice = Number(details.sellingPrice ?? unit.sellingPrice);
       const cartItem = {
         lineType: 'PRODUCT',
-        cartKey: `product:${unit.barcode}`,
+        cartKey: `product:${unit.productId}:${unitPrice}:0`,
         barcode: unit.barcode,
+        barcodes: [unit.barcode],
         productUnitId: unit.id,
         productId: unit.productId,
         productName: unit.product.name,
@@ -136,14 +140,38 @@ export default function Billing() {
         purchaseInvoiceNo: details.purchaseInvoiceNo || null,
         supplierTin: details.supplierTin || null,
         warrantyMonths: details.warrantyMonths ?? null,
-        unitPrice: Number(details.sellingPrice ?? unit.sellingPrice),
+        unitPrice,
         discount: 0,
         quantity: 1,
       };
 
       let added = false;
       setCartItems((prev) => {
-        if (prev.some((i) => i.lineType !== 'SERVICE' && i.barcode === cartItem.barcode)) return prev;
+        if (prev.some((i) => i.lineType !== 'SERVICE' && (i.barcodes || [i.barcode]).includes(cartItem.barcode))) {
+          return prev;
+        }
+
+        const existingIdx = prev.findIndex((i) => (
+          i.lineType === 'PRODUCT'
+          && i.productId === cartItem.productId
+          && i.unitPrice === cartItem.unitPrice
+          && (i.discount || 0) === (cartItem.discount || 0)
+        ));
+
+        if (existingIdx >= 0) {
+          added = true;
+          return prev.map((item, idx) => {
+            if (idx !== existingIdx) return item;
+            const barcodes = [...(item.barcodes || [item.barcode]), cartItem.barcode];
+            return {
+              ...item,
+              barcodes,
+              barcode: barcodes[0],
+              quantity: barcodes.length,
+            };
+          });
+        }
+
         added = true;
         return [...prev, cartItem];
       });
@@ -192,7 +220,7 @@ export default function Billing() {
   };
 
   const handleAddOrUpdateManualLine = () => {
-    const description = String(manualDraft.description || '').trim();
+    const description = String(manualDraft.description || '').replace(/^\s+|\s+$/g, '');
     const amount = Number(manualDraft.amount);
     const kindLabel = manualKind === 'ITEM' ? 'Item' : 'Service';
     if (!description) {
@@ -261,8 +289,13 @@ export default function Billing() {
     const cartLine = cartSnapshot.find((c) => (
       isService
         ? c.lineType === 'SERVICE' && (c.description === item.description || c.productName === item.description)
-        : c.barcode === item.productUnit?.barcode || c.productUnitId === item.productUnitId
+        : (item.barcodes || []).includes(c.barcode)
+          || c.productUnitId === item.productUnitId
+          || (c.barcodes || []).some((b) => (item.barcodes || []).includes(b))
     ));
+    const barcodes = item.barcodes?.length
+      ? item.barcodes
+      : (item.productUnit?.barcode ? [item.productUnit.barcode] : (cartLine?.barcodes || (cartLine?.barcode ? [cartLine.barcode] : [])));
     return {
       id: item.id,
       itemType: item.itemType || (isService ? 'SERVICE' : 'PRODUCT'),
@@ -276,7 +309,8 @@ export default function Billing() {
         ? (item.description || item.itemDescription || 'Service')
         : (item.itemDescription ?? cartLine?.description ?? null),
       description: item.description || null,
-      barcode: isService ? null : (item.productUnit?.barcode || cartLine?.barcode),
+      barcode: barcodes[0] || null,
+      barcodes,
       unitPrice: item.unitPrice,
       discount: item.discount,
       quantity: Number(item.quantity ?? 1),
@@ -291,6 +325,8 @@ export default function Billing() {
     resetManualForm();
     setEditingInvoiceId(null);
     setEditingInvoiceNumber('');
+    setPoNo('');
+    setSofNo('');
   };
 
   const handleGenerateInvoice = async () => {
@@ -312,7 +348,12 @@ export default function Billing() {
       : {
           customerId: selectedCustomer,
           paymentMethod: PAYMENT_METHOD_API[paymentMethod],
-          items: productCartItems.map((i) => ({ barcode: i.barcode, discount: i.discount || 0 })),
+          poNo: poNo.trim() || undefined,
+          sofNo: sofNo.trim() || undefined,
+          items: productCartItems.map((i) => ({
+            barcodes: i.barcodes || (i.barcode ? [i.barcode] : []),
+            discount: i.discount || 0,
+          })),
           services: serviceCartItems.map((i) => ({
             description: i.description || i.productName,
             unitPrice: Number(i.unitPrice),
@@ -330,6 +371,8 @@ export default function Billing() {
         paymentMethod: PAYMENT_METHOD_LABEL[invoice.paymentMethod] || invoice.paymentMethod,
         customer,
         poNumber: invoice.poNumber ?? resolveTaxInvoicePoNumber(productCartItems),
+        poNo: invoice.poNo ?? null,
+        sofNo: invoice.sofNo ?? null,
         supplierTin: invoice.supplierTin ?? resolveTaxInvoiceSupplierTin(productCartItems),
         items: invoice.items.map((item) => mapInvoiceItemForView(item, cartItems)),
       };
@@ -377,11 +420,16 @@ export default function Billing() {
           };
         }
 
-        const barcode = item.productUnit?.barcode || item.barcode;
+        const barcodes = item.barcodes?.length
+          ? item.barcodes
+          : (item.units || []).map((u) => u.barcode).filter(Boolean);
+        const primaryBarcode = barcodes[0] || item.productUnit?.barcode || item.barcode;
+        const unitPrice = Number(item.unitPrice);
         return {
           lineType: 'PRODUCT',
-          cartKey: `product:${barcode}`,
-          barcode,
+          cartKey: `product:${item.productId}:${unitPrice}:${Number(item.discount || 0)}`,
+          barcode: primaryBarcode,
+          barcodes: barcodes.length ? barcodes : (primaryBarcode ? [primaryBarcode] : []),
           productUnitId: item.productUnitId || item.productUnit?.id,
           productId: item.productId,
           productName: item.product?.name || item.productName || 'Product',
@@ -395,15 +443,17 @@ export default function Billing() {
           purchaseInvoiceNo: null,
           supplierTin: null,
           warrantyMonths: item.warrantyMonths ?? null,
-          unitPrice: Number(item.unitPrice),
+          unitPrice,
           discount: Number(item.discount || 0),
-          quantity: Number(item.quantity || 1),
+          quantity: Number(item.quantity || barcodes.length || 1),
         };
       });
 
       setCartItems(nextCart);
       setSelectedCustomer(full.customerId);
       setPaymentMethod(PAYMENT_METHOD_LABEL[full.paymentMethod] || 'Cash');
+      setPoNo(full.poNo || '');
+      setSofNo(full.sofNo || '');
       setEditingInvoiceId(full.id);
       setEditingInvoiceNumber(full.invoiceNumber);
       setLastScanned(null);
@@ -501,14 +551,15 @@ export default function Billing() {
                     <label className="label">
                       {manualKind === 'ITEM' ? 'Item Description' : 'Service Description'}
                     </label>
-                    <input
-                      className="input-field"
+                    <textarea
+                      className="input-field min-h-[88px] resize-y"
+                      rows={3}
                       value={manualDraft.description}
                       onChange={(e) => setManualDraft((prev) => ({ ...prev, description: e.target.value }))}
                       placeholder={
                         manualKind === 'ITEM'
-                          ? 'e.g. Extra cable / accessories'
-                          : 'e.g. CCTV Installation and Configuration'
+                          ? 'Enter item description (multiple lines allowed)'
+                          : 'Enter service description (multiple lines allowed)'
                       }
                     />
                   </div>
@@ -639,6 +690,30 @@ export default function Billing() {
                 </div>
               )}
               {isWalkInCustomer && <WalkInCustomerForm onSave={handleSaveWalkInCustomer} />}
+              {!editingInvoiceId && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">PO No. (optional)</label>
+                    <input
+                      type="text"
+                      className="input-field !py-2 !text-sm"
+                      value={poNo}
+                      onChange={(e) => setPoNo(e.target.value)}
+                      placeholder="PO-2026-001"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">SOF No. (optional)</label>
+                    <input
+                      type="text"
+                      className="input-field !py-2 !text-sm"
+                      value={sofNo}
+                      onChange={(e) => setSofNo(e.target.value)}
+                      placeholder="SOF-2026-015"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-500">Payment Method</label>
                 <div className="flex flex-wrap gap-2">
@@ -682,7 +757,7 @@ export default function Billing() {
                       return (
                         <tr key={item.cartKey} className="border-b border-slate-50 dark:border-slate-800/50">
                           <td className="py-2 pr-2">
-                            <p className="font-medium truncate max-w-[140px]">
+                            <p className="font-medium max-w-[140px] whitespace-pre-line">
                               {isService ? item.description : item.productName}
                             </p>
                             {isService ? (
@@ -691,7 +766,12 @@ export default function Billing() {
                               </p>
                             ) : (
                               <>
-                                <p className="font-mono text-[10px] text-slate-400">{item.barcode}</p>
+                                {!isService && Number(item.quantity || 1) > 1 && (
+                                  <p className="text-[10px] font-medium text-slate-500">Qty: {item.quantity}</p>
+                                )}
+                                {(item.barcodes?.length ? item.barcodes : [item.barcode]).filter(Boolean).map((code) => (
+                                  <p key={code} className="font-mono text-[10px] text-slate-400">{code}</p>
+                                ))}
                                 {item.stockSource !== 'DN' && (item.grnNumber || item.poNumber) && (
                                   <p className="text-[10px] text-slate-400">
                                     {[item.grnNumber, item.poNumber].filter(Boolean).join(' • ')}

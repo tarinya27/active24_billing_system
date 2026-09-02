@@ -14,6 +14,10 @@ const invoiceInclude = {
     include: {
       product: { select: { id: true, code: true, name: true } },
       productUnit: { select: { id: true, barcode: true } },
+      units: {
+        orderBy: { id: 'asc' },
+        include: { productUnit: { select: { id: true, barcode: true } } },
+      },
     },
   },
   payments: {
@@ -22,9 +26,49 @@ const invoiceInclude = {
   },
 };
 
+function itemBarcodes(item) {
+  const fromUnits = (item.units || [])
+    .map((u) => u.productUnit?.barcode)
+    .filter(Boolean);
+  if (fromUnits.length) return fromUnits;
+  if (item.productUnit?.barcode) return [item.productUnit.barcode];
+  return [];
+}
+
+function itemUnitIds(item) {
+  const fromUnits = (item.units || []).map((u) => u.productUnitId).filter(Boolean);
+  if (fromUnits.length) return fromUnits;
+  if (item.productUnitId) return [item.productUnitId];
+  return [];
+}
+
+function optionalTextField(value) {
+  const text = value != null ? String(value).trim() : '';
+  return text || null;
+}
+
+function normalizeProductLines(productItems) {
+  const lines = [];
+  for (const item of productItems) {
+    const discount = Number(item.discount || 0);
+    if (Array.isArray(item.barcodes) && item.barcodes.length) {
+      for (const barcode of item.barcodes) {
+        lines.push({ barcode: String(barcode).trim(), discount });
+      }
+      continue;
+    }
+    if (item.barcode) {
+      lines.push({ barcode: String(item.barcode).trim(), discount });
+    }
+  }
+  return lines;
+}
+
 function serializeInvoice(inv) {
   return {
     ...inv,
+    poNo: inv.poNo ?? null,
+    sofNo: inv.sofNo ?? null,
     subtotal: Number(inv.subtotal),
     totalDiscount: Number(inv.totalDiscount),
     vatAmount: Number(inv.vatAmount),
@@ -37,6 +81,12 @@ function serializeInvoice(inv) {
       unitPrice: Number(item.unitPrice),
       discount: Number(item.discount),
       warrantyMonths: item.warrantyMonths ?? null,
+      barcodes: itemBarcodes(item),
+      units: (item.units || []).map((u) => ({
+        id: u.id,
+        productUnitId: u.productUnitId,
+        barcode: u.productUnit?.barcode || null,
+      })),
     })),
     payments: inv.payments?.map((p) => ({ ...p, amount: Number(p.amount) })) || [],
   };
@@ -123,10 +173,11 @@ const invoicePrintUnitInclude = {
 };
 
 async function enrichInvoicePrintMeta(invoice) {
-  const unitIds = invoice.items
-    .filter((item) => item.itemType !== 'SERVICE' && item.productUnitId)
-    .map((item) => item.productUnitId)
-    .filter(Boolean);
+  const unitIds = invoice.items.flatMap((item) => {
+    if (item.itemType === 'SERVICE') return [];
+    return itemUnitIds(item);
+  }).filter(Boolean);
+
   if (!unitIds.length) {
     return {
       ...invoice,
@@ -138,12 +189,14 @@ async function enrichInvoicePrintMeta(invoice) {
             ...item,
             categoryName: 'Service',
             itemDescription: item.description || 'Service',
+            barcodes: [],
           };
         }
         return {
           ...item,
           categoryName: null,
           itemDescription: item.description?.trim() || item.product?.name || null,
+          barcodes: itemBarcodes(item),
         };
       }),
     };
@@ -165,12 +218,20 @@ async function enrichInvoicePrintMeta(invoice) {
           ...item,
           categoryName: 'Service',
           itemDescription: item.description || 'Service',
+          barcodes: [],
         };
       }
-      const unit = unitById[item.productUnitId];
+
+      const linkedUnits = itemUnitIds(item)
+        .map((id) => unitById[id])
+        .filter(Boolean);
+      const unit = linkedUnits[0];
       const fallbackName = item.product?.name || unit?.product?.name;
+      const barcodes = linkedUnits.map((u) => u.barcode).filter(Boolean);
+
       return {
         ...item,
+        barcodes,
         categoryName: unit ? resolveCategoryNameFromUnit(unit) : null,
         itemDescription: unit
           ? resolveItemDescriptionFromUnit(unit, fallbackName)
@@ -273,14 +334,15 @@ export async function createInvoice(payload, userId) {
     throw ApiError.badRequest('Add at least one product or service line');
   }
 
-  const barcodes = productItems.map((i) => i.barcode);
+  const normalizedProductLines = normalizeProductLines(productItems);
+  const barcodes = normalizedProductLines.map((i) => i.barcode);
   const dupBarcodes = barcodes.filter((b, i) => barcodes.indexOf(b) !== i);
   if (dupBarcodes.length) {
     throw ApiError.badRequest(`Duplicate barcodes in cart: ${[...new Set(dupBarcodes)].join(', ')}`);
   }
 
   for (const service of serviceItems) {
-    const description = String(service.description || '').trim();
+    const description = String(service.description || '').replace(/^\s+|\s+$/g, '');
     const unitPrice = Number(service.unitPrice);
     if (!description) throw ApiError.badRequest('Service description is required');
     if (!(unitPrice > 0)) throw ApiError.badRequest('Service amount must be greater than 0');
@@ -293,7 +355,7 @@ export async function createInvoice(payload, userId) {
   const vatRate = settings?.vatEnabled ? Number(settings.vatRate || 0) / 100 : 0;
 
   const invoice = await prisma.$transaction(async (tx) => {
-    let productLines = [];
+    let productGroups = [];
 
     if (barcodes.length) {
       const units = await tx.productUnit.findMany({
@@ -319,34 +381,48 @@ export async function createInvoice(payload, userId) {
       }
 
       const unitByBarcode = Object.fromEntries(units.map((u) => [u.barcode, u]));
-      productLines = productItems.map((item) => {
+      const resolvedLines = normalizedProductLines.map((item) => {
         const unit = unitByBarcode[item.barcode];
         const warrantyMonths = normalizeWarrantyMonths(
           unit.warrantyMonths ?? unit.grnItem?.warrantyMonths ?? unit.deliveryNoteItem?.warrantyMonths
         );
         return {
-          itemType: 'PRODUCT',
           unit,
           discount: Number(item.discount || 0),
           unitPrice: Number(unit.sellingPrice),
-          quantity: 1,
           warrantyMonths,
-          description: null,
         };
       });
+
+      const groupMap = new Map();
+      for (const line of resolvedLines) {
+        const key = `${line.unit.productId}:${line.unitPrice}:${line.discount}`;
+        if (!groupMap.has(key)) groupMap.set(key, []);
+        groupMap.get(key).push(line);
+      }
+      productGroups = [...groupMap.values()];
     }
 
     const serviceLines = serviceItems.map((service) => ({
       itemType: 'SERVICE',
-      unit: null,
-      description: String(service.description).trim(),
+      description: String(service.description).replace(/^\s+|\s+$/g, ''),
       unitPrice: Number(service.unitPrice),
       discount: Number(service.discount || 0),
       quantity: 1,
       warrantyMonths: null,
     }));
 
-    const lineItems = [...productLines, ...serviceLines];
+    const productLineItems = productGroups.map((group) => ({
+      itemType: 'PRODUCT',
+      units: group.map((g) => g.unit),
+      unitPrice: group[0].unitPrice,
+      discount: group[0].discount,
+      quantity: group.length,
+      warrantyMonths: group[0].warrantyMonths,
+      description: null,
+    }));
+
+    const lineItems = [...productLineItems, ...serviceLines];
     const subtotal = lineItems.reduce((s, l) => s + (l.unitPrice * l.quantity), 0);
     const totalDiscount = lineItems.reduce((s, l) => s + l.discount, 0);
     const afterDiscount = subtotal - totalDiscount;
@@ -369,6 +445,8 @@ export async function createInvoice(payload, userId) {
         status: 'COMPLETED',
         creditStatus: isCredit ? 'OUTSTANDING' : null,
         dueDate,
+        poNo: optionalTextField(payload.poNo),
+        sofNo: optionalTextField(payload.sofNo),
         subtotal,
         totalDiscount,
         vatAmount,
@@ -389,12 +467,15 @@ export async function createInvoice(payload, userId) {
               : {
                   itemType: 'PRODUCT',
                   description: null,
-                  quantity: 1,
-                  productUnitId: l.unit.id,
-                  productId: l.unit.productId,
+                  quantity: l.quantity,
+                  productUnitId: l.units[0].id,
+                  productId: l.units[0].productId,
                   unitPrice: l.unitPrice,
                   discount: l.discount,
                   warrantyMonths: l.warrantyMonths,
+                  units: {
+                    create: l.units.map((unit) => ({ productUnitId: unit.id })),
+                  },
                 }
           )),
         },
@@ -412,21 +493,23 @@ export async function createInvoice(payload, userId) {
     });
 
     // Stock OUT only for product units — services never touch inventory
-    for (const line of productLines) {
-      await tx.productUnit.update({
-        where: { id: line.unit.id },
-        data: { status: 'SOLD' },
-      });
-      await tx.stockMovement.create({
-        data: {
-          productId: line.unit.productId,
-          productUnitId: line.unit.id,
-          type: 'SALE_OUT',
-          quantity: -1,
-          reference: invoiceNumber,
-          userId,
-        },
-      });
+    for (const group of productGroups) {
+      for (const line of group) {
+        await tx.productUnit.update({
+          where: { id: line.unit.id },
+          data: { status: 'SOLD' },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId: line.unit.productId,
+            productUnitId: line.unit.id,
+            type: 'SALE_OUT',
+            quantity: -1,
+            reference: invoiceNumber,
+            userId,
+          },
+        });
+      }
     }
 
     await tx.activity.create({
@@ -559,29 +642,39 @@ export async function settleCredit(id, payload, userId) {
 export async function cancelInvoice(id, userId) {
   const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: { items: { include: { productUnit: true } } },
+    include: {
+      items: {
+        include: {
+          productUnit: true,
+          units: { include: { productUnit: true } },
+        },
+      },
+    },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
   if (invoice.status === 'CANCELLED') throw ApiError.conflict('Invoice already cancelled');
 
   return prisma.$transaction(async (tx) => {
     for (const item of invoice.items) {
-      if (item.itemType === 'SERVICE' || !item.productUnitId) continue;
+      if (item.itemType === 'SERVICE') continue;
 
-      await tx.productUnit.update({
-        where: { id: item.productUnitId },
-        data: { status: 'IN_STOCK' },
-      });
-      await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          productUnitId: item.productUnitId,
-          type: 'RETURN',
-          quantity: 1,
-          reference: `Cancel ${invoice.invoiceNumber}`,
-          userId,
-        },
-      });
+      const unitIds = itemUnitIds(item);
+      for (const productUnitId of unitIds) {
+        await tx.productUnit.update({
+          where: { id: productUnitId },
+          data: { status: 'IN_STOCK' },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            productUnitId,
+            type: 'RETURN',
+            quantity: 1,
+            reference: `Cancel ${invoice.invoiceNumber}`,
+            userId,
+          },
+        });
+      }
     }
 
     const updated = await tx.invoice.update({

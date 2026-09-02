@@ -431,8 +431,9 @@ model ProductUnit {
   status            UnitStatus       @default(IN_STOCK)
   createdAt         DateTime         @default(now())
 
-  invoiceItem    InvoiceItem?
-  stockMovements StockMovement[]
+  invoiceItemUnits InvoiceItemUnit[]
+  primaryInvoiceItems InvoiceItem[] @relation("InvoiceItemPrimaryUnit")
+  stockMovements   StockMovement[]
 
   @@index([productId])
   @@index([status])
@@ -459,6 +460,8 @@ model Invoice {
   totalDiscount  Decimal        @default(0) @db.Decimal(14, 2)
   vatAmount      Decimal        @default(0) @db.Decimal(14, 2)
   grandTotal     Decimal        @default(0) @db.Decimal(14, 2)
+  poNo           String?
+  sofNo          String?
   createdAt      DateTime       @default(now())
 
   items    InvoiceItem[]
@@ -477,16 +480,29 @@ model InvoiceItem {
   itemType      InvoiceItemType @default(PRODUCT)
   description   String?
   quantity      Int             @default(1)
-  productUnitId String?         @unique
-  productUnit   ProductUnit?    @relation(fields: [productUnitId], references: [id])
+  productUnitId String?
+  productUnit   ProductUnit?    @relation("InvoiceItemPrimaryUnit", fields: [productUnitId], references: [id])
   productId     String?
   product       Product?        @relation(fields: [productId], references: [id])
   unitPrice      Decimal         @db.Decimal(12, 2)
   discount       Decimal         @default(0) @db.Decimal(12, 2)
   warrantyMonths Int?
+  units          InvoiceItemUnit[]
 
   @@index([invoiceId])
+  @@index([productUnitId])
   @@map("invoice_items")
+}
+
+model InvoiceItemUnit {
+  id            String      @id @default(cuid())
+  invoiceItemId String
+  invoiceItem   InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
+  productUnitId String      @unique
+  productUnit   ProductUnit @relation(fields: [productUnitId], references: [id])
+
+  @@index([invoiceItemId])
+  @@map("invoice_item_units")
 }
 
 model InvoicePayment {

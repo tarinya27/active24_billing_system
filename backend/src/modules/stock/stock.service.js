@@ -229,13 +229,21 @@ export async function lookupUnitByBarcode(barcode, { forInvoiceId } = {}) {
     where: { barcode },
     include: {
       ...unitLookupInclude,
-      invoiceItem: { select: { invoiceId: true } },
+      invoiceItemUnits: {
+        select: { invoiceItem: { select: { invoiceId: true } } },
+      },
+      primaryInvoiceItems: {
+        select: { invoiceId: true },
+      },
     },
   });
   if (!unit) throw ApiError.notFound('Unit not found for this barcode');
 
   const linkedToEditingInvoice = Boolean(
-    forInvoiceId && unit.invoiceItem?.invoiceId === forInvoiceId
+    forInvoiceId && (
+      unit.primaryInvoiceItems?.some((item) => item.invoiceId === forInvoiceId)
+      || unit.invoiceItemUnits?.some((link) => link.invoiceItem?.invoiceId === forInvoiceId)
+    )
   );
   if (unit.status !== 'IN_STOCK' && !linkedToEditingInvoice) {
     throw ApiError.conflict(`Unit is not available for sale (status: ${unit.status})`);

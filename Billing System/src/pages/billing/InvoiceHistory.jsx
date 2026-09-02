@@ -150,15 +150,25 @@ export default function InvoiceHistory() {
     paymentMethod: PAYMENT_METHOD_LABEL[full.paymentMethod] || full.paymentMethod,
     customer: full.customer,
     poNumber: full.poNumber ?? null,
+    poNo: full.poNo ?? null,
+    sofNo: full.sofNo ?? null,
     supplierTin: full.supplierTin ?? null,
-    items: (full.items || []).map((item) => ({
-      ...item,
-      productName: item.itemType === 'SERVICE'
-        ? (item.description || 'Service')
-        : (item.product?.name || item.itemDescription || item.description),
-      barcode: item.productUnit?.barcode,
-      quantity: Number(item.quantity ?? 1),
-    })),
+    items: (full.items || []).map((item) => {
+      const barcodes = item.barcodes?.length
+        ? item.barcodes
+        : (item.units || []).map((u) => u.barcode).filter(Boolean);
+      const primaryBarcode = barcodes[0] || item.productUnit?.barcode || null;
+      return {
+        ...item,
+        productName: item.itemType === 'SERVICE'
+          ? (item.description || 'Service')
+          : (item.product?.name || item.itemDescription || item.description),
+        itemDescription: item.itemDescription || item.description || null,
+        barcode: primaryBarcode,
+        barcodes,
+        quantity: Number(item.quantity ?? 1),
+      };
+    }),
   });
 
   const openInvoice = async (invoice, { printAfter } = {}) => {
