@@ -36,8 +36,10 @@ function shortItemLabel(item) {
 
 function buildDescription(item, extraUnits = []) {
   const lines = [];
-  const base = item.description?.trim() || item.product?.name || '—';
-  lines.push(base);
+  const base = item.description?.replace(/^\s+|\s+$/g, '') || item.product?.name || '—';
+  base.split(/\r?\n/).forEach((part) => {
+    if (part || lines.length === 0) lines.push(part || '\u00A0');
+  });
 
   const warranty = formatWarrantyLabel(item.warrantyMonths);
   if (warranty) lines.push(`Warranty: ${warranty}`);

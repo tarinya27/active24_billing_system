@@ -199,7 +199,9 @@ export default function DeliveryNoteDetail() {
                   {item.product?.code && (
                     <p className="text-xs text-slate-500">{item.product.code}</p>
                   )}
-                  {item.description && <p className="mt-1 text-sm">{item.description}</p>}
+                  {item.description && (
+                    <p className="mt-1 whitespace-pre-line text-sm">{item.description}</p>
+                  )}
                 </div>
                 <div className="text-right text-sm">
                   <p>Purchase: {formatCurrency(Number(item.purchasePrice))}</p>

@@ -137,7 +137,7 @@ export default function DeliveryNoteForm() {
         notes: form.notes.trim() || null,
         lines: form.lines.map((l) => ({
           categoryId: l.categoryId,
-          description: String(l.description).trim(),
+          description: String(l.description).replace(/^\s+|\s+$/g, ''),
           purchasePrice: Number(l.purchasePrice),
           units: l.barcodes.length,
           barcodes: l.barcodes,
@@ -250,11 +250,12 @@ export default function DeliveryNoteForm() {
                   </div>
                   <div className="xl:col-span-2">
                     <label className="label">Description <span className="text-red-500">*</span></label>
-                    <input
-                      className="input-field"
+                    <textarea
+                      className="input-field min-h-[88px] resize-y"
+                      rows={3}
                       value={line.description}
                       onChange={(e) => updateLine(index, { description: e.target.value })}
-                      placeholder="e.g. Apple MacBook Pro M4 Laptop Computer"
+                      placeholder="e.g. Apple MacBook Pro M4 Laptop Computer (multiple lines allowed)"
                       required
                     />
                   </div>

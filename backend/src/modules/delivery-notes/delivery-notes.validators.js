@@ -4,7 +4,11 @@ const dnLineSchema = z.object({
   /** Prefer category + description; productId kept for backward compatibility */
   productId: z.string().min(1).optional(),
   categoryId: z.string().min(1),
-  description: z.string().trim().min(1, 'Description is required').max(500),
+  description: z
+    .string()
+    .min(1, 'Description is required')
+    .max(2000)
+    .refine((value) => value.replace(/^\s+|\s+$/g, '').length > 0, 'Description is required'),
   purchasePrice: z.coerce.number().nonnegative(),
   sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
   sellingPrice: z.coerce.number().nonnegative().optional(),
@@ -55,7 +59,12 @@ export const cancelDeliveryNoteSchema = z.object({
 
 const updateDnLineSchema = z.object({
   id: z.string().min(1),
-  description: z.string().trim().max(500).optional().nullable().or(z.literal('')),
+  description: z
+    .string()
+    .max(2000)
+    .optional()
+    .nullable()
+    .or(z.literal('')),
   sellingPriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
   sellingPrice: z.coerce.number().nonnegative().optional(),
 });

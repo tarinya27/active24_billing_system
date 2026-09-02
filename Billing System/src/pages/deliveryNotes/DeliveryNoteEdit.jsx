@@ -97,7 +97,7 @@ export default function DeliveryNoteEdit() {
         notes: notes.trim() || null,
         items: lines.map((line) => ({
           id: line.id,
-          description: line.description.trim() || null,
+          description: line.description.replace(/^\s+|\s+$/g, '') || null,
           sellingPriceMode: line.sellingPriceMode,
           sellingPrice: Number(line.sellingPrice) || 0,
         })),
@@ -177,11 +177,12 @@ export default function DeliveryNoteEdit() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <label className="label">Description</label>
-                    <input
-                      className="input-field"
+                    <textarea
+                      className="input-field min-h-[88px] resize-y"
+                      rows={3}
                       value={line.description}
                       onChange={(e) => updateLine(line.id, { description: e.target.value })}
-                      placeholder="Item description"
+                      placeholder="Item description (multiple lines allowed)"
                     />
                   </div>
 
