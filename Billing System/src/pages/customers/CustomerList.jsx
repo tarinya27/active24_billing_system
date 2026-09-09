@@ -12,6 +12,7 @@ import { usePermission } from '../../hooks/usePermission';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useCustomers } from '../../context/CustomersContext';
 import { getErrorMessage } from '../../api/client';
+import { formatCustomerName, SALUTATIONS } from '../../utils/helpers';
 
 const TYPES = [
   { value: 'WALK_IN', label: 'Walk-in' },
@@ -21,7 +22,7 @@ const TYPES = [
 ];
 const typeLabel = (v) => TYPES.find((t) => t.value === v)?.label || v;
 
-const emptyForm = { name: '', mobile: '', address: '', email: '', type: 'WALK_IN' };
+const emptyForm = { salutation: '', name: '', mobile: '', address: '', email: '', type: 'WALK_IN' };
 
 export default function CustomerList() {
   const { can } = usePermission();
@@ -34,7 +35,7 @@ export default function CustomerList() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(customers, ['name', 'mobile', 'email']);
+  const { searchQuery, setSearchQuery, filteredItems } = useSearch(customers, ['name', 'mobile', 'email', 'salutation']);
   const filtered = useMemo(
     () => filteredItems.filter((c) => typeFilter === 'All' || c.type === typeFilter),
     [filteredItems, typeFilter]
@@ -50,6 +51,7 @@ export default function CustomerList() {
   const openEdit = (customer) => {
     setEditing(customer);
     setForm({
+      salutation: customer.salutation || '',
       name: customer.name,
       mobile: customer.mobile || '',
       address: customer.address || '',
@@ -68,10 +70,10 @@ export default function CustomerList() {
     setSaving(true);
     try {
       if (editing) {
-        await update(editing.id, form);
+        await update(editing.id, { ...form, salutation: form.salutation || null });
         toast.success('Customer updated');
       } else {
-        await create(form);
+        await create({ ...form, salutation: form.salutation || null });
         toast.success('Customer created');
       }
       setModalOpen(false);
@@ -94,7 +96,7 @@ export default function CustomerList() {
 
   const showActions = can('customers.edit') || can('customers.delete');
   const columns = [
-    { key: 'name', label: 'Customer', render: (r) => <span className="font-medium">{r.name}</span> },
+    { key: 'name', label: 'Customer', render: (r) => <span className="font-medium">{formatCustomerName(r)}</span> },
     { key: 'mobile', label: 'Mobile', render: (r) => r.mobile || '—' },
     { key: 'email', label: 'Email', render: (r) => r.email || '—' },
     { key: 'type', label: 'Type', render: (r) => (
@@ -162,6 +164,24 @@ export default function CustomerList() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Customer' : 'Add Customer'} size="md">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="label">Salutation</label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
+              {SALUTATIONS.map((item) => (
+                <label key={item.value} className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="salutation"
+                    value={item.value}
+                    checked={form.salutation === item.value}
+                    onChange={(e) => setForm({ ...form, salutation: e.target.value })}
+                    className="h-4 w-4 border-slate-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {item.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="label">Name *</label>
             <input className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Customer name" />
           </div>
@@ -199,7 +219,7 @@ export default function CustomerList() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Delete Customer"
-        message={`Delete "${deleteTarget?.name}"? This only works if they have no invoices.`}
+        message={`Delete "${formatCustomerName(deleteTarget)}"? This only works if they have no invoices.`}
         confirmText="Delete"
       />
     </div>

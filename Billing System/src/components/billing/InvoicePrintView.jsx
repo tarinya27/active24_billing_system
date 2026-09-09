@@ -1,6 +1,7 @@
 import BrandLogo from '../ui/BrandLogo';
 import { formatWarrantyLabel } from '../../utils/warranty';
 import { displayTaxInvoiceField } from '../../utils/invoicePrintMeta';
+import { formatCustomerName } from '../../utils/helpers';
 
 const COMPANY_NAME = 'Active24 (Pvt) Ltd';
 const COMPANY_ADDRESS = 'No: 92, Jambugasmulla Road, Nugegoda';
@@ -84,7 +85,8 @@ function customerDetailLines(customer) {
   const lines = [];
 
   if (isFilledCustomerField(customer.name)) {
-    lines.push(customer.name.trim());
+    const displayName = formatCustomerName(customer);
+    lines.push(displayName === '—' ? customer.name.trim() : displayName);
   }
 
   if (isFilledCustomerField(customer.address)) {

@@ -7,6 +7,7 @@ function normalize(data) {
   for (const key of ['mobile', 'address', 'email']) {
     if (out[key] === '') out[key] = null;
   }
+  if (out.salutation === '' || out.salutation === undefined) out.salutation = null;
   return out;
 }
 

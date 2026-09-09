@@ -113,6 +113,7 @@ export default function Billing() {
   const handleSaveWalkInCustomer = async (customerData) => {
     try {
       const created = await createCustomer({
+        salutation: customerData.salutation || null,
         name: customerData.name,
         mobile: customerData.mobile,
         address: customerData.address,

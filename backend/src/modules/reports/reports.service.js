@@ -120,7 +120,7 @@ export async function grnReport() {
 export async function debtorsReport() {
   const invoices = await prisma.invoice.findMany({
     where: { paymentMethod: 'CREDIT', status: 'COMPLETED' },
-    include: { customer: { select: { name: true, mobile: true } } },
+    include: { customer: { select: { salutation: true, name: true, mobile: true } } },
     orderBy: { createdAt: 'desc' },
   });
 

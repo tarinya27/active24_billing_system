@@ -9,7 +9,7 @@ import Can from '../../components/auth/Can';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { estimatesApi } from '../../api/technical';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, formatCustomerName } from '../../utils/helpers';
 
 export default function EstimateHistory() {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ export default function EstimateHistory() {
 
   const columns = [
     { key: 'estimateNumber', label: 'Estimate No.', render: (r) => <span className="font-semibold text-primary-600">{r.estimateNumber}</span> },
-    { key: 'customer', label: 'Customer', render: (r) => r.customer?.name || '—' },
+    { key: 'customer', label: 'Customer', render: (r) => r.customer?.name ? formatCustomerName(r.customer) : '—' },
     { key: 'description', label: 'Description', render: (r) => <span className="whitespace-pre-line">{r.description || '—'}</span> },
     { key: 'amount', label: 'Amount', render: (r) => formatCurrency(r.amount) },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },

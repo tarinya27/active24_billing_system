@@ -3,7 +3,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
 import { nextSofNumber, nextEstimateNumber } from '../../utils/documentNumbers.js';
 
-const customerSelect = { id: true, name: true, mobile: true, address: true };
+const customerSelect = { id: true, salutation: true, name: true, mobile: true, address: true };
 const userSelect = { id: true, name: true };
 
 function serializeEstimate(item) {

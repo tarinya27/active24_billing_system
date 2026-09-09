@@ -373,7 +373,7 @@ export async function listInvoices(query, user) {
     prisma.invoice.findMany({
       where,
       include: {
-        customer: { select: { id: true, name: true, mobile: true, address: true } },
+        customer: { select: { id: true, salutation: true, name: true, mobile: true, address: true } },
         cashier: { select: { name: true } },
         _count: { select: { items: true } },
       },

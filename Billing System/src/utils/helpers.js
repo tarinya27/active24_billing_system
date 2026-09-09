@@ -65,3 +65,20 @@ export function getStockStatus(quantity, reorderLevel = 10) {
 export function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }
+
+export const SALUTATIONS = [
+  { value: 'MR', label: 'Mr.' },
+  { value: 'MRS', label: 'Mrs.' },
+  { value: 'MISS', label: 'Miss.' },
+  { value: 'DR', label: 'Dr.' },
+  { value: 'PROF', label: 'Prof.' },
+  { value: 'REV', label: 'Rev.' },
+];
+
+export function formatCustomerName(customer) {
+  if (!customer) return '—';
+  const name = String(customer.name || '').trim();
+  const label = SALUTATIONS.find((item) => item.value === customer.salutation)?.label;
+  if (label && name) return `${label} ${name}`;
+  return name || '—';
+}

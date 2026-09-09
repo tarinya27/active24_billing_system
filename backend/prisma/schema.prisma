@@ -38,6 +38,15 @@ enum CustomerType {
   CORPORATE
 }
 
+enum Salutation {
+  MR
+  MRS
+  MISS
+  DR
+  PROF
+  REV
+}
+
 enum PoStatus {
   PENDING
   APPROVED
@@ -181,13 +190,14 @@ model Supplier {
 }
 
 model Customer {
-  id        String       @id @default(cuid())
-  name      String
-  mobile    String?
-  address   String?
-  email     String?
-  type      CustomerType @default(WALK_IN)
-  createdAt DateTime     @default(now())
+  id          String       @id @default(cuid())
+  salutation  Salutation?
+  name        String
+  mobile      String?
+  address     String?
+  email       String?
+  type        CustomerType @default(WALK_IN)
+  createdAt   DateTime     @default(now())
 
   invoices      Invoice[]
   deliveryNotes DeliveryNote[]

@@ -9,7 +9,7 @@ import { createInvoice } from '../invoices/invoices.service.js';
 
 const dnInclude = {
   supplier: { select: { id: true, name: true, code: true, vatRegistrationNo: true } },
-  customer: { select: { id: true, name: true, mobile: true, address: true, email: true, type: true } },
+  customer: { select: { id: true, salutation: true, name: true, mobile: true, address: true, email: true, type: true } },
   receivedBy: { select: { id: true, name: true } },
   items: {
     include: {

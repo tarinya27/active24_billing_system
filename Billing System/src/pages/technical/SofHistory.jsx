@@ -9,7 +9,7 @@ import Can from '../../components/auth/Can';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { sofApi } from '../../api/technical';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, formatCustomerName } from '../../utils/helpers';
 
 export default function SofHistory() {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ export default function SofHistory() {
 
   const columns = [
     { key: 'sofNumber', label: 'SOF No.', render: (r) => <span className="font-semibold text-primary-600">{r.sofNumber}</span> },
-    { key: 'customer', label: 'Customer', render: (r) => r.customer?.name || '—' },
+    { key: 'customer', label: 'Customer', render: (r) => r.customer?.name ? formatCustomerName(r.customer) : '—' },
     { key: 'description', label: 'Description', render: (r) => <span className="whitespace-pre-line">{r.description || '—'}</span> },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },

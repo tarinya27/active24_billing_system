@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { formatCustomerName } from '../../utils/helpers';
 
 export default function CustomerSearchSelect({
   customers = [],
@@ -17,7 +18,7 @@ export default function CustomerSearchSelect({
     [customers, value]
   );
 
-  const selectedLabel = selected?.name || '';
+  const selectedLabel = formatCustomerName(selected) === '—' ? '' : formatCustomerName(selected);
 
   useEffect(() => {
     if (!open) setQuery(selectedLabel);
@@ -40,14 +41,14 @@ export default function CustomerSearchSelect({
       return customers.slice(0, 50);
     }
     return customers.filter((c) => {
-      const hay = `${c.name || ''} ${c.mobile || ''} ${c.address || ''} ${c.email || ''}`.toLowerCase();
+      const hay = `${formatCustomerName(c)} ${c.name || ''} ${c.mobile || ''} ${c.address || ''} ${c.email || ''}`.toLowerCase();
       return hay.includes(q);
     }).slice(0, 50);
   }, [customers, query, selected, selectedLabel]);
 
   const handleSelect = (customer) => {
     onChange(customer.id);
-    setQuery(customer.name);
+    setQuery(formatCustomerName(customer));
     setOpen(false);
   };
 
@@ -105,7 +106,7 @@ export default function CustomerSearchSelect({
                       : 'text-slate-700 dark:text-slate-200'
                   }`}
                 >
-                  <span className="block text-sm">{c.name}</span>
+                  <span className="block text-sm">{formatCustomerName(c)}</span>
                   {(c.mobile || c.address) && (
                     <span className="mt-0.5 block text-[10px] text-slate-400">
                       {[c.mobile, c.address].filter(Boolean).join(' • ')}

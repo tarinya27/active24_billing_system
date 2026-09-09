@@ -14,7 +14,7 @@ import { useServerList } from '../../hooks/useServerList';
 import { invoicesApi, settingsApi, PAYMENT_METHOD_LABEL, PAYMENT_METHOD_API } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, formatCustomerName } from '../../utils/helpers';
 import { PAYMENT_METHODS } from '../../utils/constants';
 import { printElement } from '../../utils/printDocument';
 
@@ -207,7 +207,7 @@ export default function InvoiceHistory() {
     {
       key: 'customer',
       label: 'Customer',
-      render: (row) => row.customer?.name || '—',
+      render: (row) => row.customer ? formatCustomerName(row.customer) : '—',
     },
     {
       key: 'mobile',

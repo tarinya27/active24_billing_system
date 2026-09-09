@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { SALUTATIONS } from '../../utils/helpers';
 
-const emptyForm = { name: '', mobile: '', address: '' };
+const emptyForm = { salutation: '', name: '', mobile: '', address: '' };
 
 export default function WalkInCustomerForm({ onSave }) {
   const [form, setForm] = useState(emptyForm);
@@ -20,6 +21,7 @@ export default function WalkInCustomerForm({ onSave }) {
     }
 
     onSave({
+      salutation: form.salutation || null,
       name: form.name.trim(),
       mobile: form.mobile.trim(),
       address: form.address.trim() || '—',
@@ -47,6 +49,24 @@ export default function WalkInCustomerForm({ onSave }) {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-3 space-y-2 border-t border-primary-200/60 pt-3 dark:border-primary-800">
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Salutation</label>
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+              {SALUTATIONS.map((item) => (
+                <label key={item.value} className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="walk-in-salutation"
+                    value={item.value}
+                    checked={form.salutation === item.value}
+                    onChange={(e) => setForm({ ...form, salutation: e.target.value })}
+                    className="h-3.5 w-3.5 border-slate-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {item.label}
+                </label>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Customer Name *</label>
             <input
