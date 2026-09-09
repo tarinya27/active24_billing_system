@@ -73,6 +73,36 @@ function amountInWords(amount) {
   return `${numberToWordsEnglish(Math.floor(Number(amount ?? 0)))}.`;
 }
 
+function isFilledCustomerField(value) {
+  if (value == null) return false;
+  const text = String(value).trim();
+  return Boolean(text) && text !== '—' && text !== '-' && text !== '–';
+}
+
+function customerDetailLines(customer) {
+  if (!customer) return [];
+  const lines = [];
+
+  if (isFilledCustomerField(customer.name)) {
+    lines.push(customer.name.trim());
+  }
+
+  if (isFilledCustomerField(customer.address)) {
+    String(customer.address)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => isFilledCustomerField(line))
+      .forEach((line) => lines.push(line));
+  }
+
+  const phone = customer.mobile || customer.phone || customer.telephone;
+  if (isFilledCustomerField(phone)) {
+    lines.push(String(phone).trim());
+  }
+
+  return lines;
+}
+
 export default function InvoicePrintView({ invoice, settings: _settings, onClose, onPrint, onEdit }) {
   if (!invoice) return null;
 
@@ -82,10 +112,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
   const poNo = displayTaxInvoiceField(invoice.poNo || invoice.poNumber || invoice.po?.poNumber);
   const sofNo = displayTaxInvoiceField(invoice.sofNo);
 
-  const placeOfSupplyLines = [
-    invoice.customer?.name,
-    invoice.customer?.address,
-  ].filter(Boolean);
+  const customerDetailsLines = customerDetailLines(invoice.customer);
 
   const items = Array.isArray(invoice.items) ? invoice.items : [];
   const emptyRowCount = Math.max(0, 10 - items.length);
@@ -133,11 +160,13 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
                 <td className="tax-info-value">{invoice.invoiceNumber}</td>
               </tr>
               <tr>
-                <td className="tax-info-label tax-info-label-top">Ship to</td>
+                <td className="tax-info-label tax-info-label-top">Customer Details</td>
                 <td className="tax-info-value tax-info-value-multiline">
-                  {placeOfSupplyLines.length > 0
-                    ? placeOfSupplyLines.map((line) => <div key={line}>{line}</div>)
-                    : 'Sri Lanka'}
+                  {customerDetailsLines.length > 0
+                    ? customerDetailsLines.map((line, index) => (
+                      <div key={`${index}-${line}`}>{line}</div>
+                    ))
+                    : '—'}
                 </td>
               </tr>
             </tbody>

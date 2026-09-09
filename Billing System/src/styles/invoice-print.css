@@ -870,7 +870,8 @@
 
 .tax-info-value-multiline {
   text-align: left;
-  line-height: 1.2;
+  line-height: 1.25;
+  vertical-align: top;
 }
 
 /* Left info block */
