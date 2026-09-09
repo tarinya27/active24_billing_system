@@ -183,8 +183,75 @@ async function nextYearlyDocumentNumber(delegate, field, code) {
   return `${prefix}${String(seq).padStart(4, '0')}`;
 }
 
+export function parseSofNumberInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    throw ApiError.badRequest('SOF number is required');
+  }
+
+  const match = raw.match(/^(.*?)(\d+)$/);
+  if (!match) {
+    throw ApiError.badRequest('SOF number must end with digits (e.g. 134750 or SOF-134750)');
+  }
+
+  const prefix = match[1] || '';
+  const digits = match[2];
+  const sequence = parseInt(digits, 10);
+  if (!Number.isFinite(sequence) || sequence < 1) {
+    throw ApiError.badRequest('SOF number sequence must be a positive integer');
+  }
+
+  return {
+    prefix,
+    sequence,
+    pad: digits.length,
+    formatted: formatInvoiceNumber(prefix, sequence, digits.length),
+  };
+}
+
+function sofNumberFromSettings(settings) {
+  const prefix = settings?.sofPrefix ?? '';
+  const pad = Math.max(1, settings?.sofNumberPad || 1);
+  const seq = settings?.sofNextSeq || 1;
+  return {
+    prefix,
+    pad,
+    seq,
+    formatted: formatInvoiceNumber(prefix, seq, pad),
+  };
+}
+
+export async function peekSofNumber() {
+  let settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await prisma.settings.create({ data: { id: 1 } });
+  }
+  return sofNumberFromSettings(settings).formatted;
+}
+
+export async function allocateSofNumber(tx) {
+  const db = tx || prisma;
+  let settings = await db.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await db.settings.create({ data: { id: 1 } });
+  }
+
+  let { prefix, pad, seq, formatted } = sofNumberFromSettings(settings);
+  while (await db.serviceOrder.findUnique({ where: { sofNumber: formatted }, select: { id: true } })) {
+    seq += 1;
+    formatted = formatInvoiceNumber(prefix, seq, pad);
+  }
+
+  await db.settings.update({
+    where: { id: 1 },
+    data: { sofPrefix: prefix, sofNumberPad: pad, sofNextSeq: seq + 1 },
+  });
+
+  return formatted;
+}
+
 export async function nextSofNumber() {
-  return nextYearlyDocumentNumber(prisma.serviceOrder, 'sofNumber', 'SOF');
+  return allocateSofNumber();
 }
 
 export async function nextEstimateNumber() {

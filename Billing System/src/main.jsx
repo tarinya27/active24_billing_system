@@ -5,6 +5,7 @@ import './index.css';
 import './styles/invoice-print.css';
 import './styles/dn-print.css';
 import './styles/po-print.css';
+import './styles/sof-form.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -82,3 +82,11 @@ export function formatCustomerName(customer) {
   if (label && name) return `${label} ${name}`;
   return name || '—';
 }
+
+export function formatShipToBlock(customer) {
+  if (!customer) return '';
+  return [customer.name, customer.mobile, customer.address]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n');
+}

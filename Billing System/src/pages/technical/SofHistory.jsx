@@ -23,7 +23,7 @@ export default function SofHistory() {
     { key: 'description', label: 'Description', render: (r) => <span className="whitespace-pre-line">{r.description || '—'}</span> },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
-    { key: 'createdBy', label: 'Created by', render: (r) => r.createdBy?.name || '—' },
+    { key: 'createdBy', label: 'Created person', render: (r) => r.createdPerson || r.createdBy?.name || '—' },
   ];
 
   return (

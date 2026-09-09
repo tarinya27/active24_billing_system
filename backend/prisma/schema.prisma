@@ -543,17 +543,25 @@ model InvoicePayment {
 // ---------- Technical jobs ----------
 
 model ServiceOrder {
-  id          String              @id @default(cuid())
-  sofNumber   String              @unique
-  customerId  String
-  customer    Customer            @relation(fields: [customerId], references: [id])
-  description String?
-  notes       String?
-  status      TechnicalJobStatus  @default(OPEN)
-  createdById String?
-  createdBy   User?               @relation("SofCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id                 String              @id @default(cuid())
+  sofNumber          String              @unique
+  customerId         String
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  jobDate            DateTime?
+  shipTo             String?
+  technician         String?
+  createdPerson      String?
+  jobStatus          String?
+  receivedBy         String?
+  customerSignature  String?
+  lines              Json                @default("[]")
+  description        String?
+  notes              String?
+  status             TechnicalJobStatus  @default(OPEN)
+  createdById        String?
+  createdBy          User?               @relation("SofCreatedBy", fields: [createdById], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([customerId])
   @@index([createdById])
@@ -629,6 +637,9 @@ model Settings {
   lowStockThreshold    Int           @default(10)
   autoPrint            Boolean       @default(false)
   notificationsEnabled Boolean       @default(true)
+  sofPrefix            String        @default("")
+  sofNextSeq           Int           @default(1)
+  sofNumberPad         Int           @default(1)
   updatedAt            DateTime      @updatedAt
 
   @@map("settings")

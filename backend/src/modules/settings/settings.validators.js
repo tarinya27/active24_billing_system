@@ -17,6 +17,10 @@ export const updateSettingsSchema = z.object({
   invoicePrefix: z.string().trim().min(1).max(40).optional(),
   /** Full next/start invoice number, e.g. INV-100 or INV-2026-0100 */
   invoiceNumber: z.string().trim().min(2).max(60).optional(),
+  sofNumber: z.string().trim().min(1).max(60).optional(),
+  sofPrefix: z.string().max(40).optional(),
+  sofNextSeq: z.coerce.number().int().min(1).optional(),
+  sofNumberPad: z.coerce.number().int().min(1).max(12).optional(),
   invoiceNextSeq: z.coerce.number().int().min(1).optional(),
   invoiceNumberPad: z.coerce.number().int().min(1).max(12).optional(),
   defaultPaymentMethod: paymentMethodField,

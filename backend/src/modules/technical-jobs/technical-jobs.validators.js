@@ -12,8 +12,26 @@ const optionalText = z
 
 const status = z.enum(['OPEN', 'COMPLETED', 'CANCELLED']).optional();
 
+const sofLineSchema = z.object({
+  item: optionalText,
+  description: optionalText,
+  qty: z.preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.coerce.number().min(0).nullable().optional()
+  ),
+  fault: optionalText,
+});
+
 export const createSofSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
+  jobDate: z.string().trim().optional().nullable(),
+  shipTo: optionalText,
+  technician: optionalText,
+  createdPerson: optionalText,
+  jobStatus: optionalText,
+  receivedBy: optionalText,
+  customerSignature: optionalText,
+  lines: z.array(sofLineSchema).optional().default([]),
   description: optionalText,
   notes: optionalText,
   status,

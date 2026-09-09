@@ -9,5 +9,8 @@ function createResource(base) {
   };
 }
 
-export const sofApi = createResource('/service-orders');
+export const sofApi = {
+  ...createResource('/service-orders'),
+  nextNumber: () => api.get('/service-orders/next-number').then((r) => r.data.data),
+};
 export const estimatesApi = createResource('/estimates');

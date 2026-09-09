@@ -3,6 +3,7 @@ import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_API } from '../../utils/enums.js';
 import {
   formatInvoiceNumber,
   parseInvoiceNumberInput,
+  parseSofNumberInput,
   renumberAllInvoices,
 } from '../../utils/documentNumbers.js';
 
@@ -10,11 +11,15 @@ function serialize(settings, extra = {}) {
   const prefix = settings.invoicePrefix || 'INV-2026-';
   const pad = settings.invoiceNumberPad || 4;
   const seq = settings.invoiceNextSeq || 1;
+  const sofPrefix = settings.sofPrefix ?? '';
+  const sofPad = Math.max(1, settings.sofNumberPad || 1);
+  const sofSeq = settings.sofNextSeq || 1;
   return {
     ...settings,
     vatRate: Number(settings.vatRate),
     defaultPaymentMethod: PAYMENT_METHOD_LABEL[settings.defaultPaymentMethod] || settings.defaultPaymentMethod,
     invoiceNumber: formatInvoiceNumber(prefix, seq, pad),
+    sofNumber: formatInvoiceNumber(sofPrefix, sofSeq, sofPad),
     ...extra,
   };
 }
@@ -60,7 +65,16 @@ export async function updateSettings(data) {
   }
 
   const invoiceNumberInput = payload.invoiceNumber;
+  const sofNumberInput = payload.sofNumber;
   delete payload.invoiceNumber;
+  delete payload.sofNumber;
+
+  if (sofNumberInput != null && String(sofNumberInput).trim() !== '') {
+    const parsedSof = parseSofNumberInput(sofNumberInput);
+    payload.sofPrefix = parsedSof.prefix;
+    payload.sofNumberPad = parsedSof.pad;
+    payload.sofNextSeq = parsedSof.sequence;
+  }
 
   let current = await prisma.settings.findUnique({ where: { id: 1 } });
   if (!current) {

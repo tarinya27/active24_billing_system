@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { nextSofNumber, nextEstimateNumber } from '../../utils/documentNumbers.js';
+import { nextSofNumber, nextEstimateNumber, peekSofNumber } from '../../utils/documentNumbers.js';
 
 const customerSelect = { id: true, salutation: true, name: true, mobile: true, address: true };
 const userSelect = { id: true, name: true };
@@ -22,6 +22,7 @@ export async function listServiceOrders(query) {
     where.OR = [
       { sofNumber: { contains: query.search, mode: 'insensitive' } },
       { description: { contains: query.search, mode: 'insensitive' } },
+      { createdPerson: { contains: query.search, mode: 'insensitive' } },
       { customer: { name: { contains: query.search, mode: 'insensitive' } } },
     ];
   }
@@ -51,14 +52,52 @@ export async function getServiceOrder(id) {
   return item;
 }
 
+function parseJobDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeLines(lines) {
+  if (!Array.isArray(lines)) return [];
+  return lines
+    .map((line) => ({
+      item: line.item || null,
+      description: line.description || null,
+      qty: line.qty == null || line.qty === '' ? null : Number(line.qty),
+      fault: line.fault || null,
+    }))
+    .filter((line) => line.item || line.description || line.qty || line.fault);
+}
+
+function summaryFromLines(lines, fallback) {
+  if (fallback) return fallback;
+  const first = (lines || []).find((line) => line.item || line.description || line.fault);
+  if (!first) return null;
+  return [first.item, first.description, first.fault].filter(Boolean).join(' — ');
+}
+
+export async function peekNextSofNumber() {
+  return { sofNumber: await peekSofNumber() };
+}
+
 export async function createServiceOrder(data, userId) {
   await assertCustomer(data.customerId);
   const sofNumber = await nextSofNumber();
+  const lines = normalizeLines(data.lines);
   return prisma.serviceOrder.create({
     data: {
       sofNumber,
       customerId: data.customerId,
-      description: data.description ?? null,
+      jobDate: parseJobDate(data.jobDate) || new Date(),
+      shipTo: data.shipTo ?? null,
+      technician: data.technician ?? null,
+      createdPerson: data.createdPerson ?? null,
+      jobStatus: data.jobStatus ?? null,
+      receivedBy: data.receivedBy ?? null,
+      customerSignature: data.customerSignature ?? null,
+      lines,
+      description: summaryFromLines(lines, data.description ?? null),
       notes: data.notes ?? null,
       status: data.status || 'OPEN',
       createdById: userId || null,
@@ -70,11 +109,20 @@ export async function createServiceOrder(data, userId) {
 export async function updateServiceOrder(id, data) {
   await getServiceOrder(id);
   if (data.customerId) await assertCustomer(data.customerId);
+  const lines = data.lines !== undefined ? normalizeLines(data.lines) : undefined;
   return prisma.serviceOrder.update({
     where: { id },
     data: {
       ...(data.customerId ? { customerId: data.customerId } : {}),
-      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.jobDate !== undefined ? { jobDate: parseJobDate(data.jobDate) } : {}),
+      ...(data.shipTo !== undefined ? { shipTo: data.shipTo } : {}),
+      ...(data.technician !== undefined ? { technician: data.technician } : {}),
+      ...(data.createdPerson !== undefined ? { createdPerson: data.createdPerson } : {}),
+      ...(data.jobStatus !== undefined ? { jobStatus: data.jobStatus } : {}),
+      ...(data.receivedBy !== undefined ? { receivedBy: data.receivedBy } : {}),
+      ...(data.customerSignature !== undefined ? { customerSignature: data.customerSignature } : {}),
+      ...(lines ? { lines, description: summaryFromLines(lines, data.description ?? null) } : {}),
+      ...(data.description !== undefined && !lines ? { description: data.description } : {}),
       ...(data.notes !== undefined ? { notes: data.notes } : {}),
       ...(data.status ? { status: data.status } : {}),
     },
