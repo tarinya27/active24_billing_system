@@ -5,12 +5,19 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../api/client';
 import BrandLogo from '../../components/ui/BrandLogo';
+import { getHomePath } from '../../utils/homePath';
+
+function resolvePostLoginPath(requestedPath, permissions) {
+  const home = getHomePath(permissions);
+  if (!requestedPath || requestedPath === '/' || requestedPath === '/login') return home;
+  return requestedPath;
+}
 
 export default function Login() {
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading, permissions } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/';
+  const requestedPath = location.state?.from?.pathname;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +25,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && isAuthenticated) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={resolvePostLoginPath(requestedPath, permissions)} replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -31,7 +38,7 @@ export default function Login() {
     try {
       const user = await login(email.trim(), password);
       toast.success(`Welcome back, ${user.name}`);
-      navigate(from, { replace: true });
+      navigate(resolvePostLoginPath(requestedPath, user.permissions), { replace: true });
     } catch (err) {
       toast.error(getErrorMessage(err, 'Login failed'));
     } finally {

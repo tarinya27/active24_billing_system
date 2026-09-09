@@ -16,11 +16,13 @@ import { usersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { formatDate } from '../../utils/helpers';
 
-const ROLES = ['MANAGER', 'ADMIN', 'CASHIER'];
+const ROLES = ['MANAGER', 'ADMIN', 'CASHIER', 'TECHNICAL'];
+const ROLE_LABELS = { MANAGER: 'Manager', ADMIN: 'Admin', CASHIER: 'Cashier', TECHNICAL: 'Technical' };
 const roleClasses = {
   MANAGER: 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
   ADMIN: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
   CASHIER: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+  TECHNICAL: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400',
 };
 
 const emptyForm = { name: '', email: '', password: '', role: 'CASHIER', isActive: true };
@@ -104,7 +106,7 @@ export default function UserList() {
     {
       key: 'role',
       label: 'Role',
-      render: (r) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${roleClasses[r.role] || ''}`}>{r.role}</span>,
+      render: (r) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${roleClasses[r.role] || ''}`}>{ROLE_LABELS[r.role] || r.role}</span>,
     },
     {
       key: 'isActive',
@@ -164,7 +166,7 @@ export default function UserList() {
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="select-field !w-auto">
             <option value="All">All Roles</option>
             {ROLES.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
         </div>
@@ -202,7 +204,7 @@ export default function UserList() {
               <label className="label">Role</label>
               <select className="select-field" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                 {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                 ))}
               </select>
             </div>

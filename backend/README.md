@@ -46,6 +46,8 @@ Express + Prisma + PostgreSQL API for the Active24 Billing & Inventory system.
 
 (Override the defaults via `SEED_*_PASSWORD` env vars. Change these before go-live.)
 
+Technical users are **not** seeded. Create them in User Management with the email and password you assign; login always uses those stored credentials.
+
 ## Auth endpoints (Day 1)
 - `POST /api/auth/login` — `{ email, password }` → `{ user, accessToken }` (+ refresh cookie)
 - `POST /api/auth/refresh` — uses the httpOnly refresh cookie → new `{ user, accessToken }`

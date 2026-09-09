@@ -32,7 +32,11 @@ export const suppliersApi = {
   updateStatus: (id, isActive) => api.patch(`/suppliers/${id}/status`, { isActive }).then((r) => r.data.data),
 };
 
-export const customersApi = createResource('/customers');
+export const customersApi = {
+  ...createResource('/customers'),
+  list: (params = {}) =>
+    api.get('/customers', { params: { ...params, all: 'true' } }).then((r) => r.data.data),
+};
 export const usersApi = createResource('/users');
 
 // Categories return a plain array (no pagination envelope).

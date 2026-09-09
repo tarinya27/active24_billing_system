@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
-const ROLE_LABELS = { MANAGER: 'Manager', ADMIN: 'Admin', CASHIER: 'Cashier' };
+const ROLE_LABELS = { MANAGER: 'Manager', ADMIN: 'Admin', CASHIER: 'Cashier', TECHNICAL: 'Technical' };
 
 export default function Topbar({ sidebarCollapsed }) {
   const { theme, toggleTheme } = useTheme();

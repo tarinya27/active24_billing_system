@@ -5,8 +5,9 @@ import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import BarcodeInput from '../../components/ui/BarcodeInput';
 import { deliveryNotesApi } from '../../api/procurement';
-import { categoriesApi, suppliersApi, customersApi } from '../../api/masters';
+import { categoriesApi, suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
+import { useCustomers } from '../../context/CustomersContext';
 import { calcGrnAutoSellingPrice } from '../../utils/pricing';
 import { formatCurrency } from '../../utils/helpers';
 
@@ -22,8 +23,8 @@ const emptyLine = () => ({
 
 export default function DeliveryNoteForm() {
   const navigate = useNavigate();
+  const { customers } = useCustomers();
   const [suppliers, setSuppliers] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -37,12 +38,10 @@ export default function DeliveryNoteForm() {
   useEffect(() => {
     Promise.all([
       suppliersApi.list({ pageSize: 200, isActive: 'true' }),
-      customersApi.list({ pageSize: 200 }),
       categoriesApi.list({ isActive: 'true' }),
     ])
-      .then(([s, c, cats]) => {
+      .then(([s, cats]) => {
         setSuppliers(s.items || []);
-        setCustomers(c.items || c || []);
         const list = Array.isArray(cats) ? cats : cats?.items || [];
         setCategories(list.filter((cat) => cat.isActive !== false));
       })

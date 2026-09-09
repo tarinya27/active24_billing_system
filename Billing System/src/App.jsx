@@ -4,6 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { ThemeProvider } from './context/ThemeContext';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
+import { CustomersProvider } from './context/CustomersContext';
 import AppRoutes from './routes/AppRoutes';
 
 export default function App() {
@@ -12,7 +13,9 @@ export default function App() {
       <AppProvider>
         <BrowserRouter>
           <AuthProvider>
-            <AppRoutes />
+            <CustomersProvider>
+              <AppRoutes />
+            </CustomersProvider>
           </AuthProvider>
           <ToastContainer
             position="top-right"

@@ -1,8 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, PackageCheck, Warehouse,
-  Receipt, BarChart3, Settings, ChevronLeft, ChevronRight,
-  Boxes, Tags, Contact, UserCog, Truck,   FileInput, ClipboardList, History,
+  Receipt, BarChart3, Settings, ChevronLeft, ChevronRight, ChevronDown,
+  Boxes, Tags, Contact, UserCog, Truck, FileInput, ClipboardList, History,
+  Wrench, FileText, Calculator, ScrollText,
 } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 import { usePermission } from '../../hooks/usePermission';
@@ -13,6 +15,18 @@ const navItems = [
   { path: '/products', label: 'Inventory', icon: Boxes, permission: 'products.view' },
   { path: '/categories', label: 'Categories', icon: Tags, permission: 'categories.manage' },
   { path: '/customers', label: 'Customers', icon: Contact, permission: 'customers.view' },
+  {
+    type: 'group',
+    id: 'technical-jobs',
+    label: 'Technical Jobs',
+    icon: Wrench,
+    children: [
+      { path: '/technical/sof', label: 'SOF', icon: FileText, permission: 'sof.create' },
+      { path: '/technical/estimates', label: 'Estimates', icon: Calculator, permission: 'estimates.create' },
+      { path: '/technical/sof-history', label: 'SOF History', icon: History, permission: 'sof.view' },
+      { path: '/technical/estimate-history', label: 'Estimate History', icon: ScrollText, permission: 'estimates.view' },
+    ],
+  },
   { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, permission: 'purchase_orders.view' },
   { path: '/suppliers', label: 'Suppliers', icon: Truck, permission: 'suppliers.view' },
   { path: '/purchase-invoices', label: 'Purchase Invoices', icon: FileInput, permission: 'purchase_invoices.view' },
@@ -26,13 +40,49 @@ const navItems = [
   { path: '/settings', label: 'Settings', icon: Settings, permission: 'settings.view' },
 ];
 
+function itemVisible(item, can, canAny) {
+  if (!item.permission) return true;
+  if (Array.isArray(item.permission)) return canAny(item.permission);
+  return can(item.permission);
+}
+
+function NavItemLink({ path, label, icon: Icon, collapsed, end }) {
+  return (
+    <NavLink
+      to={path}
+      end={end ?? path === '/'}
+      className={({ isActive }) =>
+        cn(
+          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+          isActive
+            ? 'bg-primary-50 text-primary-700 shadow-sm dark:bg-primary-950/50 dark:text-primary-400'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+        )
+      }
+      title={collapsed ? label : undefined}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </NavLink>
+  );
+}
+
 export default function Sidebar({ collapsed, onToggle }) {
   const { can, canAny } = usePermission();
-  const visibleNavItems = navItems.filter((item) => {
-    if (!item.permission) return true;
-    if (Array.isArray(item.permission)) return canAny(item.permission);
-    return can(item.permission);
-  });
+  const location = useLocation();
+  const [openGroups, setOpenGroups] = useState({ 'technical-jobs': true });
+
+  const visibleNavItems = navItems
+    .map((item) => {
+      if (item.type === 'group') {
+        const children = item.children.filter((child) => itemVisible(child, can, canAny));
+        if (!children.length) return null;
+        return { ...item, children };
+      }
+      return itemVisible(item, can, canAny) ? item : null;
+    })
+    .filter(Boolean);
+
   return (
     <aside
       className={cn(
@@ -52,25 +102,59 @@ export default function Sidebar({ collapsed, onToggle }) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {visibleNavItems.map(({ path, label, icon: Icon }) => (
-          <NavLink
-            key={path}
-            to={path}
-            end={path === '/'}
-            className={({ isActive }) =>
-              cn(
-                'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                isActive
-                  ? 'bg-primary-50 text-primary-700 shadow-sm dark:bg-primary-950/50 dark:text-primary-400'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
-              )
+        {visibleNavItems.map((item) => {
+          if (item.type === 'group') {
+            const childActive = item.children.some((child) => location.pathname === child.path);
+            const open = openGroups[item.id] !== false;
+            const GroupIcon = item.icon;
+
+            if (collapsed) {
+              return (
+                <div key={item.id} className="space-y-1">
+                  {item.children.map((child) => (
+                    <NavItemLink key={child.path} {...child} collapsed />
+                  ))}
+                </div>
+              );
             }
-            title={collapsed ? label : undefined}
-          >
-            <Icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span className="truncate">{label}</span>}
-          </NavLink>
-        ))}
+
+            return (
+              <div key={item.id} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroups((prev) => ({ ...prev, [item.id]: !(prev[item.id] !== false) }))}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                    childActive
+                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/50 dark:text-primary-400'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+                  )}
+                >
+                  <GroupIcon className="h-5 w-5 shrink-0" />
+                  <span className="flex-1 truncate text-left">{item.label}</span>
+                  <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', open ? 'rotate-180' : '')} />
+                </button>
+                {open && (
+                  <div className="ml-4 space-y-1 border-l border-slate-200 pl-2 dark:border-slate-700">
+                    {item.children.map((child) => (
+                      <NavItemLink key={child.path} {...child} collapsed={false} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <NavItemLink
+              key={item.path}
+              path={item.path}
+              label={item.label}
+              icon={item.icon}
+              collapsed={collapsed}
+            />
+          );
+        })}
       </nav>
 
       <button

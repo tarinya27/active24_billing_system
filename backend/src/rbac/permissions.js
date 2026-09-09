@@ -1,5 +1,5 @@
 // Central RBAC matrix. Mirrors section 4.3 of the project plan.
-// Roles: MANAGER (full access), ADMIN (reports + user management + settings + read-only oversight), CASHIER (billing only).
+// Roles: MANAGER (full access), ADMIN (oversight), CASHIER (billing), TECHNICAL (jobs + customers).
 
 export const PERMISSIONS = [
   'auth.login',
@@ -58,6 +58,12 @@ export const PERMISSIONS = [
   'reports.export',
   'settings.view',
   'settings.edit',
+  'sof.view',
+  'sof.create',
+  'sof.edit',
+  'estimates.view',
+  'estimates.create',
+  'estimates.edit',
 ];
 
 const ADMIN_PERMISSIONS = [
@@ -87,6 +93,8 @@ const ADMIN_PERMISSIONS = [
   'reports.export',
   'settings.view',
   'settings.edit',
+  'sof.view',
+  'estimates.view',
 ];
 
 const CASHIER_PERMISSIONS = [
@@ -98,6 +106,19 @@ const CASHIER_PERMISSIONS = [
   'stock.view',
   'invoices.view_own',
   'invoices.create',
+];
+
+const TECHNICAL_PERMISSIONS = [
+  'auth.login',
+  'customers.view',
+  'customers.create',
+  'customers.edit',
+  'sof.view',
+  'sof.create',
+  'sof.edit',
+  'estimates.view',
+  'estimates.create',
+  'estimates.edit',
 ];
 
 // PO capabilities for Manager: search (list/filter), edit, and print/reprint.
@@ -122,6 +143,7 @@ export const ROLE_PERMISSIONS = {
   MANAGER: new Set(MANAGER_PERMISSIONS),
   ADMIN: new Set(ADMIN_PERMISSIONS),
   CASHIER: new Set(CASHIER_PERMISSIONS),
+  TECHNICAL: new Set(TECHNICAL_PERMISSIONS),
 };
 
 export function getPermissionsForRole(role) {

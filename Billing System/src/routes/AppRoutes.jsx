@@ -1,6 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import MainLayout from '../components/layouts/MainLayout';
-import ProtectedRoute from './ProtectedRoute';
+import ProtectedRoute, { HomeRedirect } from './ProtectedRoute';
 import Login from '../pages/auth/Login';
 import Dashboard from '../pages/Dashboard';
 import ProductList from '../pages/products/ProductList';
@@ -31,6 +31,10 @@ import Billing from '../pages/billing/Billing';
 import InvoiceHistory from '../pages/billing/InvoiceHistory';
 import Reports from '../pages/reports/Reports';
 import Settings from '../pages/settings/Settings';
+import SofForm from '../pages/technical/SofForm';
+import EstimateForm from '../pages/technical/EstimateForm';
+import SofHistory from '../pages/technical/SofHistory';
+import EstimateHistory from '../pages/technical/EstimateHistory';
 
 export default function AppRoutes() {
   return (
@@ -41,7 +45,9 @@ export default function AppRoutes() {
           <Route path="purchase-orders/:id/print" element={<PurchaseOrderPrintPage />} />
         </Route>
         <Route element={<MainLayout />}>
-          <Route index element={<Dashboard />} />
+          <Route element={<ProtectedRoute requiredPermission="dashboard.view" />}>
+            <Route index element={<Dashboard />} />
+          </Route>
 
           <Route element={<ProtectedRoute requiredPermission="products.view" />}>
             <Route path="products" element={<ProductList />} />
@@ -108,14 +114,36 @@ export default function AppRoutes() {
             <Route path="delivery-notes/:id/edit" element={<DeliveryNoteEdit />} />
           </Route>
 
-          <Route path="stock" element={<StockManagement />} />
-          <Route path="billing" element={<Billing />} />
+          <Route element={<ProtectedRoute requiredPermission="stock.view" />}>
+            <Route path="stock" element={<StockManagement />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="invoices.create" />}>
+            <Route path="billing" element={<Billing />} />
+          </Route>
           <Route element={<ProtectedRoute anyOf={['invoices.view_all', 'invoices.view_own']} />}>
             <Route path="invoice-history" element={<InvoiceHistory />} />
           </Route>
-          <Route path="reports" element={<Reports />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route element={<ProtectedRoute requiredPermission="reports.sales" />}>
+            <Route path="reports" element={<Reports />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="settings.view" />}>
+            <Route path="settings" element={<Settings />} />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="sof.create" />}>
+            <Route path="technical/sof" element={<SofForm />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="estimates.create" />}>
+            <Route path="technical/estimates" element={<EstimateForm />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="sof.view" />}>
+            <Route path="technical/sof-history" element={<SofHistory />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="estimates.view" />}>
+            <Route path="technical/estimate-history" element={<EstimateHistory />} />
+          </Route>
+
+          <Route path="*" element={<HomeRedirect />} />
         </Route>
       </Route>
     </Routes>

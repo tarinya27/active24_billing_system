@@ -45,7 +45,12 @@ export async function getUser(id) {
 export async function createUser(data) {
   const passwordHash = await bcrypt.hash(data.password, 10);
   return prisma.user.create({
-    data: { name: data.name, email: data.email, role: data.role, passwordHash },
+    data: {
+      name: data.name,
+      email: data.email.toLowerCase(),
+      role: data.role,
+      passwordHash,
+    },
     select: publicSelect,
   });
 }
@@ -60,7 +65,7 @@ export async function updateUser(id, data, actorRole) {
 
   const update = {};
   if (data.name !== undefined) update.name = data.name;
-  if (data.email !== undefined) update.email = data.email;
+  if (data.email !== undefined) update.email = data.email.toLowerCase();
   if (data.role !== undefined) update.role = data.role;
   if (data.isActive !== undefined) update.isActive = data.isActive;
   if (data.password) update.passwordHash = await bcrypt.hash(data.password, 10);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 
 export default function CustomerSearchSelect({
-  customers,
+  customers = [],
   value,
   onChange,
   placeholder = 'Search customer by name or mobile…',

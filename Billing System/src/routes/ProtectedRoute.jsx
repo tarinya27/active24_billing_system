@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { getHomePath } from '../utils/homePath';
 
 function FullScreenLoader() {
   return (
@@ -13,9 +14,14 @@ function FullScreenLoader() {
   );
 }
 
+export function HomeRedirect() {
+  const { permissions } = useAuth();
+  return <Navigate to={getHomePath(permissions)} replace />;
+}
+
 // Guards nested routes. Optionally requires a specific permission to enter.
 export default function ProtectedRoute({ requiredPermission, anyOf }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, permissions } = useAuth();
   const { can, canAny } = usePermission();
   const location = useLocation();
 
@@ -25,12 +31,14 @@ export default function ProtectedRoute({ requiredPermission, anyOf }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  const home = getHomePath(permissions);
+
   if (requiredPermission && !can(requiredPermission)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={home} replace />;
   }
 
   if (anyOf && !canAny(anyOf)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={home} replace />;
   }
 
   return <Outlet />;

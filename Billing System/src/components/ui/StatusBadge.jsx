@@ -21,12 +21,14 @@ export default function StatusBadge({ status, className }) {
     OUT_OF_STOCK: 'Out of Stock',
     OUTSTANDING: 'Outstanding',
     PAID: 'Paid',
+    OPEN: 'Open',
   };
 
   const display = labels[status] || status;
 
   const colorMap = {
     Pending: 'warning',
+    Open: 'info',
     Outstanding: 'warning',
     Approved: 'info',
     Received: 'success',

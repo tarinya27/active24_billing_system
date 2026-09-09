@@ -10,8 +10,7 @@ import Pagination from '../../components/ui/Pagination';
 import Can from '../../components/auth/Can';
 import { usePermission } from '../../hooks/usePermission';
 import { usePagination, useSearch } from '../../hooks/usePagination';
-import { useResourceList } from '../../hooks/useResourceList';
-import { customersApi } from '../../api/masters';
+import { useCustomers } from '../../context/CustomersContext';
 import { getErrorMessage } from '../../api/client';
 
 const TYPES = [
@@ -26,7 +25,7 @@ const emptyForm = { name: '', mobile: '', address: '', email: '', type: 'WALK_IN
 
 export default function CustomerList() {
   const { can } = usePermission();
-  const { items: customers, loading, reload } = useResourceList(customersApi);
+  const { customers, loading, create, update, remove } = useCustomers();
 
   const [typeFilter, setTypeFilter] = useState('All');
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,14 +68,13 @@ export default function CustomerList() {
     setSaving(true);
     try {
       if (editing) {
-        await customersApi.update(editing.id, form);
+        await update(editing.id, form);
         toast.success('Customer updated');
       } else {
-        await customersApi.create(form);
+        await create(form);
         toast.success('Customer created');
       }
       setModalOpen(false);
-      reload();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to save customer'));
     } finally {
@@ -87,9 +85,8 @@ export default function CustomerList() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await customersApi.remove(deleteTarget.id);
+      await remove(deleteTarget.id);
       toast.success('Customer deleted');
-      reload();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to delete customer'));
     }

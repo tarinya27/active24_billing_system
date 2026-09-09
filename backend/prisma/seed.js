@@ -7,6 +7,8 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 async function seedUsers() {
+  // Technical users are created in User Management with their own email/password.
+  // Do not seed a Technical account.
   const users = [
     { name: 'System Manager', email: 'manager@active24.lk', role: 'MANAGER', password: process.env.SEED_MANAGER_PASSWORD || 'Manager@123' },
     { name: 'System Admin', email: 'admin@active24.lk', role: 'ADMIN', password: process.env.SEED_ADMIN_PASSWORD || 'Admin@123' },

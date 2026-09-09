@@ -10,10 +10,8 @@ function normalize(data) {
   return out;
 }
 
-export async function listCustomers(query) {
-  const { skip, take, page, pageSize } = parsePagination(query);
+function customerWhere(query = {}) {
   const where = {};
-
   if (query.search) {
     where.OR = [
       { name: { contains: query.search, mode: 'insensitive' } },
@@ -22,14 +20,34 @@ export async function listCustomers(query) {
     ];
   }
   if (query.type) where.type = query.type;
+  return where;
+}
 
+const listInclude = { _count: { select: { invoices: true } } };
+
+// Shared customer directory: one `customers` table for every role.
+// Manager, Technical, Admin, and Cashier all read and write the same records.
+export async function listCustomers(query) {
+  const where = customerWhere(query);
+  const wantAll = query.all === 'true' || query.all === '1' || query.pageSize === 'all';
+
+  if (wantAll) {
+    const items = await prisma.customer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: listInclude,
+    });
+    return listResult(items, items.length, { page: 1, pageSize: items.length || 1 });
+  }
+
+  const { skip, take, page, pageSize } = parsePagination(query);
   const [items, total] = await Promise.all([
     prisma.customer.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip,
       take,
-      include: { _count: { select: { invoices: true } } },
+      include: listInclude,
     }),
     prisma.customer.count({ where }),
   ]);

@@ -168,3 +168,25 @@ export async function renumberAllInvoices(tx, { prefix, startSeq, pad }) {
     nextSeq: seq,
   };
 }
+
+async function nextYearlyDocumentNumber(delegate, field, code) {
+  const year = new Date().getFullYear();
+  const prefix = `${code}-${year}-`;
+  const latest = await delegate.findFirst({
+    where: { [field]: { startsWith: prefix } },
+    orderBy: { [field]: 'desc' },
+    select: { [field]: true },
+  });
+  const current = latest?.[field];
+  const next = current ? parseInt(String(current).slice(prefix.length), 10) + 1 : 1;
+  const seq = Number.isFinite(next) && next > 0 ? next : 1;
+  return `${prefix}${String(seq).padStart(4, '0')}`;
+}
+
+export async function nextSofNumber() {
+  return nextYearlyDocumentNumber(prisma.serviceOrder, 'sofNumber', 'SOF');
+}
+
+export async function nextEstimateNumber() {
+  return nextYearlyDocumentNumber(prisma.estimate, 'estimateNumber', 'EST');
+}

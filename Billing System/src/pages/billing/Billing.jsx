@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ShoppingCart, Trash2, Receipt, Plus, Wrench, ChevronDown, Package } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -9,10 +9,11 @@ import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import WalkInCustomerForm from '../../components/billing/WalkInCustomerForm';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import ScannedUnitDetails, { ScannedUnitEmpty } from '../../components/billing/ScannedUnitDetails';
-import { customersApi, productsApi, categoriesApi } from '../../api/masters';
+import { productsApi, categoriesApi } from '../../api/masters';
 import { stockApi, invoicesApi, settingsApi, PAYMENT_METHOD_API, PAYMENT_METHOD_LABEL } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { useCustomers } from '../../context/CustomersContext';
 import { calculateInvoiceTotals } from '../../utils/invoiceCalculations';
 import { printElement } from '../../utils/printDocument';
 import { formatCurrency } from '../../utils/helpers';
@@ -24,8 +25,8 @@ import {
 
 export default function Billing() {
   const { user } = useAuth();
+  const { customers, create: createCustomer } = useCustomers();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [customers, setCustomers] = useState([]);
   const [settings, setSettings] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -50,22 +51,14 @@ export default function Billing() {
   const [categories, setCategories] = useState([]);
   const [zeroItemDraft, setZeroItemDraft] = useState({ categoryId: '', quantity: 1, description: '' });
 
-  const loadCustomers = useCallback(async () => {
-    try {
-      const result = await customersApi.list({ pageSize: 200 });
-      const items = result.items || result;
-      setCustomers(items);
-      const walkIn = items.find((c) => c.type === 'WALK_IN');
-      if (walkIn && !selectedCustomer) setSelectedCustomer(walkIn.id);
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to load customers'));
-    }
-  }, [selectedCustomer]);
+  useEffect(() => {
+    const walkIn = customers.find((c) => c.type === 'WALK_IN');
+    if (walkIn && !selectedCustomer) setSelectedCustomer(walkIn.id);
+  }, [customers, selectedCustomer]);
 
   useEffect(() => {
-    loadCustomers();
     settingsApi.get().then(setSettings).catch(() => {});
-  }, [loadCustomers]);
+  }, []);
 
   useEffect(() => {
     if (!editingInvoiceId) {
@@ -119,13 +112,12 @@ export default function Billing() {
 
   const handleSaveWalkInCustomer = async (customerData) => {
     try {
-      const created = await customersApi.create({
+      const created = await createCustomer({
         name: customerData.name,
         mobile: customerData.mobile,
         address: customerData.address,
         type: 'WALK_IN',
       });
-      setCustomers((prev) => [created, ...prev]);
       setSelectedCustomer(created.id);
       toast.success(`${created.name} added to customer base`);
     } catch (err) {

@@ -16,6 +16,13 @@ enum Role {
   MANAGER
   ADMIN
   CASHIER
+  TECHNICAL
+}
+
+enum TechnicalJobStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
 }
 
 enum Company {
@@ -125,6 +132,8 @@ model User {
   stockMovements   StockMovement[]
   activities       Activity[]
   invoicePayments  InvoicePayment[]  @relation("PaymentReceivedBy")
+  serviceOrders    ServiceOrder[]    @relation("SofCreatedBy")
+  estimates        Estimate[]        @relation("EstimateCreatedBy")
 
   @@map("users")
 }
@@ -182,6 +191,8 @@ model Customer {
 
   invoices      Invoice[]
   deliveryNotes DeliveryNote[]
+  serviceOrders ServiceOrder[]
+  estimates     Estimate[]
 
   @@map("customers")
 }
@@ -517,6 +528,45 @@ model InvoicePayment {
 
   @@index([invoiceId])
   @@map("invoice_payments")
+}
+
+// ---------- Technical jobs ----------
+
+model ServiceOrder {
+  id          String              @id @default(cuid())
+  sofNumber   String              @unique
+  customerId  String
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  description String?
+  notes       String?
+  status      TechnicalJobStatus  @default(OPEN)
+  createdById String?
+  createdBy   User?               @relation("SofCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([customerId])
+  @@index([createdById])
+  @@map("service_orders")
+}
+
+model Estimate {
+  id             String              @id @default(cuid())
+  estimateNumber String              @unique
+  customerId     String
+  customer       Customer            @relation(fields: [customerId], references: [id])
+  description    String?
+  amount         Decimal             @default(0) @db.Decimal(14, 2)
+  notes          String?
+  status         TechnicalJobStatus  @default(OPEN)
+  createdById    String?
+  createdBy      User?               @relation("EstimateCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([customerId])
+  @@index([createdById])
+  @@map("estimates")
 }
 
 // ---------- Movements & activity ----------

@@ -11,9 +11,9 @@ import Modal from '../../components/ui/Modal';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import { useServerList } from '../../hooks/useServerList';
-import { customersApi } from '../../api/masters';
 import { invoicesApi, settingsApi, PAYMENT_METHOD_LABEL, PAYMENT_METHOD_API } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
+import { useCustomers } from '../../context/CustomersContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { PAYMENT_METHODS } from '../../utils/constants';
 import { printElement } from '../../utils/printDocument';
@@ -44,7 +44,7 @@ function rangeForPreset(preset) {
 
 export default function InvoiceHistory() {
   const navigate = useNavigate();
-  const [customers, setCustomers] = useState([]);
+  const { customers } = useCustomers();
   const [settings, setSettings] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [datePreset, setDatePreset] = useState('all');
@@ -64,9 +64,6 @@ export default function InvoiceHistory() {
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
-    customersApi.list({ pageSize: 200 }).then((result) => {
-      setCustomers(result.items || result || []);
-    }).catch((err) => toast.error(getErrorMessage(err, 'Failed to load customers')));
     settingsApi.get().then(setSettings).catch(() => {});
   }, []);
 

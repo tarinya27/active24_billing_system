@@ -14,6 +14,7 @@ import invoiceRoutes from '../modules/invoices/invoices.routes.js';
 import dashboardRoutes from '../modules/dashboard/dashboard.routes.js';
 import reportRoutes from '../modules/reports/reports.routes.js';
 import settingsRoutes from '../modules/settings/settings.routes.js';
+import { sofRouter, estimateRouter } from '../modules/technical-jobs/technical-jobs.routes.js';
 
 const router = Router();
 
@@ -36,5 +37,7 @@ router.use('/invoices', invoiceRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/service-orders', sofRouter);
+router.use('/estimates', estimateRouter);
 
 export default router;
