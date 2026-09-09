@@ -271,7 +271,7 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
               Please draw cheques in favour of &apos;{COMPANY_NAME}&apos;
             </td>
             <td colSpan={2} className="tax-total-label-cell">
-              Total Amount Including VAT
+              Total Amount
             </td>
             <td className="tax-total-value-cell">{formatRs(invoice.grandTotal)}</td>
           </tr>
