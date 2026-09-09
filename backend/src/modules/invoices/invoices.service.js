@@ -494,7 +494,7 @@ export async function createInvoice(payload, userId) {
       description: String(service.description).replace(/^\s+|\s+$/g, ''),
       unitPrice: Number(service.unitPrice),
       discount: Number(service.discount || 0),
-      quantity: 1,
+      quantity: Math.max(1, Number.parseInt(String(service.quantity ?? 1), 10) || 1),
       warrantyMonths: null,
     }));
 

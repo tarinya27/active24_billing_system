@@ -39,7 +39,7 @@ export default function Billing() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [manualKind, setManualKind] = useState('SERVICE'); // 'ITEM' | 'SERVICE'
-  const [manualDraft, setManualDraft] = useState({ description: '', amount: '' });
+  const [manualDraft, setManualDraft] = useState({ description: '', quantity: 1, unitPrice: '' });
   const [editingManualId, setEditingManualId] = useState(null);
   const addMenuRef = useRef(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
@@ -299,7 +299,7 @@ export default function Billing() {
   };
 
   const resetManualForm = () => {
-    setManualDraft({ description: '', amount: '' });
+    setManualDraft({ description: '', quantity: 1, unitPrice: '' });
     setEditingManualId(null);
     setManualFormOpen(false);
     setAddMenuOpen(false);
@@ -308,21 +308,26 @@ export default function Billing() {
   const openManualForm = (kind) => {
     setManualKind(kind);
     setEditingManualId(null);
-    setManualDraft({ description: '', amount: '' });
+    setManualDraft({ description: '', quantity: 1, unitPrice: '' });
     setManualFormOpen(true);
     setAddMenuOpen(false);
   };
 
   const handleAddOrUpdateManualLine = () => {
     const description = String(manualDraft.description || '').replace(/^\s+|\s+$/g, '');
-    const amount = Number(manualDraft.amount);
+    const quantity = Number.parseInt(String(manualDraft.quantity), 10);
+    const unitPrice = Number(manualDraft.unitPrice);
     const kindLabel = manualKind === 'ITEM' ? 'Item' : 'Service';
     if (!description) {
       toast.error(`${kindLabel} description is required`);
       return;
     }
-    if (!(amount > 0)) {
-      toast.error(`${kindLabel} amount must be greater than 0`);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+    if (!(unitPrice > 0)) {
+      toast.error('Unit price must be greater than 0');
       return;
     }
 
@@ -335,7 +340,8 @@ export default function Billing() {
               description,
               productName: description,
               category: kindLabel,
-              unitPrice: amount,
+              unitPrice,
+              quantity,
             }
           : item
       )));
@@ -351,9 +357,9 @@ export default function Billing() {
           description,
           productName: description,
           category: kindLabel,
-          unitPrice: amount,
+          unitPrice,
           discount: 0,
-          quantity: 1,
+          quantity,
           barcode: null,
         },
       ]);
@@ -368,7 +374,8 @@ export default function Billing() {
     setEditingManualId(item.cartKey);
     setManualDraft({
       description: item.description || item.productName || '',
-      amount: String(item.unitPrice ?? ''),
+      quantity: Number(item.quantity || 1),
+      unitPrice: String(item.unitPrice ?? ''),
     });
     setManualFormOpen(true);
     setAddMenuOpen(false);
@@ -462,7 +469,9 @@ export default function Billing() {
           services: serviceCartItems.map((i) => ({
             description: i.description || i.productName,
             unitPrice: Number(i.unitPrice),
+            quantity: Number(i.quantity || 1),
             discount: i.discount || 0,
+            chargeKind: i.chargeKind === 'ITEM' ? 'ITEM' : 'SERVICE',
           })),
         };
     try {
@@ -652,36 +661,68 @@ export default function Billing() {
                     ? (manualKind === 'ITEM' ? 'Edit Item' : 'Edit Service')
                     : (manualKind === 'ITEM' ? 'Add Item' : 'Add Service')}
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <label className="label">
-                      {manualKind === 'ITEM' ? 'Item Description' : 'Service Description'}
-                    </label>
-                    <textarea
-                      className="input-field min-h-[88px] resize-y"
-                      rows={3}
-                      value={manualDraft.description}
-                      onChange={(e) => setManualDraft((prev) => ({ ...prev, description: e.target.value }))}
-                      placeholder={
-                        manualKind === 'ITEM'
-                          ? 'Enter item description (multiple lines allowed)'
-                          : 'Enter service description (multiple lines allowed)'
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Amount</label>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      className="input-field"
-                      value={manualDraft.amount}
-                      onChange={(e) => setManualDraft((prev) => ({ ...prev, amount: e.target.value }))}
-                      placeholder="15000.00"
-                    />
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-200 dark:bg-slate-700">
+                        <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">{manualKind === 'ITEM' ? 'Item' : 'Service'}</th>
+                        <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Description</th>
+                        <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Qty</th>
+                        <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Unit Price</th>
+                        <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-white dark:bg-slate-900">
+                        <td className="border border-black px-2 py-2 align-top font-medium dark:border-slate-500">
+                          {manualKind === 'ITEM' ? 'Item' : 'Service'}
+                        </td>
+                        <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
+                          <textarea
+                            className="input-field min-h-[72px] resize-y !py-1.5"
+                            rows={3}
+                            value={manualDraft.description}
+                            onChange={(e) => setManualDraft((prev) => ({ ...prev, description: e.target.value }))}
+                            placeholder={
+                              manualKind === 'ITEM'
+                                ? 'Enter item description\nPress Enter for a new line'
+                                : 'Enter service description\nPress Enter for a new line'
+                            }
+                          />
+                        </td>
+                        <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            className="input-field !w-20 !py-1.5"
+                            value={manualDraft.quantity}
+                            onChange={(e) => setManualDraft((prev) => ({ ...prev, quantity: e.target.value }))}
+                          />
+                        </td>
+                        <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            className="input-field !w-28 !py-1.5"
+                            value={manualDraft.unitPrice}
+                            onChange={(e) => setManualDraft((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border border-black px-2 py-2 align-top font-semibold dark:border-slate-500">
+                          {formatCurrency((
+                            Number.isInteger(Number.parseInt(String(manualDraft.quantity), 10))
+                            && Number.parseInt(String(manualDraft.quantity), 10) > 0
+                            && Number(manualDraft.unitPrice) > 0
+                          ) ? Number.parseInt(String(manualDraft.quantity), 10) * Number(manualDraft.unitPrice) : 0)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
+                <p className="text-[11px] text-slate-500">Press Enter in Description for a new line. Amount is Qty × Unit Price.</p>
                 <div className="flex justify-end gap-2">
                   <button type="button" className="btn-secondary !py-2 !text-sm" onClick={resetManualForm}>
                     Cancel
@@ -806,29 +847,47 @@ export default function Billing() {
           {serviceCartItems.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Items & Services ({serviceCartItems.length})</h3>
-              <div className="space-y-2">
-                {serviceCartItems.map((item) => {
-                  const kindLabel = item.chargeKind === 'ITEM' ? 'Item' : 'Service';
-                  return (
-                    <div key={item.cartKey} className="glass-card flex items-start justify-between gap-3 p-4">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">{kindLabel}</p>
-                        <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{item.description}</p>
-                        <p className="mt-1 text-sm text-emerald-600">{formatCurrency(item.unitPrice)}</p>
-                      </div>
-                      {!editingInvoiceId && (
-                        <div className="flex shrink-0 gap-2">
-                          <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
-                            Edit
-                          </button>
-                          <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-200 dark:bg-slate-700">
+                      <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Item</th>
+                      <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Description</th>
+                      <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Qty</th>
+                      <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Unit Price</th>
+                      <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Amount</th>
+                      {!editingInvoiceId && <th className="border border-black px-2 py-1.5 dark:border-slate-500" />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serviceCartItems.map((item) => {
+                      const kindLabel = item.chargeKind === 'ITEM' ? 'Item' : 'Service';
+                      const qty = Number(item.quantity || 1);
+                      const amount = (Number(item.unitPrice) * qty) - Number(item.discount || 0);
+                      return (
+                        <tr key={item.cartKey} className="bg-white dark:bg-slate-900">
+                          <td className="border border-black px-2 py-2 align-top font-medium dark:border-slate-500">{kindLabel}</td>
+                          <td className="border border-black px-2 py-2 align-top whitespace-pre-line dark:border-slate-500">{item.description}</td>
+                          <td className="border border-black px-2 py-2 align-top dark:border-slate-500">{qty}</td>
+                          <td className="border border-black px-2 py-2 align-top dark:border-slate-500">{formatCurrency(item.unitPrice)}</td>
+                          <td className="border border-black px-2 py-2 align-top font-semibold dark:border-slate-500">{formatCurrency(amount)}</td>
+                          {!editingInvoiceId && (
+                            <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
+                              <div className="flex shrink-0 gap-2">
+                                <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
+                                  Edit
+                                </button>
+                                <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -952,9 +1011,12 @@ export default function Billing() {
                               {lineLabel}
                             </p>
                             {isService ? (
-                              <p className="text-[10px] text-primary-600">
-                                {item.chargeKind === 'ITEM' ? 'Item' : 'Service'}
-                              </p>
+                              <>
+                                <p className="text-[10px] text-primary-600">
+                                  {item.chargeKind === 'ITEM' ? 'Item' : 'Service'}
+                                </p>
+                                <p className="text-[10px] font-medium text-slate-500">Qty: {item.quantity || 1}</p>
+                              </>
                             ) : (
                               <>
                                 {(item.addedDuringEdit || Number(item.quantity || 1) > 1) && (

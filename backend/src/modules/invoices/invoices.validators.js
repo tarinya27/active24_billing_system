@@ -22,8 +22,10 @@ const serviceLineSchema = z.object({
     .min(1, 'Service description is required')
     .max(2000)
     .refine((value) => value.replace(/^\s+|\s+$/g, '').length > 0, 'Service description is required'),
-  unitPrice: z.coerce.number().positive('Service amount must be greater than 0'),
+  unitPrice: z.coerce.number().positive('Unit price must be greater than 0'),
+  quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1').optional().default(1),
   discount: z.coerce.number().min(0).default(0),
+  chargeKind: z.enum(['ITEM', 'SERVICE']).optional(),
 });
 
 const optionalReferenceField = z
