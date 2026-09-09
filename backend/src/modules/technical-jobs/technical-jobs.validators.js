@@ -44,9 +44,32 @@ export const updateSofSchema = createSofSchema.partial().refine(
 
 export const createEstimateSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
+  jobDate: z.string().trim().optional().nullable(),
+  sofRef: optionalText,
+  machineModel: optionalText,
+  serialNo: optionalText,
+  lines: z.array(z.object({
+    description: optionalText,
+    qty: z.preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce.number().min(0).nullable().optional()
+    ),
+    rate: z.preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce.number().min(0).nullable().optional()
+    ),
+    amount: z.preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce.number().min(0).nullable().optional()
+    ),
+  })).optional().default([]),
   description: optionalText,
   notes: optionalText,
-  amount: z.coerce.number().min(0, 'Amount cannot be negative').default(0),
+  amount: z.coerce.number().min(0, 'Amount cannot be negative').optional(),
+  vatRate: z.coerce.number().min(0).max(100).optional(),
+  vatEnabled: z.boolean().optional(),
+  preparedBy: optionalText,
+  customerSignature: optionalText,
   status,
 });
 

@@ -1,32 +1,136 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import { estimatesApi } from '../../api/technical';
+import { settingsApi } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
+import { printElement } from '../../utils/printDocument';
+
+const emptyLine = () => ({ description: '', qty: '', rate: '' });
+
+function todayInputValue() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function money(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function lineAmount(line) {
+  if (line.qty === '' && line.rate === '') return null;
+  const qty = Number(line.qty);
+  const rate = Number(line.rate);
+  const safeQty = Number.isFinite(qty) ? qty : 0;
+  const safeRate = Number.isFinite(rate) ? rate : 0;
+  return Math.round(safeQty * safeRate * 100) / 100;
+}
 
 export default function EstimateForm() {
   const navigate = useNavigate();
-  const { customers } = useCustomers();
-  const [form, setForm] = useState({ customerId: '', description: '', amount: '', notes: '' });
+  const { customers, create, update } = useCustomers();
   const [saving, setSaving] = useState(false);
+  const [vatEnabled, setVatEnabled] = useState(true);
+  const [vatRate, setVatRate] = useState(18);
+  const [form, setForm] = useState({
+    customerId: '',
+    name: '',
+    address: '',
+    jobDate: todayInputValue(),
+    estimateNumber: '',
+    sofRef: '',
+    machineModel: '',
+    serialNo: '',
+    lines: Array.from({ length: 8 }, emptyLine),
+  });
+
+  useEffect(() => {
+    estimatesApi.nextNumber()
+      .then((data) => {
+        if (data?.estimateNumber) {
+          setForm((prev) => ({ ...prev, estimateNumber: prev.estimateNumber || data.estimateNumber }));
+        }
+      })
+      .catch(() => {});
+    settingsApi.get()
+      .then((settings) => {
+        setVatEnabled(Boolean(settings?.vatEnabled));
+        setVatRate(Number(settings?.vatRate) || 0);
+      })
+      .catch(() => {});
+  }, []);
+
+  const applyCustomer = (customerId) => {
+    const customer = customers.find((c) => c.id === customerId);
+    setForm((prev) => ({
+      ...prev,
+      customerId,
+      name: customer?.name || '',
+      address: customer?.address || '',
+    }));
+  };
+
+  const updateLine = (index, patch) => {
+    setForm((prev) => {
+      const lines = prev.lines.map((line, i) => (i === index ? { ...line, ...patch } : line));
+      return { ...prev, lines };
+    });
+  };
+
+  const totals = useMemo(() => {
+    const subTotal = form.lines.reduce((sum, line) => sum + (lineAmount(line) || 0), 0);
+    const vatAmount = vatEnabled ? Math.round(subTotal * vatRate / 100 * 100) / 100 : 0;
+    return {
+      subTotal: Math.round(subTotal * 100) / 100,
+      vatAmount,
+      total: Math.round((subTotal + vatAmount) * 100) / 100,
+    };
+  }, [form.lines, vatEnabled, vatRate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.customerId) {
-      toast.error('Select a customer');
+    if (!form.name.trim()) {
+      toast.error('Enter the customer name');
       return;
     }
+
     setSaving(true);
     try {
+      let customerId = form.customerId;
+      const customerPayload = {
+        name: form.name.trim(),
+        address: form.address.trim() || null,
+      };
+
+      if (customerId) {
+        await update(customerId, customerPayload);
+      } else {
+        const createdCustomer = await create({
+          ...customerPayload,
+          type: 'INDIVIDUAL',
+        });
+        customerId = createdCustomer.id;
+        setForm((prev) => ({ ...prev, customerId }));
+      }
+
       const created = await estimatesApi.create({
-        customerId: form.customerId,
-        description: form.description.trim() || null,
-        notes: form.notes.trim() || null,
-        amount: Number(form.amount || 0),
+        customerId,
+        jobDate: form.jobDate || null,
+        sofRef: form.sofRef.trim() || null,
+        machineModel: form.machineModel.trim() || null,
+        serialNo: form.serialNo.trim() || null,
+        vatEnabled,
+        vatRate: vatEnabled ? vatRate : 0,
+        lines: form.lines,
       });
+      setForm((prev) => ({ ...prev, estimateNumber: created.estimateNumber }));
       toast.success(`Estimate ${created.estimateNumber} created`);
       navigate('/technical/estimate-history');
     } catch (err) {
@@ -36,61 +140,216 @@ export default function EstimateForm() {
     }
   };
 
+  const handlePrint = () => {
+    printElement('est-print-content').catch(() => {
+      toast.error('Could not open print preview');
+    });
+  };
+
   return (
-    <div>
+    <div className="sof-page">
       <PageHeader
-        title="Estimates"
-        subtitle="Create a job estimate for a customer"
+        title="Estimate"
+        subtitle="Genius Associates estimate"
+        actions={(
+          <div className="sof-page-actions flex gap-2">
+            <button type="button" className="btn-secondary" onClick={() => navigate('/technical/estimate-history')}>
+              View history
+            </button>
+            <button type="button" className="btn-secondary" onClick={handlePrint}>
+              Print
+            </button>
+            <button type="submit" form="est-print-content" className="btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : 'Save estimate'}
+            </button>
+          </div>
+        )}
       />
-      <form onSubmit={handleSubmit} className="glass-card max-w-3xl space-y-4 p-6">
-        <div>
-          <label className="label">Customer *</label>
-          <CustomerSearchSelect
-            customers={customers}
-            value={form.customerId}
-            onChange={(customerId) => setForm((prev) => ({ ...prev, customerId }))}
-          />
-        </div>
-        <div>
-          <label className="label">Description</label>
-          <textarea
-            className="input-field min-h-[120px] resize-y"
-            rows={5}
-            value={form.description}
-            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-            placeholder="Describe the estimate. Press Enter for a new line."
-          />
-        </div>
-        <div>
-          <label className="label">Amount (LKR)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="input-field max-w-xs"
-            value={form.amount}
-            onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
-            placeholder="0.00"
-          />
-        </div>
-        <div>
-          <label className="label">Notes</label>
-          <textarea
-            className="input-field min-h-[80px] resize-y"
-            rows={3}
-            value={form.notes}
-            onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-          />
-        </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn-secondary" onClick={() => navigate('/technical/estimate-history')}>
-            View history
-          </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Saving…' : 'Save estimate'}
-          </button>
-        </div>
-      </form>
+
+      <div className="sof-doc-wrap">
+        <form id="est-print-content" onSubmit={handleSubmit} className="sof-doc est-doc">
+          <div className="est-header">
+            <div className="est-company">
+              <h1>Genius Associates (Pvt) Ltd</h1>
+              <p>No. 1,</p>
+              <p>Skelton Gardens,</p>
+              <p>Colombo 05.</p>
+              <p>Tel: 0115522266/7 , 0115656578</p>
+              <p>E-mail: technical1@geniuslanka.com</p>
+            </div>
+            <div className="est-header-right">
+              <h2 className="est-title">Estimate</h2>
+              <table className="est-meta">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>REF No.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <input
+                        type="date"
+                        value={form.jobDate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, jobDate: e.target.value }))}
+                      />
+                    </td>
+                    <td>{form.estimateNumber || '—'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="est-split">
+            <div className="est-name-box">
+              <div className="est-box-title">Name / Address</div>
+              <div className="est-box-body">
+                <div className="sof-search no-print">
+                  <CustomerSearchSelect
+                    customers={customers}
+                    value={form.customerId}
+                    onChange={applyCustomer}
+                    placeholder="Search existing customer…"
+                  />
+                </div>
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Customer name"
+                />
+                <textarea
+                  rows={4}
+                  value={form.address}
+                  onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
+                  placeholder="Address"
+                />
+              </div>
+            </div>
+            <table className="est-machine">
+              <tbody>
+                <tr>
+                  <th>S.O.F No.</th>
+                  <td>
+                    <input
+                      value={form.sofRef}
+                      onChange={(e) => setForm((prev) => ({ ...prev, sofRef: e.target.value }))}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <th>Model</th>
+                  <td>
+                    <input
+                      value={form.machineModel}
+                      onChange={(e) => setForm((prev) => ({ ...prev, machineModel: e.target.value }))}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <th>Serial No.</th>
+                  <td>
+                    <input
+                      value={form.serialNo}
+                      onChange={(e) => setForm((prev) => ({ ...prev, serialNo: e.target.value }))}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <table className="est-lines">
+            <thead>
+              <tr>
+                <th className="col-desc">Description</th>
+                <th className="col-qty">Qty</th>
+                <th className="col-rate">Rate</th>
+                <th className="col-total">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {form.lines.map((line, index) => {
+                const amount = lineAmount(line);
+                return (
+                  <tr key={index}>
+                    <td className="col-desc">
+                      <textarea
+                        rows={1}
+                        value={line.description}
+                        onChange={(e) => updateLine(index, { description: e.target.value })}
+                      />
+                    </td>
+                    <td className="col-qty">
+                      <input
+                        value={line.qty}
+                        onChange={(e) => updateLine(index, { qty: e.target.value })}
+                      />
+                    </td>
+                    <td className="col-rate">
+                      <input
+                        value={line.rate}
+                        onChange={(e) => updateLine(index, { rate: e.target.value })}
+                      />
+                    </td>
+                    <td className="col-total">{amount == null ? '' : money(amount)}</td>
+                  </tr>
+                );
+              })}
+              {vatEnabled && vatRate > 0 && (
+                <tr className="est-vat-row">
+                  <td className="col-desc">VAT {vatRate}%</td>
+                  <td className="col-qty" />
+                  <td className="col-rate">{Number(vatRate).toFixed(2)}%</td>
+                  <td className="col-total">{money(totals.vatAmount)}</td>
+                </tr>
+              )}
+              {Array.from({ length: 5 }, (_, index) => (
+                <tr key={`spacer-${index}`} className="est-spacer-row">
+                  <td className="col-desc" />
+                  <td className="col-qty" />
+                  <td className="col-rate" />
+                  <td className="col-total" />
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="est-grand-row">
+                <td colSpan={3} className="est-grand-label">Total</td>
+                <td className="col-total">{money(totals.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div className="est-terms">
+            <h3>TERMS &amp; CONDITIONS</h3>
+            <div className="est-terms-body">
+              <p>This estimate is valid only for a period of 7 Days</p>
+              <p>To commence with the work you should send the confirmation of the estimate by return fax or email</p>
+              <p>after confirmation of the estimate, the repaired can be collected only after 24 hours (after Testing)</p>
+              <p>Spare parts marked with * mark are not available and need 2-3 weeks after confirmation</p>
+              <p>This estimate is not the final bill</p>
+              <p>During Repair, if other component is found defective we&apos;ll send you a revised estimate</p>
+              <p>If Collect repairs a minimum estimate charge would be Rs.1,500.00</p>
+              <p>Repair Computer Could Collect/Deliver on sending the above payment by cash/Cheque after approving the above estimate.</p>
+            </div>
+            <p className="est-disclaimer">
+              This is Computer generated estimation and Signature no therefore no signature or Company seal on this.
+            </p>
+            <div className="est-signoff">
+              <p>Thank you</p>
+              <p>Yours faith fully</p>
+              <p>Genius Associates (Pvt) Ltd</p>
+            </div>
+            <div className="est-phones">
+              <p>....................</p>
+              <p>0777 300210</p>
+              <p>0115656578/ 0115522266</p>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

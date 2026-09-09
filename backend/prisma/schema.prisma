@@ -569,18 +569,27 @@ model ServiceOrder {
 }
 
 model Estimate {
-  id             String              @id @default(cuid())
-  estimateNumber String              @unique
-  customerId     String
-  customer       Customer            @relation(fields: [customerId], references: [id])
-  description    String?
-  amount         Decimal             @default(0) @db.Decimal(14, 2)
-  notes          String?
-  status         TechnicalJobStatus  @default(OPEN)
-  createdById    String?
-  createdBy      User?               @relation("EstimateCreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                 String              @id @default(cuid())
+  estimateNumber     String              @unique
+  customerId         String
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  jobDate            DateTime?
+  sofRef             String?
+  machineModel       String?
+  serialNo           String?
+  lines              Json                @default("[]")
+  description        String?
+  amount             Decimal             @default(0) @db.Decimal(14, 2)
+  vatRate            Decimal             @default(0) @db.Decimal(5, 2)
+  vatEnabled         Boolean             @default(false)
+  notes              String?
+  preparedBy         String?
+  customerSignature  String?
+  status             TechnicalJobStatus  @default(OPEN)
+  createdById        String?
+  createdBy          User?               @relation("EstimateCreatedBy", fields: [createdById], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([customerId])
   @@index([createdById])
@@ -640,6 +649,9 @@ model Settings {
   sofPrefix            String        @default("")
   sofNextSeq           Int           @default(1)
   sofNumberPad         Int           @default(1)
+  estimatePrefix       String        @default("")
+  estimateNextSeq      Int           @default(1)
+  estimateNumberPad    Int           @default(1)
   updatedAt            DateTime      @updatedAt
 
   @@map("settings")

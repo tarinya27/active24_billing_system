@@ -13,4 +13,7 @@ export const sofApi = {
   ...createResource('/service-orders'),
   nextNumber: () => api.get('/service-orders/next-number').then((r) => r.data.data),
 };
-export const estimatesApi = createResource('/estimates');
+export const estimatesApi = {
+  ...createResource('/estimates'),
+  nextNumber: () => api.get('/estimates/next-number').then((r) => r.data.data),
+};

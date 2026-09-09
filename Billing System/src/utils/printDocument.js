@@ -1,6 +1,7 @@
 import invoicePrintCss from '../styles/invoice-print.css?raw';
 import dnPrintCss from '../styles/dn-print.css?raw';
 import sofPrintCss from '../styles/sof-form.css?raw';
+import estPrintCss from '../styles/estimate-form.css?raw';
 
 const PRINT_BASE_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
@@ -23,8 +24,10 @@ const PRINT_BASE_CSS = `
   }
   #invoice-print-content,
   #sof-print-content,
+  #est-print-content,
   .invoice-print,
-  .sof-doc {
+  .sof-doc,
+  .est-doc {
 
     width: 186mm;
     min-height: 273mm;
@@ -92,6 +95,7 @@ function waitForImages(doc) {
 function resolvePrintCss(elementId) {
   if (elementId === 'dn-print-content') return dnPrintCss;
   if (elementId === 'sof-print-content') return sofPrintCss;
+  if (elementId === 'est-print-content') return `${sofPrintCss}\n${estPrintCss}`;
   return invoicePrintCss;
 }
 
@@ -103,6 +107,7 @@ function resolvePrintBaseCss(elementId) {
 function resolvePrintTitle(elementId) {
   if (elementId === 'dn-print-content') return 'Delivery Note';
   if (elementId === 'sof-print-content') return 'Service Order Form';
+  if (elementId === 'est-print-content') return 'Estimate';
   return 'Invoice';
 }
 

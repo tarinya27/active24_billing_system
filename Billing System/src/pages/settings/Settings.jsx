@@ -11,6 +11,7 @@ const sections = [
   { id: 'general', title: 'General Settings', fields: [{ key: 'companyName', label: 'Company Name', type: 'text' }, { key: 'companyAddress', label: 'Address', type: 'textarea' }, { key: 'companyPhone', label: 'Phone', type: 'text' }, { key: 'companyEmail', label: 'Email', type: 'email' }] },
   { id: 'invoice', title: 'Invoice Preferences', fields: [{ key: 'invoiceNumber', label: 'Invoice Number', type: 'text', hint: 'Changing this renumbers all existing invoices in order, starting from this number. The next new invoice continues the sequence.' }, { key: 'defaultPaymentMethod', label: 'Default Payment Method', type: 'select', options: PAYMENT_METHODS }, { key: 'autoPrint', label: 'Auto Print After Invoice', type: 'toggle' }] },
   { id: 'sof', title: 'Service Order Form', fields: [{ key: 'sofNumber', label: 'SOF No.', type: 'text', hint: 'The next service order uses this number. Later SOFs continue from here (e.g. 134750 then 134751).', placeholder: 'e.g. 134750 or SOF-134750' }] },
+  { id: 'estimate', title: 'Estimate REF No.', fields: [{ key: 'estimateNumber', label: 'REF No.', type: 'text', hint: 'The next estimate uses this REF No. After each save, the next estimate continues from here (e.g. 0001068 then 0001069).', placeholder: 'e.g. 0001068' }] },
   { id: 'vat', title: 'VAT Settings', fields: [{ key: 'vatEnabled', label: 'Enable VAT', type: 'toggle' }, { key: 'vatRate', label: 'VAT Rate (%)', type: 'number' }] },
   { id: 'user', title: 'User Preferences', fields: [{ key: 'notificationsEnabled', label: 'Enable Notifications', type: 'toggle' }, { key: 'lowStockThreshold', label: 'Low Stock Threshold', type: 'number' }] },
 ];
@@ -32,6 +33,7 @@ export default function Settings() {
     setSaving(true);
     try {
       const previousSof = settings.sofNumber;
+      const previousEstimate = settings.estimateNumber;
       const payload = {
         companyName: settings.companyName,
         companyAddress: settings.companyAddress,
@@ -39,6 +41,7 @@ export default function Settings() {
         companyEmail: settings.companyEmail || '',
         invoiceNumber: settings.invoiceNumber,
         sofNumber: settings.sofNumber,
+        estimateNumber: settings.estimateNumber,
         defaultPaymentMethod: PAYMENT_METHOD_API[settings.defaultPaymentMethod] || settings.defaultPaymentMethod,
         vatEnabled: settings.vatEnabled,
         vatRate: settings.vatRate,
@@ -56,6 +59,8 @@ export default function Settings() {
         toast.success(`Settings saved. Next invoice number: ${updated.invoiceNumber}`);
       } else if (previousSof !== updated.sofNumber) {
         toast.success(`Settings saved. Next SOF No.: ${updated.sofNumber}`);
+      } else if (previousEstimate !== updated.estimateNumber) {
+        toast.success(`Settings saved. Next Estimate REF No.: ${updated.estimateNumber}`);
       } else {
         toast.success('Settings saved successfully');
       }

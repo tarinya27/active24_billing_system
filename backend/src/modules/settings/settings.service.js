@@ -4,6 +4,7 @@ import {
   formatInvoiceNumber,
   parseInvoiceNumberInput,
   parseSofNumberInput,
+  parseEstimateNumberInput,
   renumberAllInvoices,
 } from '../../utils/documentNumbers.js';
 
@@ -14,12 +15,16 @@ function serialize(settings, extra = {}) {
   const sofPrefix = settings.sofPrefix ?? '';
   const sofPad = Math.max(1, settings.sofNumberPad || 1);
   const sofSeq = settings.sofNextSeq || 1;
+  const estimatePrefix = settings.estimatePrefix ?? '';
+  const estimatePad = Math.max(1, settings.estimateNumberPad || 1);
+  const estimateSeq = settings.estimateNextSeq || 1;
   return {
     ...settings,
     vatRate: Number(settings.vatRate),
     defaultPaymentMethod: PAYMENT_METHOD_LABEL[settings.defaultPaymentMethod] || settings.defaultPaymentMethod,
     invoiceNumber: formatInvoiceNumber(prefix, seq, pad),
     sofNumber: formatInvoiceNumber(sofPrefix, sofSeq, sofPad),
+    estimateNumber: formatInvoiceNumber(estimatePrefix, estimateSeq, estimatePad),
     ...extra,
   };
 }
@@ -66,14 +71,23 @@ export async function updateSettings(data) {
 
   const invoiceNumberInput = payload.invoiceNumber;
   const sofNumberInput = payload.sofNumber;
+  const estimateNumberInput = payload.estimateNumber;
   delete payload.invoiceNumber;
   delete payload.sofNumber;
+  delete payload.estimateNumber;
 
   if (sofNumberInput != null && String(sofNumberInput).trim() !== '') {
     const parsedSof = parseSofNumberInput(sofNumberInput);
     payload.sofPrefix = parsedSof.prefix;
     payload.sofNumberPad = parsedSof.pad;
     payload.sofNextSeq = parsedSof.sequence;
+  }
+
+  if (estimateNumberInput != null && String(estimateNumberInput).trim() !== '') {
+    const parsedEstimate = parseEstimateNumberInput(estimateNumberInput);
+    payload.estimatePrefix = parsedEstimate.prefix;
+    payload.estimateNumberPad = parsedEstimate.pad;
+    payload.estimateNextSeq = parsedEstimate.sequence;
   }
 
   let current = await prisma.settings.findUnique({ where: { id: 1 } });

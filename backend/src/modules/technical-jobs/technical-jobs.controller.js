@@ -31,6 +31,11 @@ export const listEstimates = asyncHandler(async (req, res) => {
   res.json({ data: result, error: null });
 });
 
+export const nextEstimate = asyncHandler(async (_req, res) => {
+  const item = await service.peekNextEstimateNumber();
+  res.json({ data: item, error: null });
+});
+
 export const getEstimate = asyncHandler(async (req, res) => {
   const item = await service.getEstimate(req.params.id);
   res.json({ data: item, error: null });

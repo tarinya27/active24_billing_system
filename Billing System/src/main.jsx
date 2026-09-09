@@ -6,6 +6,7 @@ import './styles/invoice-print.css';
 import './styles/dn-print.css';
 import './styles/po-print.css';
 import './styles/sof-form.css';
+import './styles/estimate-form.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

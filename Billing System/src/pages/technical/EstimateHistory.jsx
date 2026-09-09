@@ -14,12 +14,15 @@ import { formatCurrency, formatDate, formatCustomerName } from '../../utils/help
 export default function EstimateHistory() {
   const navigate = useNavigate();
   const { items, loading } = useResourceList(estimatesApi);
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['estimateNumber', 'description', 'customer.name']);
+  const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['estimateNumber', 'description', 'sofRef', 'machineModel', 'serialNo', 'customer.name']);
   const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filteredItems);
 
   const columns = [
-    { key: 'estimateNumber', label: 'Estimate No.', render: (r) => <span className="font-semibold text-primary-600">{r.estimateNumber}</span> },
+    { key: 'estimateNumber', label: 'REF No.', render: (r) => <span className="font-semibold text-primary-600">{r.estimateNumber}</span> },
     { key: 'customer', label: 'Customer', render: (r) => r.customer?.name ? formatCustomerName(r.customer) : '—' },
+    { key: 'sofRef', label: 'S.O.F No.', render: (r) => r.sofRef || '—' },
+    { key: 'machineModel', label: 'Model', render: (r) => r.machineModel || '—' },
+    { key: 'serialNo', label: 'Serial No.', render: (r) => r.serialNo || '—' },
     { key: 'description', label: 'Description', render: (r) => <span className="whitespace-pre-line">{r.description || '—'}</span> },
     { key: 'amount', label: 'Amount', render: (r) => formatCurrency(r.amount) },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },

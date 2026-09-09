@@ -1,0 +1,231 @@
+.est-doc {
+  width: 186mm;
+  min-height: 260mm;
+}
+
+.est-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.est-company h1 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.est-company p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.est-header-right {
+  width: 62mm;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.est-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: right;
+  line-height: 1;
+}
+
+.est-meta {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.est-meta th,
+.est-meta td {
+  border: 1px solid #111;
+  padding: 3px 6px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.est-meta th {
+  font-weight: 700;
+}
+
+.est-meta input,
+.est-name-box input,
+.est-name-box textarea,
+.est-machine input,
+.est-lines input,
+.est-lines textarea {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  padding: 1px 0;
+}
+
+.est-split {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 0;
+  margin-top: 2px;
+}
+
+.est-name-box {
+  border: 1px solid #111;
+  min-height: 32mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.est-box-title {
+  border-bottom: 1px solid #111;
+  padding: 2px 6px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.est-box-body {
+  padding: 6px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.est-machine {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.est-machine th,
+.est-machine td {
+  border: 1px solid #111;
+  border-left: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.est-machine th {
+  width: 32%;
+  font-weight: 700;
+  text-align: left;
+  background: #fff;
+}
+
+.est-lines {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0;
+  table-layout: fixed;
+}
+
+.est-lines th,
+.est-lines td {
+  border: 1px solid #111;
+  padding: 3px 6px;
+  vertical-align: middle;
+}
+
+.est-lines th {
+  font-weight: 700;
+  text-align: center;
+  font-size: 12px;
+}
+
+.est-lines td {
+  height: 6.5mm;
+}
+
+.est-lines .col-desc { width: 58%; }
+.est-lines .col-qty { width: 10%; text-align: right; }
+.est-lines .col-rate { width: 16%; text-align: right; }
+.est-lines .col-total { width: 16%; text-align: right; font-variant-numeric: tabular-nums; }
+
+.est-lines .col-qty input,
+.est-lines .col-rate input {
+  text-align: right;
+}
+
+.est-lines textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 6mm;
+  resize: none;
+}
+
+.est-vat-row td {
+  font-weight: 400;
+}
+
+.est-grand-row td {
+  border-top: 2px solid #111;
+}
+
+.est-grand-label {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: left;
+  padding-left: 8px !important;
+}
+
+.est-grand-row .col-total {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.est-terms {
+  margin-top: 14px;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.est-terms h3 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-align: left;
+}
+
+.est-terms-body p,
+.est-disclaimer,
+.est-signoff p,
+.est-phones p {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.est-disclaimer {
+  margin-top: 14px;
+}
+
+.est-signoff {
+  margin-top: 14px;
+}
+
+.est-phones {
+  margin-top: 28px;
+}
+
+@media print {
+  .est-doc {
+    width: 186mm;
+    border: 0;
+    box-shadow: none;
+    margin: 0;
+  }
+}

@@ -1,13 +1,19 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { nextSofNumber, nextEstimateNumber, peekSofNumber } from '../../utils/documentNumbers.js';
+import { nextSofNumber, nextEstimateNumber, peekSofNumber, peekEstimateNumber } from '../../utils/documentNumbers.js';
 
 const customerSelect = { id: true, salutation: true, name: true, mobile: true, address: true };
 const userSelect = { id: true, name: true };
 
 function serializeEstimate(item) {
-  return { ...item, amount: Number(item.amount ?? 0) };
+  const lines = Array.isArray(item.lines) ? item.lines : [];
+  return {
+    ...item,
+    amount: Number(item.amount ?? 0),
+    vatRate: Number(item.vatRate ?? 0),
+    lines,
+  };
 }
 
 async function assertCustomer(customerId) {
@@ -130,6 +136,34 @@ export async function updateServiceOrder(id, data) {
   });
 }
 
+function normalizeEstimateLines(lines) {
+  if (!Array.isArray(lines)) return [];
+  return lines
+    .map((line) => {
+      const qty = line.qty == null || line.qty === '' ? null : Number(line.qty);
+      const rate = line.rate == null || line.rate === '' ? null : Number(line.rate);
+      const amount = (qty != null && rate != null) ? Math.round(qty * rate * 100) / 100 : (line.amount == null || line.amount === '' ? null : Number(line.amount));
+      return {
+        description: line.description || null,
+        qty: Number.isFinite(qty) ? qty : null,
+        rate: Number.isFinite(rate) ? rate : null,
+        amount: Number.isFinite(amount) ? amount : null,
+      };
+    })
+    .filter((line) => line.description || line.qty || line.rate || line.amount);
+}
+
+function estimateTotals(lines, vatEnabled, vatRate) {
+  const subTotal = (lines || []).reduce((sum, line) => sum + Number(line.amount || 0), 0);
+  const rate = vatEnabled ? Number(vatRate) || 0 : 0;
+  const vatAmount = Math.round(subTotal * rate / 100 * 100) / 100;
+  return {
+    subTotal: Math.round(subTotal * 100) / 100,
+    vatAmount,
+    total: Math.round((subTotal + vatAmount) * 100) / 100,
+  };
+}
+
 export async function listEstimates(query) {
   const { skip, take, page, pageSize } = parsePagination(query);
   const where = {};
@@ -137,6 +171,10 @@ export async function listEstimates(query) {
     where.OR = [
       { estimateNumber: { contains: query.search, mode: 'insensitive' } },
       { description: { contains: query.search, mode: 'insensitive' } },
+      { sofRef: { contains: query.search, mode: 'insensitive' } },
+      { machineModel: { contains: query.search, mode: 'insensitive' } },
+      { serialNo: { contains: query.search, mode: 'insensitive' } },
+      { preparedBy: { contains: query.search, mode: 'insensitive' } },
       { customer: { name: { contains: query.search, mode: 'insensitive' } } },
     ];
   }
@@ -166,16 +204,33 @@ export async function getEstimate(id) {
   return serializeEstimate(item);
 }
 
+export async function peekNextEstimateNumber() {
+  return { estimateNumber: await peekEstimateNumber() };
+}
+
 export async function createEstimate(data, userId) {
   await assertCustomer(data.customerId);
   const estimateNumber = await nextEstimateNumber();
+  const lines = normalizeEstimateLines(data.lines);
+  const vatEnabled = Boolean(data.vatEnabled);
+  const vatRate = vatEnabled ? Number(data.vatRate) || 0 : 0;
+  const totals = estimateTotals(lines, vatEnabled, vatRate);
   const created = await prisma.estimate.create({
     data: {
       estimateNumber,
       customerId: data.customerId,
-      description: data.description ?? null,
+      jobDate: parseJobDate(data.jobDate) || new Date(),
+      sofRef: data.sofRef ?? null,
+      machineModel: data.machineModel ?? null,
+      serialNo: data.serialNo ?? null,
+      lines,
+      description: summaryFromLines(lines, data.description ?? null),
       notes: data.notes ?? null,
-      amount: data.amount ?? 0,
+      amount: totals.total,
+      vatRate,
+      vatEnabled,
+      preparedBy: data.preparedBy ?? null,
+      customerSignature: data.customerSignature ?? null,
       status: data.status || 'OPEN',
       createdById: userId || null,
     },
@@ -187,13 +242,33 @@ export async function createEstimate(data, userId) {
 export async function updateEstimate(id, data) {
   await getEstimate(id);
   if (data.customerId) await assertCustomer(data.customerId);
+  const lines = data.lines !== undefined ? normalizeEstimateLines(data.lines) : undefined;
+  const vatEnabled = data.vatEnabled !== undefined ? Boolean(data.vatEnabled) : undefined;
+  const vatRate = data.vatRate !== undefined ? Number(data.vatRate) || 0 : undefined;
+  const amount = lines
+    ? estimateTotals(
+      lines,
+      vatEnabled ?? false,
+      vatRate ?? 0
+    ).total
+    : data.amount;
+
   const updated = await prisma.estimate.update({
     where: { id },
     data: {
       ...(data.customerId ? { customerId: data.customerId } : {}),
-      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.jobDate !== undefined ? { jobDate: parseJobDate(data.jobDate) } : {}),
+      ...(data.sofRef !== undefined ? { sofRef: data.sofRef } : {}),
+      ...(data.machineModel !== undefined ? { machineModel: data.machineModel } : {}),
+      ...(data.serialNo !== undefined ? { serialNo: data.serialNo } : {}),
+      ...(lines ? { lines, description: summaryFromLines(lines, data.description ?? null) } : {}),
+      ...(data.description !== undefined && !lines ? { description: data.description } : {}),
       ...(data.notes !== undefined ? { notes: data.notes } : {}),
-      ...(data.amount !== undefined ? { amount: data.amount } : {}),
+      ...(amount !== undefined ? { amount } : {}),
+      ...(vatRate !== undefined ? { vatRate } : {}),
+      ...(vatEnabled !== undefined ? { vatEnabled } : {}),
+      ...(data.preparedBy !== undefined ? { preparedBy: data.preparedBy } : {}),
+      ...(data.customerSignature !== undefined ? { customerSignature: data.customerSignature } : {}),
       ...(data.status ? { status: data.status } : {}),
     },
     include: { customer: { select: customerSelect }, createdBy: { select: userSelect } },

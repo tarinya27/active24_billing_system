@@ -20,6 +20,7 @@ sofRouter.patch('/:id', requirePermission('sof.edit'), validate(updateSofSchema)
 const estimateRouter = Router();
 estimateRouter.use(authMiddleware);
 estimateRouter.get('/', requirePermission('estimates.view'), controller.listEstimates);
+estimateRouter.get('/next-number', requirePermission('estimates.view'), controller.nextEstimate);
 estimateRouter.get('/:id', requirePermission('estimates.view'), controller.getEstimate);
 estimateRouter.post('/', requirePermission('estimates.create'), validate(createEstimateSchema), controller.createEstimate);
 estimateRouter.patch('/:id', requirePermission('estimates.edit'), validate(updateEstimateSchema), controller.updateEstimate);

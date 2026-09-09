@@ -184,21 +184,29 @@ async function nextYearlyDocumentNumber(delegate, field, code) {
 }
 
 export function parseSofNumberInput(value) {
+  return parseContinuingNumberInput(value, 'SOF number');
+}
+
+export function parseEstimateNumberInput(value) {
+  return parseContinuingNumberInput(value, 'Estimate number');
+}
+
+function parseContinuingNumberInput(value, label) {
   const raw = String(value || '').trim();
   if (!raw) {
-    throw ApiError.badRequest('SOF number is required');
+    throw ApiError.badRequest(`${label} is required`);
   }
 
   const match = raw.match(/^(.*?)(\d+)$/);
   if (!match) {
-    throw ApiError.badRequest('SOF number must end with digits (e.g. 134750 or SOF-134750)');
+    throw ApiError.badRequest(`${label} must end with digits (e.g. 134750 or EST-134750)`);
   }
 
   const prefix = match[1] || '';
   const digits = match[2];
   const sequence = parseInt(digits, 10);
   if (!Number.isFinite(sequence) || sequence < 1) {
-    throw ApiError.badRequest('SOF number sequence must be a positive integer');
+    throw ApiError.badRequest(`${label} sequence must be a positive integer`);
   }
 
   return {
@@ -254,6 +262,47 @@ export async function nextSofNumber() {
   return allocateSofNumber();
 }
 
+function estimateNumberFromSettings(settings) {
+  const prefix = settings?.estimatePrefix ?? '';
+  const pad = Math.max(1, settings?.estimateNumberPad || 1);
+  const seq = settings?.estimateNextSeq || 1;
+  return {
+    prefix,
+    pad,
+    seq,
+    formatted: formatInvoiceNumber(prefix, seq, pad),
+  };
+}
+
+export async function peekEstimateNumber() {
+  let settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await prisma.settings.create({ data: { id: 1 } });
+  }
+  return estimateNumberFromSettings(settings).formatted;
+}
+
+export async function allocateEstimateNumber(tx) {
+  const db = tx || prisma;
+  let settings = await db.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await db.settings.create({ data: { id: 1 } });
+  }
+
+  let { prefix, pad, seq, formatted } = estimateNumberFromSettings(settings);
+  while (await db.estimate.findUnique({ where: { estimateNumber: formatted }, select: { id: true } })) {
+    seq += 1;
+    formatted = formatInvoiceNumber(prefix, seq, pad);
+  }
+
+  await db.settings.update({
+    where: { id: 1 },
+    data: { estimatePrefix: prefix, estimateNumberPad: pad, estimateNextSeq: seq + 1 },
+  });
+
+  return formatted;
+}
+
 export async function nextEstimateNumber() {
-  return nextYearlyDocumentNumber(prisma.estimate, 'estimateNumber', 'EST');
+  return allocateEstimateNumber();
 }
