@@ -233,12 +233,98 @@ async function enrichInvoicePrintMeta(invoice) {
         ...item,
         barcodes,
         categoryName: unit ? resolveCategoryNameFromUnit(unit) : null,
-        itemDescription: unit
-          ? resolveItemDescriptionFromUnit(unit, fallbackName)
-          : (item.description?.trim() || fallbackName || null),
+        itemDescription: item.description?.replace(/^\s+|\s+$/g, '')
+          || (unit ? resolveItemDescriptionFromUnit(unit, fallbackName) : (fallbackName || null)),
       };
     }),
   };
+}
+
+async function addZeroValueProductLines(tx, {
+  invoiceId,
+  invoiceNumber,
+  items,
+  userId,
+}) {
+  const created = [];
+
+  for (const item of items) {
+    const description = String(item.description || '').replace(/^\s+|\s+$/g, '');
+    const quantity = Number(item.quantity);
+    if (!description) throw ApiError.badRequest('Description is required');
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw ApiError.badRequest('Quantity must be a whole number of at least 1');
+    }
+
+    const category = await tx.category.findUnique({
+      where: { id: item.categoryId },
+      select: { id: true, name: true, isActive: true },
+    });
+    if (!category) throw ApiError.notFound('Category not found');
+    if (!category.isActive) throw ApiError.badRequest(`${category.name} is not active`);
+
+    const units = await tx.productUnit.findMany({
+      where: {
+        status: 'IN_STOCK',
+        product: { categoryId: category.id, isActive: true },
+      },
+      include: {
+        grnItem: { select: { warrantyMonths: true } },
+        deliveryNoteItem: { select: { warrantyMonths: true } },
+        product: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: quantity,
+    });
+
+    if (units.length < quantity) {
+      throw ApiError.conflict(
+        `Not enough stock in ${category.name} (need ${quantity}, available ${units.length})`
+      );
+    }
+
+    const warrantyMonths = normalizeWarrantyMonths(
+      units[0].warrantyMonths ?? units[0].grnItem?.warrantyMonths ?? units[0].deliveryNoteItem?.warrantyMonths
+    );
+
+    const invoiceItem = await tx.invoiceItem.create({
+      data: {
+        invoiceId,
+        itemType: 'PRODUCT',
+        description,
+        quantity,
+        productUnitId: units[0].id,
+        productId: units[0].productId,
+        unitPrice: 0,
+        discount: 0,
+        warrantyMonths,
+        units: {
+          create: units.map((unit) => ({ productUnitId: unit.id })),
+        },
+      },
+    });
+
+    for (const unit of units) {
+      await tx.productUnit.update({
+        where: { id: unit.id },
+        data: { status: 'SOLD' },
+      });
+      await tx.stockMovement.create({
+        data: {
+          productId: unit.productId,
+          productUnitId: unit.id,
+          type: 'SALE_OUT',
+          quantity: -1,
+          reference: invoiceNumber,
+          userId,
+        },
+      });
+    }
+
+    created.push(invoiceItem);
+  }
+
+  return created;
 }
 
 function parseDateBoundary(value, endOfDay) {
@@ -554,6 +640,8 @@ export async function updateInvoice(id, payload, user) {
     ? (existing.dueDate || new Date(Date.now() + CREDIT_TERM_DAYS * 24 * 60 * 60 * 1000))
     : null;
 
+  const zeroValueItems = Array.isArray(payload.zeroValueItems) ? payload.zeroValueItems : [];
+
   const invoice = await prisma.$transaction(async (tx) => {
     await tx.invoicePayment.deleteMany({ where: { invoiceId: id } });
 
@@ -579,7 +667,7 @@ export async function updateInvoice(id, payload, user) {
       return undefined;
     })();
 
-    const updated = await tx.invoice.update({
+    await tx.invoice.update({
       where: { id },
       data: {
         customerId: payload.customerId,
@@ -590,14 +678,31 @@ export async function updateInvoice(id, payload, user) {
         dueDate,
         payments: paymentCreate,
       },
+    });
+
+    if (zeroValueItems.length) {
+      await addZeroValueProductLines(tx, {
+        invoiceId: id,
+        invoiceNumber: existing.invoiceNumber,
+        items: zeroValueItems,
+        userId,
+      });
+    }
+
+    const updated = await tx.invoice.findUnique({
+      where: { id },
       include: invoiceInclude,
     });
+
+    const activityDetail = zeroValueItems.length
+      ? `Customer/payment updated; ${zeroValueItems.length} product line(s) added — ${customer.name}`
+      : `Customer/payment updated — ${customer.name}`;
 
     await tx.activity.create({
       data: {
         type: 'invoice',
         title: `Invoice ${existing.invoiceNumber} updated`,
-        description: `Customer/payment updated — ${customer.name}`,
+        description: activityDetail,
         amount: grandTotal,
         userId,
       },
@@ -660,13 +765,15 @@ export async function cancelInvoice(id, userId) {
 
       const unitIds = itemUnitIds(item);
       for (const productUnitId of unitIds) {
+        const linked = (item.units || []).find((u) => u.productUnitId === productUnitId);
+        const productId = linked?.productUnit?.productId || item.productId;
         await tx.productUnit.update({
           where: { id: productUnitId },
           data: { status: 'IN_STOCK' },
         });
         await tx.stockMovement.create({
           data: {
-            productId: item.productId,
+            productId,
             productUnitId,
             type: 'RETURN',
             quantity: 1,

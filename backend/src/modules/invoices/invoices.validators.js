@@ -57,9 +57,21 @@ const invoiceLinesSchema = z.object({
 });
 
 export const createInvoiceSchema = invoiceLinesSchema;
+
+const zeroValueItemSchema = z.object({
+  categoryId: z.string().min(1, 'Category is required'),
+  quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
+  description: z
+    .string()
+    .max(2000)
+    .refine((value) => value.replace(/^\s+|\s+$/g, '').length > 0, 'Description is required'),
+});
+
 export const updateInvoiceSchema = z.object({
   customerId: z.string().min(1),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
+  /** Optional product lines added during edit — unit price is always 0 and totals stay unchanged */
+  zeroValueItems: z.array(zeroValueItemSchema).optional().default([]),
 });
 
 export const settleCreditSchema = z.object({

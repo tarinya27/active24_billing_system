@@ -219,11 +219,19 @@ export default function InvoicePrintView({ invoice, settings: _settings, onClose
             const itemLabel = it.itemType === 'SERVICE'
               ? (it.categoryName === 'Item' || it.chargeKind === 'ITEM' ? 'Item' : 'Service')
               : (it.categoryName || it.category || 'Others');
-            const productName = it.itemDescription || it.description || it.productName || it.product?.name || '—';
-            const barcodes = (it.barcodes?.length ? it.barcodes : (it.barcode ? [it.barcode] : []))
-              .filter(Boolean);
+            const hasCustomProductDescription = it.itemType !== 'SERVICE'
+              && Boolean(String(it.description || '').replace(/^\s+|\s+$/g, ''));
+            const productName = hasCustomProductDescription
+              ? it.description
+              : (it.itemDescription || it.description || it.productName || it.product?.name || '—');
+            const barcodes = hasCustomProductDescription
+              ? []
+              : (it.barcodes?.length ? it.barcodes : (it.barcode ? [it.barcode] : []))
+                .filter(Boolean);
             const singleBarcode = barcodes.length === 1 ? barcodes[0] : '';
-            const warrantyLabel = it.itemType === 'SERVICE' ? null : formatWarrantyLabel(it.warrantyMonths);
+            const warrantyLabel = hasCustomProductDescription || it.itemType === 'SERVICE'
+              ? null
+              : formatWarrantyLabel(it.warrantyMonths);
 
             return (
               <tr key={it.id || it.barcode || `${it.productId || 'item'}-${i}`}>

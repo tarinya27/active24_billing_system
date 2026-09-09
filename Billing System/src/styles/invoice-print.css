@@ -868,8 +868,12 @@
   vertical-align: top;
 }
 
+.tax-info-value,
 .tax-info-value-multiline {
   text-align: left;
+}
+
+.tax-info-value-multiline {
   line-height: 1.25;
   vertical-align: top;
 }

@@ -9,7 +9,7 @@ import InvoicePrintView from '../../components/billing/InvoicePrintView';
 import WalkInCustomerForm from '../../components/billing/WalkInCustomerForm';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import ScannedUnitDetails, { ScannedUnitEmpty } from '../../components/billing/ScannedUnitDetails';
-import { customersApi } from '../../api/masters';
+import { customersApi, productsApi, categoriesApi } from '../../api/masters';
 import { stockApi, invoicesApi, settingsApi, PAYMENT_METHOD_API, PAYMENT_METHOD_LABEL } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -46,6 +46,9 @@ export default function Billing() {
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
   const [poNo, setPoNo] = useState('');
   const [sofNo, setSofNo] = useState('');
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [zeroItemDraft, setZeroItemDraft] = useState({ categoryId: '', quantity: 1, description: '' });
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -63,6 +66,31 @@ export default function Billing() {
     loadCustomers();
     settingsApi.get().then(setSettings).catch(() => {});
   }, [loadCustomers]);
+
+  useEffect(() => {
+    if (!editingInvoiceId) {
+      setProducts([]);
+      setCategories([]);
+      return undefined;
+    }
+    let cancelled = false;
+    Promise.all([
+      productsApi.list({ pageSize: 500, isActive: 'true' }),
+      categoriesApi.list({ isActive: 'true' }),
+    ])
+      .then(([productResult, categoryResult]) => {
+        if (cancelled) return;
+        setProducts(productResult.items || productResult || []);
+        const list = Array.isArray(categoryResult) ? categoryResult : (categoryResult.items || []);
+        setCategories(list.filter((c) => c.isActive !== false));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Failed to load categories');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editingInvoiceId]);
 
   useEffect(() => {
     if (!addMenuOpen) return undefined;
@@ -199,9 +227,75 @@ export default function Billing() {
   };
 
   const removeItem = (cartKey) => {
-    if (editingInvoiceId) return;
-    setCartItems((prev) => prev.filter((i) => i.cartKey !== cartKey));
-    setLastScanned((prev) => (prev?.cartKey === cartKey ? null : prev));
+    setCartItems((prev) => {
+      const target = prev.find((i) => i.cartKey === cartKey);
+      if (editingInvoiceId && !target?.addedDuringEdit) return prev;
+      const next = prev.filter((i) => i.cartKey !== cartKey);
+      setLastScanned((scanned) => (scanned?.cartKey === cartKey ? null : scanned));
+      return next;
+    });
+  };
+
+  const resetZeroItemDraft = () => {
+    setZeroItemDraft({ categoryId: '', quantity: 1, description: '' });
+  };
+
+  const productMatchesCategory = (product, categoryId) => (
+    product.categoryId === categoryId || product.category?.id === categoryId
+  );
+
+  const stockForCategory = (categoryId) => products
+    .filter((p) => productMatchesCategory(p, categoryId))
+    .reduce((sum, p) => sum + Number(p.currentStock || 0), 0);
+
+  const reservedStockForCategory = (categoryId) => cartItems
+    .filter((i) => i.addedDuringEdit && i.categoryId === categoryId)
+    .reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+
+  const handleAddZeroValueItem = () => {
+    const category = categories.find((c) => c.id === zeroItemDraft.categoryId);
+    const quantity = Number.parseInt(String(zeroItemDraft.quantity), 10);
+    const description = String(zeroItemDraft.description || '').replace(/^\s+|\s+$/g, '');
+
+    if (!category) {
+      toast.error('Select a category');
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+    if (!description) {
+      toast.error('Description is required');
+      return;
+    }
+
+    const available = Math.max(0, stockForCategory(category.id) - reservedStockForCategory(category.id));
+    if (quantity > available) {
+      toast.error(`Only ${available} in stock for ${category.name}`);
+      return;
+    }
+
+    const cartKey = `zero:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setCartItems((prev) => [
+      ...prev,
+      {
+        lineType: 'PRODUCT',
+        addedDuringEdit: true,
+        cartKey,
+        categoryId: category.id,
+        category: category.name,
+        productName: description.split(/\r?\n/).find(Boolean) || category.name,
+        description,
+        unitPrice: 0,
+        discount: 0,
+        quantity,
+        barcode: null,
+        barcodes: [],
+      },
+    ]);
+    resetZeroItemDraft();
+    toast.success('Item added');
   };
 
   const resetManualForm = () => {
@@ -286,13 +380,15 @@ export default function Billing() {
 
   const mapInvoiceItemForView = (item, cartSnapshot = []) => {
     const isService = item.itemType === 'SERVICE';
-    const cartLine = cartSnapshot.find((c) => (
-      isService
-        ? c.lineType === 'SERVICE' && (c.description === item.description || c.productName === item.description)
-        : (item.barcodes || []).includes(c.barcode)
-          || c.productUnitId === item.productUnitId
-          || (c.barcodes || []).some((b) => (item.barcodes || []).includes(b))
-    ));
+    const cartLine = cartSnapshot.find((c) => {
+      if (isService) {
+        return c.lineType === 'SERVICE' && (c.description === item.description || c.productName === item.description);
+      }
+      if (c.addedDuringEdit && c.description === item.description) return true;
+      return (item.barcodes || []).includes(c.barcode)
+        || c.productUnitId === item.productUnitId
+        || (c.barcodes || []).some((b) => (item.barcodes || []).includes(b));
+    });
     const barcodes = item.barcodes?.length
       ? item.barcodes
       : (item.productUnit?.barcode ? [item.productUnit.barcode] : (cartLine?.barcodes || (cartLine?.barcode ? [cartLine.barcode] : [])));
@@ -307,7 +403,7 @@ export default function Billing() {
         : (item.categoryName ?? cartLine?.category ?? null),
       itemDescription: isService
         ? (item.description || item.itemDescription || 'Service')
-        : (item.itemDescription ?? cartLine?.description ?? null),
+        : (item.description || item.itemDescription || cartLine?.description || null),
       description: item.description || null,
       barcode: barcodes[0] || null,
       barcodes,
@@ -327,6 +423,7 @@ export default function Billing() {
     setEditingInvoiceNumber('');
     setPoNo('');
     setSofNo('');
+    resetZeroItemDraft();
   };
 
   const handleGenerateInvoice = async () => {
@@ -340,10 +437,18 @@ export default function Billing() {
     }
     setSubmitting(true);
     const wasEditing = Boolean(editingInvoiceId);
+    const zeroValueItems = cartItems
+      .filter((i) => i.addedDuringEdit)
+      .map((i) => ({
+        categoryId: i.categoryId,
+        quantity: Number(i.quantity),
+        description: i.description,
+      }));
     const payload = wasEditing
       ? {
           customerId: selectedCustomer,
           paymentMethod: PAYMENT_METHOD_API[paymentMethod],
+          ...(zeroValueItems.length ? { zeroValueItems } : {}),
         }
       : {
           customerId: selectedCustomer,
@@ -436,7 +541,7 @@ export default function Billing() {
           productCode: item.product?.code || item.productCode,
           stockSource: 'GRN',
           category: item.categoryName || '—',
-          description: item.itemDescription || item.product?.name || item.productName,
+          description: item.description || item.itemDescription || item.product?.name || item.productName,
           purchasePrice: 0,
           grnNumber: null,
           poNumber: null,
@@ -458,8 +563,9 @@ export default function Billing() {
       setEditingInvoiceNumber(full.invoiceNumber);
       setLastScanned(null);
       resetManualForm();
+      resetZeroItemDraft();
       setShowPreview(false);
-      toast.success(`Editing ${full.invoiceNumber} — customer & payment only`);
+              toast.success(`Editing ${full.invoiceNumber} — customer, payment, and 0.00 products`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to load invoice for editing'));
     }
@@ -590,9 +696,77 @@ export default function Billing() {
           )}
 
           {editingInvoiceId && (
-            <div className="glass-card p-4 text-sm text-slate-600 dark:text-slate-300">
-              Editing <span className="font-semibold text-slate-800 dark:text-slate-100">{editingInvoiceNumber}</span>.
-              Only customer and payment method can be changed. Items, prices, and totals stay fixed.
+            <div className="glass-card space-y-4 p-4 text-sm text-slate-600 dark:text-slate-300">
+              <p>
+                Editing <span className="font-semibold text-slate-800 dark:text-slate-100">{editingInvoiceNumber}</span>.
+                Existing items, prices, and totals stay fixed. You can add a product at 0.00.
+              </p>
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <Package className="h-4 w-4 text-primary-600" />
+                  Add product
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="label">Category</label>
+                    <select
+                      className="select-field"
+                      value={zeroItemDraft.categoryId}
+                      onChange={(e) => setZeroItemDraft((prev) => ({ ...prev, categoryId: e.target.value }))}
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {zeroItemDraft.categoryId && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        In stock: {Math.max(0, stockForCategory(zeroItemDraft.categoryId) - reservedStockForCategory(zeroItemDraft.categoryId))}
+                      </p>
+                    )}
+                    {!categories.length && (
+                      <p className="mt-1 text-xs text-amber-600">Create an active category first.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="label">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="input-field"
+                      value={zeroItemDraft.quantity}
+                      onChange={(e) => setZeroItemDraft((prev) => ({ ...prev, quantity: e.target.value }))}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Description</label>
+                    <textarea
+                      className="input-field min-h-[88px] resize-y"
+                      rows={3}
+                      value={zeroItemDraft.description}
+                      onChange={(e) => setZeroItemDraft((prev) => ({ ...prev, description: e.target.value }))}
+                      placeholder={'Lenovo 150 Wireless Mouse\nSN: 105043'}
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">Press Enter for a new line. Line breaks are kept on the printed invoice.</p>
+                  </div>
+                  <div>
+                    <label className="label">Amount</label>
+                    <input
+                      type="text"
+                      className="input-field bg-slate-100 text-slate-500 dark:bg-slate-800"
+                      value="0.00"
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button type="button" className="btn-primary !py-2 !text-sm" onClick={handleAddZeroValueItem}>
+                    Add to invoice
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -610,7 +784,20 @@ export default function Billing() {
               </h3>
               <div className="space-y-3">
                 {productCartItems.map((item) => (
-                  <ScannedUnitDetails key={item.cartKey} item={item} />
+                  item.addedDuringEdit ? (
+                    <div key={item.cartKey} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div className="min-w-0">
+                        <p className="whitespace-pre-line font-medium text-slate-800 dark:text-slate-100">{item.description}</p>
+                        <p className="mt-1 text-xs text-slate-500">Qty: {item.quantity}</p>
+                        <p className="mt-1 text-sm text-emerald-600">{formatCurrency(0)}</p>
+                      </div>
+                      <button type="button" className="text-red-400 hover:text-red-600" onClick={() => removeItem(item.cartKey)}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <ScannedUnitDetails key={item.cartKey} item={item} />
+                  )
                 ))}
               </div>
             </div>
@@ -666,7 +853,7 @@ export default function Billing() {
             {editingInvoiceId && (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-900 dark:bg-amber-950/30">
                 <span className="font-medium text-amber-900 dark:text-amber-300">
-                  Editing {editingInvoiceNumber} — customer & payment only
+                  Editing {editingInvoiceNumber} — customer, payment, and 0.00 products
                 </span>
                 <button type="button" className="font-semibold text-amber-800 hover:underline dark:text-amber-200" onClick={clearBillingCart}>
                   Cancel edit
@@ -753,12 +940,16 @@ export default function Billing() {
                   <tbody>
                     {cartItems.map((item) => {
                       const isService = item.lineType === 'SERVICE';
+                      const canRemove = !editingInvoiceId || item.addedDuringEdit;
                       const lineTotal = (Number(item.unitPrice) * Number(item.quantity || 1)) - (item.discount || 0);
+                      const lineLabel = item.addedDuringEdit || isService
+                        ? item.description
+                        : item.productName;
                       return (
                         <tr key={item.cartKey} className="border-b border-slate-50 dark:border-slate-800/50">
                           <td className="py-2 pr-2">
                             <p className="font-medium max-w-[140px] whitespace-pre-line">
-                              {isService ? item.description : item.productName}
+                              {lineLabel}
                             </p>
                             {isService ? (
                               <p className="text-[10px] text-primary-600">
@@ -766,7 +957,7 @@ export default function Billing() {
                               </p>
                             ) : (
                               <>
-                                {!isService && Number(item.quantity || 1) > 1 && (
+                                {(item.addedDuringEdit || Number(item.quantity || 1) > 1) && (
                                   <p className="text-[10px] font-medium text-slate-500">Qty: {item.quantity}</p>
                                 )}
                                 {(item.barcodes?.length ? item.barcodes : [item.barcode]).filter(Boolean).map((code) => (
@@ -796,9 +987,9 @@ export default function Billing() {
                           </td>
                           <td className="py-2 text-right font-semibold">{formatCurrency(lineTotal)}</td>
                           <td className="py-2">
-                            {!editingInvoiceId && (
+                            {canRemove && (
                               <div className="flex items-center justify-end gap-1">
-                                {isService && (
+                                {isService && !editingInvoiceId && (
                                   <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
                                     Edit
                                   </button>
