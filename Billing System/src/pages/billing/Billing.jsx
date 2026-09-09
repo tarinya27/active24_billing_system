@@ -592,7 +592,7 @@ export default function Billing() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3 space-y-4">
           {!editingInvoiceId && (
-          <div className="glass-card p-4">
+          <div className="glass-card relative z-20 overflow-visible p-4">
             <BarcodeInput
               onScan={handleBarcodeScan}
               placeholder="Scan unit barcode to add item..."
@@ -614,7 +614,7 @@ export default function Billing() {
                 {addMenuOpen && (
                   <div
                     role="menu"
-                    className="absolute left-0 z-20 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                    className="absolute left-0 z-50 mt-1 min-w-[160px] overflow-visible rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
                   >
                     <button
                       type="button"
