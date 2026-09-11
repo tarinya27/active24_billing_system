@@ -1,5 +1,5 @@
 // Central RBAC matrix. Mirrors section 4.3 of the project plan.
-// Roles: MANAGER (full access), ADMIN (oversight), CASHIER (billing), TECHNICAL (jobs + customers).
+// Roles: MANAGER (full access), ADMIN (oversight), CASHIER (billing), TECHNICAL (jobs + customers + categories).
 
 export const PERMISSIONS = [
   'auth.login',
@@ -113,6 +113,7 @@ const TECHNICAL_PERMISSIONS = [
   'customers.view',
   'customers.create',
   'customers.edit',
+  'categories.manage',
   'sof.view',
   'sof.create',
   'sof.edit',

@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', requirePermission('products.view'), controller.list);
+router.get('/', requirePermission(['products.view', 'categories.manage']), controller.list);
 router.post('/', requirePermission('categories.manage'), validate(createCategorySchema), controller.create);
 router.patch('/:id/status', requirePermission('categories.manage'), validate(categoryStatusSchema), controller.updateStatus);
 router.patch('/:id', requirePermission('categories.manage'), validate(updateCategorySchema), controller.update);
