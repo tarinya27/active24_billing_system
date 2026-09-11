@@ -101,9 +101,13 @@
 .sof-created input,
 .sof-box input,
 .sof-box textarea,
+.sof-status input,
 .sof-lines input,
 .sof-sign input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -138,6 +142,11 @@
   grid-template-columns: 1.15fr 0.85fr;
   gap: 0;
   margin-top: 8px;
+  min-width: 0;
+}
+
+.sof-split > * {
+  min-width: 0;
 }
 
 .sof-box {
@@ -154,6 +163,8 @@
 .sof-right-col {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .sof-right-col .sof-box {
@@ -192,6 +203,7 @@
 
 .sof-status {
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -203,10 +215,20 @@
   padding: 3px 6px;
   font-size: 11px;
   text-align: center;
+  overflow: hidden;
+  max-width: 0;
 }
 
 .sof-status th {
   font-weight: 700;
+}
+
+.sof-status input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
 }
 
 .sof-lines {
@@ -279,11 +301,18 @@
 }
 
 
+.sof-readonly input,
+.sof-readonly textarea {
+  pointer-events: none;
+  cursor: default;
+}
+
 @media print {
   .sof-page-actions,
   .no-print { display: none !important; }
   .sof-doc {
     width: 186mm;
+    min-height: 260mm;
     border: 0;
     box-shadow: none;
     margin: 0;

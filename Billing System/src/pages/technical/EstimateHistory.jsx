@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Can from '../../components/auth/Can';
+import HistoryActions from '../../components/technical/HistoryActions';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { estimatesApi } from '../../api/technical';
@@ -28,6 +29,18 @@ export default function EstimateHistory() {
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
     { key: 'createdBy', label: 'Created by', render: (r) => r.createdBy?.name || '—' },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (r) => (
+        <HistoryActions
+          viewTo={`/technical/estimates/${r.id}`}
+          editTo={`/technical/estimates/${r.id}/edit`}
+          downloadTo={`/technical/estimates/${r.id}?download=1`}
+          editPermission="estimates.edit"
+        />
+      ),
+    },
   ];
 
   return (

@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Can from '../../components/auth/Can';
+import HistoryActions from '../../components/technical/HistoryActions';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { sofApi } from '../../api/technical';
@@ -24,6 +25,18 @@ export default function SofHistory() {
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
     { key: 'createdBy', label: 'Created person', render: (r) => r.createdPerson || r.createdBy?.name || '—' },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (r) => (
+        <HistoryActions
+          viewTo={`/technical/sof/${r.id}`}
+          editTo={`/technical/sof/${r.id}/edit`}
+          downloadTo={`/technical/sof/${r.id}?download=1`}
+          editPermission="sof.edit"
+        />
+      ),
+    },
   ];
 
   return (

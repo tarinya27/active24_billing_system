@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
+import Can from '../../components/auth/Can';
 import { sofApi } from '../../api/technical';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
@@ -10,6 +11,7 @@ import { formatShipToBlock } from '../../utils/helpers';
 import { printElement } from '../../utils/printDocument';
 
 const emptyLine = () => ({ item: '', description: '', qty: '', fault: '' });
+const LINE_COUNT = 6;
 
 function todayInputValue() {
   const now = new Date();
@@ -18,10 +20,38 @@ function todayInputValue() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+function toDateInput(value) {
+  if (!value) return todayInputValue();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function padLines(lines) {
+  const next = (Array.isArray(lines) ? lines : []).map((line) => ({
+    item: line.item || '',
+    description: line.description || '',
+    qty: line.qty == null ? '' : String(line.qty),
+    fault: line.fault || '',
+  }));
+  while (next.length < LINE_COUNT) next.push(emptyLine());
+  return next;
+}
+
 export default function SofForm() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { customers, create, update } = useCustomers();
+  const isEdit = Boolean(id) && location.pathname.endsWith('/edit');
+  const isView = Boolean(id) && !isEdit;
+  const isCreate = !id;
+  const autoDownload = searchParams.get('download') === '1';
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(Boolean(id));
   const [form, setForm] = useState({
     customerId: '',
     name: '',
@@ -36,10 +66,11 @@ export default function SofForm() {
     createdPerson: '',
     receivedBy: '',
     customerSignature: '',
-    lines: Array.from({ length: 6 }, emptyLine),
+    lines: Array.from({ length: LINE_COUNT }, emptyLine),
   });
 
   useEffect(() => {
+    if (!isCreate) return;
     sofApi.nextNumber()
       .then((data) => {
         if (data?.sofNumber) {
@@ -47,7 +78,52 @@ export default function SofForm() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isCreate]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    sofApi.get(id)
+      .then((item) => {
+        if (cancelled) return;
+        const customer = item.customer || {};
+        setForm({
+          customerId: item.customerId || '',
+          name: customer.name || '',
+          mobile: customer.mobile || '',
+          address: customer.address || '',
+          jobDate: toDateInput(item.jobDate || item.createdAt),
+          sofNumber: item.sofNumber || '',
+          shipToCustomerId: '',
+          shipTo: item.shipTo || '',
+          technician: item.technician || '',
+          jobStatus: item.jobStatus || '',
+          createdPerson: item.createdPerson || '',
+          receivedBy: item.receivedBy || '',
+          customerSignature: item.customerSignature || '',
+          lines: padLines(item.lines),
+        });
+      })
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load service order'));
+        navigate('/technical/sof-history');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (!autoDownload || loading || isCreate) return;
+    const timer = setTimeout(() => {
+      printElement('sof-print-content')
+        .catch(() => toast.error('Could not open download preview'))
+        .finally(() => setSearchParams({}, { replace: true }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [autoDownload, loading, isCreate, setSearchParams]);
 
   const applyCustomer = (customerId) => {
     const customer = customers.find((c) => c.id === customerId);
@@ -78,6 +154,7 @@ export default function SofForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isView) return;
     if (!form.name.trim()) {
       toast.error('Enter the customer name');
       return;
@@ -103,7 +180,7 @@ export default function SofForm() {
         setForm((prev) => ({ ...prev, customerId }));
       }
 
-      const created = await sofApi.create({
+      const payload = {
         customerId,
         jobDate: form.jobDate || null,
         shipTo: form.shipTo.trim() || null,
@@ -113,12 +190,19 @@ export default function SofForm() {
         receivedBy: form.receivedBy.trim() || null,
         customerSignature: form.customerSignature.trim() || null,
         lines: form.lines,
-      });
-      setForm((prev) => ({ ...prev, sofNumber: created.sofNumber }));
-      toast.success(`Service order ${created.sofNumber} created`);
+      };
+
+      if (isEdit) {
+        const updated = await sofApi.update(id, payload);
+        toast.success(`Service order ${updated.sofNumber} updated`);
+      } else {
+        const created = await sofApi.create(payload);
+        setForm((prev) => ({ ...prev, sofNumber: created.sofNumber }));
+        toast.success(`Service order ${created.sofNumber} created`);
+      }
       navigate('/technical/sof-history');
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to save service order'));
+      toast.error(getErrorMessage(err, isEdit ? 'Failed to update service order' : 'Failed to save service order'));
     } finally {
       setSaving(false);
     }
@@ -133,25 +217,37 @@ export default function SofForm() {
   return (
     <div className="sof-page">
       <PageHeader
-        title="Service Order Form"
+        title={isView ? `Service Order ${form.sofNumber || ''}`.trim() : isEdit ? 'Edit Service Order Form' : 'Service Order Form'}
         subtitle="Genius Associates service order"
         actions={(
           <div className="sof-page-actions flex gap-2">
             <button type="button" className="btn-secondary" onClick={() => navigate('/technical/sof-history')}>
               View history
             </button>
+            {isView && (
+              <Can permission="sof.edit">
+                <button type="button" className="btn-secondary" onClick={() => navigate(`/technical/sof/${id}/edit`)}>
+                  Edit
+                </button>
+              </Can>
+            )}
             <button type="button" className="btn-secondary" onClick={handlePrint}>
-              Print
+              Download
             </button>
-            <button type="submit" form="sof-print-content" className="btn-primary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save SOF'}
-            </button>
+            {!isView && (
+              <button type="submit" form="sof-print-content" className="btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : isEdit ? 'Update SOF' : 'Save SOF'}
+              </button>
+            )}
           </div>
         )}
       />
 
+      {loading ? (
+        <p className="py-12 text-center text-slate-400">Loading service order…</p>
+      ) : (
       <div className="sof-doc-wrap">
-        <form id="sof-print-content" onSubmit={handleSubmit} className="sof-doc">
+        <form id="sof-print-content" onSubmit={handleSubmit} className={`sof-doc${isView ? ' sof-readonly' : ''}`}>
           <div className="sof-header">
             <div className="sof-brand">
               <img src="/genius-logo.png" alt="Genius" className="sof-logo" />
@@ -199,7 +295,7 @@ export default function SofForm() {
             <div className="sof-box">
               <div className="sof-box-title">Name / Address</div>
               <div className="sof-box-body">
-                <div className="sof-search no-print">
+                <div className={`sof-search no-print${isView ? ' hidden' : ''}`}>
                   <CustomerSearchSelect
                     customers={customers}
                     value={form.customerId}
@@ -229,7 +325,7 @@ export default function SofForm() {
               <div className="sof-box">
                 <div className="sof-box-title">Ship To</div>
                 <div className="sof-box-body">
-                  <div className="sof-search no-print">
+                  <div className={`sof-search no-print${isView ? ' hidden' : ''}`}>
                     <CustomerSearchSelect
                       customers={customers}
                       value={form.shipToCustomerId}
@@ -256,12 +352,14 @@ export default function SofForm() {
                   <tr>
                     <td>
                       <input
+                        size={1}
                         value={form.jobStatus}
                         onChange={(e) => setForm((prev) => ({ ...prev, jobStatus: e.target.value }))}
                       />
                     </td>
                     <td>
                       <input
+                        size={1}
                         value={form.technician}
                         onChange={(e) => setForm((prev) => ({ ...prev, technician: e.target.value }))}
                       />
@@ -338,6 +436,7 @@ export default function SofForm() {
           </p>
         </form>
       </div>
+      )}
     </div>
   );
 }

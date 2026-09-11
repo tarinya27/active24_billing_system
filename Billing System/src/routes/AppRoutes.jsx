@@ -133,13 +133,21 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute requiredPermission="sof.create" />}>
             <Route path="technical/sof" element={<SofForm />} />
           </Route>
+          <Route element={<ProtectedRoute requiredPermission="sof.edit" />}>
+            <Route path="technical/sof/:id/edit" element={<SofForm />} />
+          </Route>
+          <Route element={<ProtectedRoute requiredPermission="sof.view" />}>
+            <Route path="technical/sof/:id" element={<SofForm />} />
+            <Route path="technical/sof-history" element={<SofHistory />} />
+          </Route>
           <Route element={<ProtectedRoute requiredPermission="estimates.create" />}>
             <Route path="technical/estimates" element={<EstimateForm />} />
           </Route>
-          <Route element={<ProtectedRoute requiredPermission="sof.view" />}>
-            <Route path="technical/sof-history" element={<SofHistory />} />
+          <Route element={<ProtectedRoute requiredPermission="estimates.edit" />}>
+            <Route path="technical/estimates/:id/edit" element={<EstimateForm />} />
           </Route>
           <Route element={<ProtectedRoute requiredPermission="estimates.view" />}>
+            <Route path="technical/estimates/:id" element={<EstimateForm />} />
             <Route path="technical/estimate-history" element={<EstimateHistory />} />
           </Route>
 

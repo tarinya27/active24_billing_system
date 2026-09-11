@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
+import Can from '../../components/auth/Can';
 import { estimatesApi } from '../../api/technical';
 import { settingsApi } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
@@ -10,12 +11,32 @@ import { useCustomers } from '../../context/CustomersContext';
 import { printElement } from '../../utils/printDocument';
 
 const emptyLine = () => ({ description: '', qty: '', rate: '' });
+const LINE_COUNT = 8;
 
 function todayInputValue() {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function toDateInput(value) {
+  if (!value) return todayInputValue();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function padLines(lines) {
+  const next = (Array.isArray(lines) ? lines : []).map((line) => ({
+    description: line.description || '',
+    qty: line.qty == null ? '' : String(line.qty),
+    rate: line.rate == null ? '' : String(line.rate),
+  }));
+  while (next.length < LINE_COUNT) next.push(emptyLine());
+  return next;
 }
 
 function money(value) {
@@ -35,8 +56,16 @@ function lineAmount(line) {
 
 export default function EstimateForm() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { customers, create, update } = useCustomers();
+  const isEdit = Boolean(id) && location.pathname.endsWith('/edit');
+  const isView = Boolean(id) && !isEdit;
+  const isCreate = !id;
+  const autoDownload = searchParams.get('download') === '1';
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(Boolean(id));
   const [vatEnabled, setVatEnabled] = useState(true);
   const [vatRate, setVatRate] = useState(18);
   const [form, setForm] = useState({
@@ -52,20 +81,65 @@ export default function EstimateForm() {
   });
 
   useEffect(() => {
-    estimatesApi.nextNumber()
-      .then((data) => {
-        if (data?.estimateNumber) {
-          setForm((prev) => ({ ...prev, estimateNumber: prev.estimateNumber || data.estimateNumber }));
-        }
-      })
-      .catch(() => {});
+    if (isCreate) {
+      estimatesApi.nextNumber()
+        .then((data) => {
+          if (data?.estimateNumber) {
+            setForm((prev) => ({ ...prev, estimateNumber: prev.estimateNumber || data.estimateNumber }));
+          }
+        })
+        .catch(() => {});
+    }
     settingsApi.get()
       .then((settings) => {
+        if (!isCreate) return;
         setVatEnabled(Boolean(settings?.vatEnabled));
         setVatRate(Number(settings?.vatRate) || 0);
       })
       .catch(() => {});
-  }, []);
+  }, [isCreate]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    estimatesApi.get(id)
+      .then((item) => {
+        if (cancelled) return;
+        const customer = item.customer || {};
+        setVatEnabled(Boolean(item.vatEnabled));
+        setVatRate(Number(item.vatRate) || 0);
+        setForm({
+          customerId: item.customerId || '',
+          name: customer.name || '',
+          address: customer.address || '',
+          jobDate: toDateInput(item.jobDate || item.createdAt),
+          estimateNumber: item.estimateNumber || '',
+          sofRef: item.sofRef || '',
+          machineModel: item.machineModel || '',
+          serialNo: item.serialNo || '',
+          lines: padLines(item.lines),
+        });
+      })
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load estimate'));
+        navigate('/technical/estimate-history');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (!autoDownload || loading || isCreate) return;
+    const timer = setTimeout(() => {
+      printElement('est-print-content')
+        .catch(() => toast.error('Could not open download preview'))
+        .finally(() => setSearchParams({}, { replace: true }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [autoDownload, loading, isCreate, setSearchParams]);
 
   const applyCustomer = (customerId) => {
     const customer = customers.find((c) => c.id === customerId);
@@ -96,6 +170,7 @@ export default function EstimateForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isView) return;
     if (!form.name.trim()) {
       toast.error('Enter the customer name');
       return;
@@ -120,7 +195,7 @@ export default function EstimateForm() {
         setForm((prev) => ({ ...prev, customerId }));
       }
 
-      const created = await estimatesApi.create({
+      const payload = {
         customerId,
         jobDate: form.jobDate || null,
         sofRef: form.sofRef.trim() || null,
@@ -129,12 +204,19 @@ export default function EstimateForm() {
         vatEnabled,
         vatRate: vatEnabled ? vatRate : 0,
         lines: form.lines,
-      });
-      setForm((prev) => ({ ...prev, estimateNumber: created.estimateNumber }));
-      toast.success(`Estimate ${created.estimateNumber} created`);
+      };
+
+      if (isEdit) {
+        const updated = await estimatesApi.update(id, payload);
+        toast.success(`Estimate ${updated.estimateNumber} updated`);
+      } else {
+        const created = await estimatesApi.create(payload);
+        setForm((prev) => ({ ...prev, estimateNumber: created.estimateNumber }));
+        toast.success(`Estimate ${created.estimateNumber} created`);
+      }
       navigate('/technical/estimate-history');
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Failed to save estimate'));
+      toast.error(getErrorMessage(err, isEdit ? 'Failed to update estimate' : 'Failed to save estimate'));
     } finally {
       setSaving(false);
     }
@@ -149,25 +231,37 @@ export default function EstimateForm() {
   return (
     <div className="sof-page">
       <PageHeader
-        title="Estimate"
+        title={isView ? `Estimate ${form.estimateNumber || ''}`.trim() : isEdit ? 'Edit Estimate' : 'Estimate'}
         subtitle="Genius Associates estimate"
         actions={(
           <div className="sof-page-actions flex gap-2">
             <button type="button" className="btn-secondary" onClick={() => navigate('/technical/estimate-history')}>
               View history
             </button>
+            {isView && (
+              <Can permission="estimates.edit">
+                <button type="button" className="btn-secondary" onClick={() => navigate(`/technical/estimates/${id}/edit`)}>
+                  Edit
+                </button>
+              </Can>
+            )}
             <button type="button" className="btn-secondary" onClick={handlePrint}>
-              Print
+              Download
             </button>
-            <button type="submit" form="est-print-content" className="btn-primary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save estimate'}
-            </button>
+            {!isView && (
+              <button type="submit" form="est-print-content" className="btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : isEdit ? 'Update estimate' : 'Save estimate'}
+              </button>
+            )}
           </div>
         )}
       />
 
+      {loading ? (
+        <p className="py-12 text-center text-slate-400">Loading estimate…</p>
+      ) : (
       <div className="sof-doc-wrap">
-        <form id="est-print-content" onSubmit={handleSubmit} className="sof-doc est-doc">
+        <form id="est-print-content" onSubmit={handleSubmit} className={`sof-doc est-doc${isView ? ' sof-readonly' : ''}`}>
           <div className="est-header">
             <div className="est-company">
               <h1>Genius Associates (Pvt) Ltd</h1>
@@ -206,7 +300,7 @@ export default function EstimateForm() {
             <div className="est-name-box">
               <div className="est-box-title">Name / Address</div>
               <div className="est-box-body">
-                <div className="sof-search no-print">
+                <div className={`sof-search no-print${isView ? ' hidden' : ''}`}>
                   <CustomerSearchSelect
                     customers={customers}
                     value={form.customerId}
@@ -350,6 +444,7 @@ export default function EstimateForm() {
           </div>
         </form>
       </div>
+      )}
     </div>
   );
 }
