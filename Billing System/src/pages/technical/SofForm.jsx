@@ -1,17 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import Can from '../../components/auth/Can';
 import { sofApi } from '../../api/technical';
+import { categoriesApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
 import { formatShipToBlock } from '../../utils/helpers';
 import { printElement } from '../../utils/printDocument';
 
-const emptyLine = () => ({ item: '', description: '', qty: '', fault: '' });
+const emptyLine = () => ({ categoryId: '', item: '', description: '', qty: '', fault: '', faultOption: '' });
 const LINE_COUNT = 6;
+const LEGACY_PREFIX = '__legacy:';
+const FAULT_OTHER = 'Other';
+const FAULT_OPTIONS = [
+  'No power',
+  'Hinch damage',
+  'No display',
+  'Windows problem',
+  'Software problem',
+  'No backup',
+  'Not printing',
+  'Auto restart',
+  FAULT_OTHER,
+];
+const FAULT_PRESETS = FAULT_OPTIONS.filter((option) => option !== FAULT_OTHER);
+
+function faultOptionFromValue(fault) {
+  if (!fault) return '';
+  if (FAULT_PRESETS.includes(fault)) return fault;
+  return FAULT_OTHER;
+}
 
 function todayInputValue() {
   const now = new Date();
@@ -31,13 +52,50 @@ function toDateInput(value) {
 
 function padLines(lines) {
   const next = (Array.isArray(lines) ? lines : []).map((line) => ({
+    categoryId: line.categoryId || '',
     item: line.item || '',
     description: line.description || '',
     qty: line.qty == null ? '' : String(line.qty),
     fault: line.fault || '',
+    faultOption: faultOptionFromValue(line.fault),
   }));
   while (next.length < LINE_COUNT) next.push(emptyLine());
   return next;
+}
+
+function normalizeCategories(data) {
+  return Array.isArray(data) ? data : data?.items || [];
+}
+
+function lineCategoryValue(line, categories) {
+  if (line.categoryId && categories.some((category) => category.id === line.categoryId)) {
+    return line.categoryId;
+  }
+  const byName = categories.find((category) => category.name === line.item);
+  if (byName) return byName.id;
+  if (line.item) return `${LEGACY_PREFIX}${line.item}`;
+  return '';
+}
+
+function lineCategoryLabel(line, categories) {
+  const byId = categories.find((category) => category.id === line.categoryId);
+  if (byId) return byId.name;
+  return line.item || '';
+}
+
+function categoryChoices(categories, line) {
+  const seen = new Set();
+  const choices = [];
+  categories.forEach((category) => {
+    if (!category?.id || seen.has(category.id)) return;
+    seen.add(category.id);
+    choices.push(category);
+  });
+  const value = lineCategoryValue(line, categories);
+  if (value.startsWith(LEGACY_PREFIX)) {
+    choices.push({ id: value, name: line.item, legacy: true });
+  }
+  return choices;
 }
 
 export default function SofForm() {
@@ -52,6 +110,7 @@ export default function SofForm() {
   const autoDownload = searchParams.get('download') === '1';
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(id));
+  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     customerId: '',
     name: '',
@@ -79,6 +138,28 @@ export default function SofForm() {
       })
       .catch(() => {});
   }, [isCreate]);
+
+  const loadCategories = useCallback((notifyError = false) => {
+    categoriesApi.list()
+      .then((data) => setCategories(normalizeCategories(data)))
+      .catch(() => {
+        if (notifyError) toast.error('Failed to load categories');
+      });
+  }, []);
+
+  useEffect(() => {
+    loadCategories(true);
+    const refresh = () => loadCategories(false);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [loadCategories]);
 
   useEffect(() => {
     if (!id) return;
@@ -152,6 +233,32 @@ export default function SofForm() {
     });
   };
 
+  const updateLineCategory = (index, value) => {
+    if (value.startsWith(LEGACY_PREFIX)) return;
+    const category = categories.find((item) => item.id === value);
+    updateLine(index, {
+      categoryId: value,
+      item: category?.name || '',
+    });
+  };
+
+  const updateLineFaultOption = (index, value) => {
+    setForm((prev) => {
+      const lines = prev.lines.map((line, i) => {
+        if (i !== index) return line;
+        if (value === FAULT_OTHER) {
+          return {
+            ...line,
+            faultOption: FAULT_OTHER,
+            fault: FAULT_PRESETS.includes(line.fault) ? '' : line.fault,
+          };
+        }
+        return { ...line, faultOption: value, fault: value };
+      });
+      return { ...prev, lines };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isView) return;
@@ -189,7 +296,15 @@ export default function SofForm() {
         createdPerson: form.createdPerson.trim() || null,
         receivedBy: form.receivedBy.trim() || null,
         customerSignature: form.customerSignature.trim() || null,
-        lines: form.lines,
+        lines: form.lines.map((line) => {
+          const category = categories.find((item) => item.id === line.categoryId)
+            || categories.find((item) => item.name === line.item);
+          return {
+            ...line,
+            categoryId: category?.id || line.categoryId || null,
+            item: category?.name || line.item || '',
+          };
+        }),
       };
 
       if (isEdit) {
@@ -373,7 +488,7 @@ export default function SofForm() {
           <table className="sof-lines">
             <thead>
               <tr>
-                <th className="col-item">Item</th>
+                <th className="col-item">Category</th>
                 <th className="col-desc">Description</th>
                 <th className="col-qty">Qty</th>
                 <th className="col-fault">Fault</th>
@@ -383,11 +498,21 @@ export default function SofForm() {
               {form.lines.map((line, index) => (
                 <tr key={index}>
                   <td className="col-item">
-                    <textarea
-                      rows={2}
-                      value={line.item}
-                      onChange={(e) => updateLine(index, { item: e.target.value })}
-                    />
+                    {isView ? (
+                      <span>{lineCategoryLabel(line, categories)}</span>
+                    ) : (
+                      <select
+                        value={lineCategoryValue(line, categories)}
+                        onChange={(e) => updateLineCategory(index, e.target.value)}
+                      >
+                        <option value="" />
+                        {categoryChoices(categories, line).map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.isActive === false ? `${category.name} (Inactive)` : category.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="col-desc">
                     <textarea
@@ -403,11 +528,29 @@ export default function SofForm() {
                     />
                   </td>
                   <td className="col-fault">
-                    <textarea
-                      rows={2}
-                      value={line.fault}
-                      onChange={(e) => updateLine(index, { fault: e.target.value })}
-                    />
+                    {isView ? (
+                      <span>{line.fault || ''}</span>
+                    ) : (
+                      <div className="sof-fault-cell" data-print-text={line.fault || ''}>
+                        <select
+                          value={line.faultOption || ''}
+                          onChange={(e) => updateLineFaultOption(index, e.target.value)}
+                        >
+                          <option value="" />
+                          {FAULT_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        {line.faultOption === FAULT_OTHER && (
+                          <input
+                            className="sof-fault-other"
+                            value={line.fault}
+                            onChange={(e) => updateLine(index, { fault: e.target.value })}
+                            placeholder="Enter fault"
+                          />
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

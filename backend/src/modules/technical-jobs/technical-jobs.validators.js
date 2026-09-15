@@ -13,6 +13,7 @@ const optionalText = z
 const status = z.enum(['OPEN', 'COMPLETED', 'CANCELLED']).optional();
 
 const sofLineSchema = z.object({
+  categoryId: optionalText,
   item: optionalText,
   description: optionalText,
   qty: z.preprocess(

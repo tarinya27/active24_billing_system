@@ -68,6 +68,7 @@ function normalizeLines(lines) {
   if (!Array.isArray(lines)) return [];
   return lines
     .map((line) => ({
+      categoryId: line.categoryId || null,
       item: line.item || null,
       description: line.description || null,
       qty: line.qty == null || line.qty === '' ? null : Number(line.qty),

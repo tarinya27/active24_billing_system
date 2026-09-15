@@ -260,16 +260,53 @@
 .sof-lines .col-qty { width: 10%; text-align: center; }
 .sof-lines .col-fault { width: 22%; }
 
-.sof-lines textarea {
+.sof-lines textarea,
+.sof-lines select {
   width: 100%;
   height: 100%;
   min-height: 12mm;
+  min-width: 0;
+  max-width: 100%;
   border: 0;
   resize: none;
   background: transparent;
   outline: none;
   font: inherit;
   padding: 0;
+  box-sizing: border-box;
+}
+
+.sof-lines select {
+  cursor: pointer;
+}
+
+.sof-fault-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  min-height: 12mm;
+  gap: 2px;
+}
+
+.sof-fault-cell select {
+  min-height: 0;
+  height: auto;
+  flex: 0 0 auto;
+}
+
+.sof-fault-other {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-top: 1px dotted #111;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  padding: 2px 0 0;
+  box-sizing: border-box;
 }
 
 .sof-sign-row {
@@ -302,7 +339,8 @@
 
 
 .sof-readonly input,
-.sof-readonly textarea {
+.sof-readonly textarea,
+.sof-readonly select {
   pointer-events: none;
   cursor: default;
 }

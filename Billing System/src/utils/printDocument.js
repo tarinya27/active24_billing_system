@@ -198,6 +198,17 @@ function prepareCloneForPrint(clone) {
     span.style.whiteSpace = 'nowrap';
     input.replaceWith(span);
   });
+  clone.querySelectorAll('[data-print-text]').forEach((node) => {
+    const span = document.createElement('span');
+    span.textContent = node.getAttribute('data-print-text') || '';
+    node.replaceWith(span);
+  });
+  clone.querySelectorAll('.sof-lines select').forEach((select) => {
+    const span = document.createElement('span');
+    const selected = select.options[select.selectedIndex];
+    span.textContent = selected?.textContent?.trim() || '';
+    select.replaceWith(span);
+  });
 }
 
 function waitForImages(doc) {
