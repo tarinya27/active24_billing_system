@@ -1,22 +1,42 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
+import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
-import StatusBadge from '../../components/ui/StatusBadge';
 import Can from '../../components/auth/Can';
 import HistoryActions from '../../components/technical/HistoryActions';
+import JobStatusSelect, { toJobStatus } from '../../components/technical/JobStatusSelect';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
+import { usePermission } from '../../hooks/usePermission';
 import { estimatesApi } from '../../api/technical';
+import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate, formatCustomerName } from '../../utils/helpers';
 
 export default function EstimateHistory() {
   const navigate = useNavigate();
-  const { items, loading } = useResourceList(estimatesApi);
+  const { can } = usePermission();
+  const canEdit = can('estimates.edit');
+  const { items, setItems, loading } = useResourceList(estimatesApi);
   const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['estimateNumber', 'description', 'sofRef', 'machineModel', 'serialNo', 'customer.name']);
   const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filteredItems);
+  const [savingId, setSavingId] = useState('');
+
+  const updateStatus = async (row, status) => {
+    if (toJobStatus(row.status) === status) return;
+    setSavingId(row.id);
+    try {
+      const updated = await estimatesApi.update(row.id, { status });
+      setItems((prev) => prev.map((item) => (item.id === row.id ? { ...item, status: updated.status } : item)));
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update status'));
+    } finally {
+      setSavingId('');
+    }
+  };
 
   const columns = [
     { key: 'estimateNumber', label: 'REF No.', render: (r) => <span className="font-semibold text-primary-600">{r.estimateNumber}</span> },
@@ -27,7 +47,17 @@ export default function EstimateHistory() {
     { key: 'serialNo', label: 'Serial No.', render: (r) => r.serialNo || '—' },
     { key: 'description', label: 'Description', render: (r) => <span className="whitespace-pre-line">{r.description || '—'}</span> },
     { key: 'amount', label: 'Amount', render: (r) => formatCurrency(r.amount) },
-    { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r) => (
+        <JobStatusSelect
+          value={r.status}
+          disabled={!canEdit || savingId === r.id}
+          onChange={(status) => updateStatus(r, status)}
+        />
+      ),
+    },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
     { key: 'createdBy', label: 'Created by', render: (r) => r.createdBy?.name || '—' },
     {

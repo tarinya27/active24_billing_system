@@ -46,7 +46,43 @@ export async function listServiceOrders(query) {
     prisma.serviceOrder.count({ where }),
   ]);
 
-  return listResult(items, total, { page, pageSize });
+  return listResult(await attachInvoiceInfo(items), total, { page, pageSize });
+}
+
+async function attachInvoiceInfo(items) {
+  if (!items.length) return items;
+  const numbers = [...new Set(items.map((item) => String(item.sofNumber || '').trim()).filter(Boolean))];
+  if (!numbers.length) {
+    return items.map((item) => ({ ...item, invoiced: false, invoiceNumber: null, invoiceNumbers: [] }));
+  }
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      status: { not: 'CANCELLED' },
+      OR: numbers.map((sofNumber) => ({ sofNo: { equals: sofNumber, mode: 'insensitive' } })),
+    },
+    select: { sofNo: true, invoiceNumber: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const bySof = new Map();
+  invoices.forEach((invoice) => {
+    const key = String(invoice.sofNo || '').trim().toLowerCase();
+    if (!key) return;
+    const list = bySof.get(key) || [];
+    list.push(invoice.invoiceNumber);
+    bySof.set(key, list);
+  });
+
+  return items.map((item) => {
+    const invoiceNumbers = bySof.get(String(item.sofNumber || '').trim().toLowerCase()) || [];
+    return {
+      ...item,
+      invoiced: invoiceNumbers.length > 0,
+      invoiceNumber: invoiceNumbers[0] || null,
+      invoiceNumbers,
+    };
+  });
 }
 
 export async function getServiceOrder(id) {
