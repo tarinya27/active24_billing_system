@@ -69,11 +69,46 @@ const zeroValueItemSchema = z.object({
     .refine((value) => value.replace(/^\s+|\s+$/g, '').length > 0, 'Description is required'),
 });
 
+const updateProductLineSchema = z.object({
+  barcode: z.string().trim().min(1).optional(),
+  barcodes: z.array(z.string().trim().min(1)).min(1).optional(),
+  discount: z.coerce.number().min(0).default(0),
+  unitPrice: z.coerce.number().nonnegative().optional(),
+  warrantyMonths: z.union([z.null(), z.coerce.number().int().min(0)]).optional(),
+}).superRefine((data, ctx) => {
+  const hasBarcode = Boolean(data.barcode);
+  const hasBarcodes = Array.isArray(data.barcodes) && data.barcodes.length > 0;
+  if (!hasBarcode && !hasBarcodes) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Product line requires a barcode',
+      path: ['barcode'],
+    });
+  }
+});
+
 export const updateInvoiceSchema = z.object({
   customerId: z.string().min(1),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
-  /** Optional product lines added during edit — unit price is always 0 and totals stay unchanged */
+  poNo: optionalReferenceField,
+  sofNo: optionalReferenceField,
+  /** When present, invoice lines are rebuilt from this cart (same shape as create) */
+  items: z.array(updateProductLineSchema).optional(),
+  services: z.array(serviceLineSchema).optional(),
+  /** Optional product lines added during edit at 0.00 */
   zeroValueItems: z.array(zeroValueItemSchema).optional().default([]),
+}).superRefine((data, ctx) => {
+  if (data.items === undefined && data.services === undefined) return;
+  const productCount = data.items?.length || 0;
+  const serviceCount = data.services?.length || 0;
+  const zeroCount = data.zeroValueItems?.length || 0;
+  if (productCount + serviceCount + zeroCount < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Add at least one product or service line',
+      path: ['items'],
+    });
+  }
 });
 
 export const settleCreditSchema = z.object({

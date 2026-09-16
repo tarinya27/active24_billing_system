@@ -265,7 +265,7 @@ export default function InvoiceHistory() {
           {row.status !== 'CANCELLED' && (
             <button
               type="button"
-              title="Edit customer / payment"
+              title="Edit invoice"
               onClick={() => navigate(`/billing?edit=${row.id}`)}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600 dark:hover:bg-slate-800"
             >

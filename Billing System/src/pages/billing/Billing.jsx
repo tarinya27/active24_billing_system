@@ -127,10 +127,6 @@ export default function Billing() {
   };
 
   const handleBarcodeScan = async (barcode) => {
-    if (editingInvoiceId) {
-      toast.info('Items are locked while editing. Change customer or payment method only.');
-      return;
-    }
     const trimmed = barcode.trim();
     if (!trimmed || scanLockRef.current) return;
 
@@ -213,7 +209,6 @@ export default function Billing() {
   };
 
   const updateItem = (cartKey, field, value) => {
-    if (editingInvoiceId) return;
     setCartItems((prev) =>
       prev.map((i) => (i.cartKey === cartKey ? { ...i, [field]: value } : i))
     );
@@ -221,12 +216,27 @@ export default function Billing() {
 
   const removeItem = (cartKey) => {
     setCartItems((prev) => {
-      const target = prev.find((i) => i.cartKey === cartKey);
-      if (editingInvoiceId && !target?.addedDuringEdit) return prev;
       const next = prev.filter((i) => i.cartKey !== cartKey);
       setLastScanned((scanned) => (scanned?.cartKey === cartKey ? null : scanned));
       return next;
     });
+  };
+
+  const removeBarcode = (cartKey, barcode) => {
+    setCartItems((prev) => prev.flatMap((item) => {
+      if (item.cartKey !== cartKey || item.lineType === 'SERVICE') return [item];
+      const barcodes = (item.barcodes || [item.barcode]).filter((code) => code && code !== barcode);
+      if (!barcodes.length) {
+        setLastScanned((scanned) => (scanned?.cartKey === cartKey ? null : scanned));
+        return [];
+      }
+      return [{
+        ...item,
+        barcodes,
+        barcode: barcodes[0],
+        quantity: barcodes.length,
+      }];
+    }));
   };
 
   const resetZeroItemDraft = () => {
@@ -444,29 +454,36 @@ export default function Billing() {
         quantity: Number(i.quantity),
         description: i.description,
       }));
-    const payload = wasEditing
-      ? {
-          customerId: selectedCustomer,
-          paymentMethod: PAYMENT_METHOD_API[paymentMethod],
-          ...(zeroValueItems.length ? { zeroValueItems } : {}),
-        }
-      : {
-          customerId: selectedCustomer,
-          paymentMethod: PAYMENT_METHOD_API[paymentMethod],
-          poNo: poNo.trim() || undefined,
-          sofNo: sofNo.trim() || undefined,
-          items: productCartItems.map((i) => ({
-            barcodes: i.barcodes || (i.barcode ? [i.barcode] : []),
-            discount: i.discount || 0,
-          })),
-          services: serviceCartItems.map((i) => ({
-            description: i.description || i.productName,
-            unitPrice: Number(i.unitPrice),
-            quantity: Number(i.quantity || 1),
-            discount: i.discount || 0,
-            chargeKind: i.chargeKind === 'ITEM' ? 'ITEM' : 'SERVICE',
-          })),
-        };
+    const payload = {
+      customerId: selectedCustomer,
+      paymentMethod: PAYMENT_METHOD_API[paymentMethod],
+      poNo: poNo.trim() || undefined,
+      sofNo: sofNo.trim() || undefined,
+      items: productCartItems
+        .filter((i) => !i.addedDuringEdit && ((i.barcodes && i.barcodes.length) || i.barcode))
+        .map((i) => ({
+          barcodes: (i.barcodes && i.barcodes.length)
+            ? i.barcodes
+            : (i.barcode ? [i.barcode] : []),
+          discount: i.discount || 0,
+          ...(wasEditing
+            ? {
+                unitPrice: Number(i.unitPrice) || 0,
+                warrantyMonths: i.warrantyMonths === '' || i.warrantyMonths == null
+                  ? null
+                  : Number(i.warrantyMonths),
+              }
+            : {}),
+        })),
+      services: serviceCartItems.map((i) => ({
+        description: i.description || i.productName,
+        unitPrice: Number(i.unitPrice),
+        quantity: Number(i.quantity || 1),
+        discount: i.discount || 0,
+        chargeKind: i.chargeKind === 'ITEM' ? 'ITEM' : 'SERVICE',
+      })),
+      ...(wasEditing && zeroValueItems.length ? { zeroValueItems } : {}),
+    };
     try {
       const invoice = wasEditing
         ? await invoicesApi.update(editingInvoiceId, payload)
@@ -534,7 +551,7 @@ export default function Billing() {
         const unitPrice = Number(item.unitPrice);
         return {
           lineType: 'PRODUCT',
-          cartKey: `product:${item.productId}:${unitPrice}:${Number(item.discount || 0)}`,
+          cartKey: `saved:${item.id}`,
           barcode: primaryBarcode,
           barcodes: barcodes.length ? barcodes : (primaryBarcode ? [primaryBarcode] : []),
           productUnitId: item.productUnitId || item.productUnit?.id,
@@ -567,7 +584,7 @@ export default function Billing() {
       resetManualForm();
       resetZeroItemDraft();
       setShowPreview(false);
-              toast.success(`Editing ${full.invoiceNumber} — customer, payment, and 0.00 products`);
+              toast.success(`Editing ${full.invoiceNumber} — change customer, items, prices, or warranty`);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to load invoice for editing'));
     }
@@ -593,11 +610,10 @@ export default function Billing() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3 space-y-4">
-          {!editingInvoiceId && (
           <div className="glass-card relative z-20 overflow-visible p-4">
             <BarcodeInput
               onScan={handleBarcodeScan}
-              placeholder="Scan unit barcode to add item..."
+              placeholder={editingInvoiceId ? 'Scan a replacement unit barcode…' : 'Scan unit barcode to add item...'}
               clearOnScan
               disabled={scanning}
             />
@@ -727,13 +743,13 @@ export default function Billing() {
               </div>
             )}
           </div>
-          )}
 
           {editingInvoiceId && (
             <div className="glass-card space-y-4 p-4 text-sm text-slate-600 dark:text-slate-300">
               <p>
                 Editing <span className="font-semibold text-slate-800 dark:text-slate-100">{editingInvoiceNumber}</span>.
-                Existing items, prices, and totals stay fixed. You can add a product at 0.00.
+                Remove a line and scan a replacement, or change customer, prices, warranty, PO/SOF, and payment.
+                You can still add a product at 0.00.
               </p>
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -804,7 +820,7 @@ export default function Billing() {
             </div>
           )}
 
-          {lastScanned && !editingInvoiceId && (
+          {lastScanned && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-primary-600">Last Scanned</h3>
               <ScannedUnitDetails item={lastScanned} highlight />
@@ -830,7 +846,14 @@ export default function Billing() {
                       </button>
                     </div>
                   ) : (
-                    <ScannedUnitDetails key={item.cartKey} item={item} />
+                    <ScannedUnitDetails
+                      key={item.cartKey}
+                      item={item}
+                      editable={Boolean(editingInvoiceId)}
+                      onUnitPriceChange={(value) => updateItem(item.cartKey, 'unitPrice', parseFloat(value) || 0)}
+                      onWarrantyChange={(value) => updateItem(item.cartKey, 'warrantyMonths', value === '' ? '' : (Number.parseInt(value, 10) || ''))}
+                      onRemove={() => removeItem(item.cartKey)}
+                    />
                   )
                 ))}
               </div>
@@ -849,7 +872,7 @@ export default function Billing() {
                       <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Qty</th>
                       <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Unit Price</th>
                       <th className="border border-black px-2 py-1.5 text-left font-bold dark:border-slate-500">Amount</th>
-                      {!editingInvoiceId && <th className="border border-black px-2 py-1.5 dark:border-slate-500" />}
+                      <th className="border border-black px-2 py-1.5 dark:border-slate-500" />
                     </tr>
                   </thead>
                   <tbody>
@@ -864,8 +887,7 @@ export default function Billing() {
                           <td className="border border-black px-2 py-2 align-top dark:border-slate-500">{qty}</td>
                           <td className="border border-black px-2 py-2 align-top dark:border-slate-500">{formatCurrency(item.unitPrice)}</td>
                           <td className="border border-black px-2 py-2 align-top font-semibold dark:border-slate-500">{formatCurrency(amount)}</td>
-                          {!editingInvoiceId && (
-                            <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
+                          <td className="border border-black px-2 py-2 align-top dark:border-slate-500">
                               <div className="flex shrink-0 gap-2">
                                 <button type="button" className="btn-secondary !px-2.5 !py-1.5 !text-xs" onClick={() => startEditManualLine(item)}>
                                   Edit
@@ -875,7 +897,6 @@ export default function Billing() {
                                 </button>
                               </div>
                             </td>
-                          )}
                         </tr>
                       );
                     })}
@@ -885,7 +906,7 @@ export default function Billing() {
             </div>
           )}
 
-          {cartItems.length === 0 && !lastScanned && !editingInvoiceId && (
+          {cartItems.length === 0 && !lastScanned && (
             <div className="glass-card p-4">
               <ScannedUnitEmpty />
             </div>
@@ -905,7 +926,7 @@ export default function Billing() {
             {editingInvoiceId && (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-900 dark:bg-amber-950/30">
                 <span className="font-medium text-amber-900 dark:text-amber-300">
-                  Editing {editingInvoiceNumber} — customer, payment, and 0.00 products
+                  Editing {editingInvoiceNumber}
                 </span>
                 <button type="button" className="font-semibold text-amber-800 hover:underline dark:text-amber-200" onClick={clearBillingCart}>
                   Cancel edit
@@ -929,8 +950,7 @@ export default function Billing() {
                 </div>
               )}
               {isWalkInCustomer && <WalkInCustomerForm onSave={handleSaveWalkInCustomer} />}
-              {!editingInvoiceId && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">PO No. (optional)</label>
                     <input
@@ -952,7 +972,6 @@ export default function Billing() {
                     />
                   </div>
                 </div>
-              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-500">Payment Method</label>
                 <div className="flex flex-wrap gap-2">
@@ -992,7 +1011,6 @@ export default function Billing() {
                   <tbody>
                     {cartItems.map((item) => {
                       const isService = item.lineType === 'SERVICE';
-                      const canRemove = !editingInvoiceId || item.addedDuringEdit;
                       const lineTotal = (Number(item.unitPrice) * Number(item.quantity || 1)) - (item.discount || 0);
                       const lineLabel = item.addedDuringEdit || isService
                         ? item.description
@@ -1016,7 +1034,19 @@ export default function Billing() {
                                   <p className="text-[10px] font-medium text-slate-500">Qty: {item.quantity}</p>
                                 )}
                                 {(item.barcodes?.length ? item.barcodes : [item.barcode]).filter(Boolean).map((code) => (
-                                  <p key={code} className="font-mono text-[10px] text-slate-400">{code}</p>
+                                  <p key={code} className="flex items-center gap-1 font-mono text-[10px] text-slate-400">
+                                    <span>{code}</span>
+                                    {editingInvoiceId && (
+                                      <button
+                                        type="button"
+                                        className="text-red-400 hover:text-red-600"
+                                        onClick={() => removeBarcode(item.cartKey, code)}
+                                        aria-label={`Remove ${code}`}
+                                      >
+                                        ×
+                                      </button>
+                                    )}
+                                  </p>
                                 ))}
                                 {item.stockSource !== 'DN' && (item.grnNumber || item.poNumber) && (
                                   <p className="text-[10px] text-slate-400">
@@ -1026,34 +1056,41 @@ export default function Billing() {
                               </>
                             )}
                           </td>
-                          <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
                           <td className="py-2 text-right">
-                            {editingInvoiceId ? (
-                              <span>{formatCurrency(item.discount || 0)}</span>
-                            ) : (
+                            {editingInvoiceId && item.lineType === 'PRODUCT' && !item.addedDuringEdit ? (
                               <input
                                 type="number"
                                 min="0"
-                                value={item.discount || 0}
-                                onChange={(e) => updateItem(item.cartKey, 'discount', parseFloat(e.target.value) || 0)}
-                                className="input-field !w-16 !py-1 text-right !text-xs ml-auto"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => updateItem(item.cartKey, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                className="input-field !w-20 !py-1 text-right !text-xs ml-auto"
                               />
+                            ) : (
+                              formatCurrency(item.unitPrice)
                             )}
+                          </td>
+                          <td className="py-2 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.discount || 0}
+                              onChange={(e) => updateItem(item.cartKey, 'discount', parseFloat(e.target.value) || 0)}
+                              className="input-field !w-16 !py-1 text-right !text-xs ml-auto"
+                            />
                           </td>
                           <td className="py-2 text-right font-semibold">{formatCurrency(lineTotal)}</td>
                           <td className="py-2">
-                            {canRemove && (
-                              <div className="flex items-center justify-end gap-1">
-                                {isService && !editingInvoiceId && (
-                                  <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
-                                    Edit
-                                  </button>
-                                )}
-                                <button type="button" onClick={() => removeItem(item.cartKey)} className="text-red-400 hover:text-red-600">
-                                  <Trash2 className="h-3.5 w-3.5" />
+                            <div className="flex items-center justify-end gap-1">
+                              {isService && (
+                                <button type="button" onClick={() => startEditManualLine(item)} className="text-slate-400 hover:text-primary-600 text-[10px] font-medium">
+                                  Edit
                                 </button>
-                              </div>
-                            )}
+                              )}
+                              <button type="button" onClick={() => removeItem(item.cartKey)} className="text-red-400 hover:text-red-600">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
