@@ -15,15 +15,25 @@ import { usePermission } from '../../hooks/usePermission';
 import { estimatesApi } from '../../api/technical';
 import { getErrorMessage } from '../../api/client';
 import { formatCurrency, formatDate, formatCustomerName } from '../../utils/helpers';
+import { ESTIMATE_COMPANY } from '../../utils/estimateCompanies';
 
 export default function EstimateHistory() {
   const navigate = useNavigate();
   const { can } = usePermission();
   const canEdit = can('estimates.edit');
   const { items, setItems, loading } = useResourceList(estimatesApi);
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['estimateNumber', 'description', 'sofRef', 'machineModel', 'serialNo', 'customer.name']);
+  const [companyFilter, setCompanyFilter] = useState('All');
+  const { searchQuery, setSearchQuery, filteredItems: searched } = useSearch(items, ['estimateNumber', 'description', 'sofRef', 'machineModel', 'serialNo', 'customer.name']);
+  const filteredItems = companyFilter === 'All'
+    ? searched
+    : searched.filter((item) => item.company === companyFilter);
   const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filteredItems);
   const [savingId, setSavingId] = useState('');
+
+  const changeCompanyFilter = (value) => {
+    setCompanyFilter(value);
+    goToPage(1);
+  };
 
   const updateStatus = async (row, status) => {
     if (toJobStatus(row.status) === status) return;
@@ -65,7 +75,6 @@ export default function EstimateHistory() {
       label: 'Actions',
       render: (r) => (
         <HistoryActions
-          viewTo={`/technical/estimates/${r.id}`}
           editTo={`/technical/estimates/${r.id}/edit`}
           downloadTo={`/technical/estimates/${r.id}?download=1`}
           editPermission="estimates.edit"
@@ -88,12 +97,33 @@ export default function EstimateHistory() {
         )}
       />
       <div className="glass-card space-y-4 p-4">
-        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search estimate number, customer, or description..." />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search estimate number, customer, or description..."
+            className="flex-1"
+          />
+          <select
+            value={companyFilter}
+            onChange={(e) => changeCompanyFilter(e.target.value)}
+            className="select-field !w-auto"
+            aria-label="Filter by company"
+          >
+            <option value="All">All companies</option>
+            <option value={ESTIMATE_COMPANY.GENIUS}>Genius</option>
+            <option value={ESTIMATE_COMPANY.ACTIVE24}>Active24</option>
+          </select>
+        </div>
         {loading ? (
           <p className="py-12 text-center text-sm text-slate-500">Loading estimates…</p>
         ) : (
           <>
-            <DataTable columns={columns} data={paginatedItems} />
+            <DataTable
+              columns={columns}
+              data={paginatedItems}
+              onRowClick={(row) => navigate(`/technical/estimates/${row.id}`)}
+            />
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}

@@ -83,7 +83,6 @@ export default function SofHistory() {
       label: 'Actions',
       render: (r) => (
         <HistoryActions
-          viewTo={`/technical/sof/${r.id}`}
           editTo={`/technical/sof/${r.id}/edit`}
           downloadTo={`/technical/sof/${r.id}?download=1`}
           editPermission="sof.edit"
@@ -111,7 +110,11 @@ export default function SofHistory() {
           <p className="py-12 text-center text-sm text-slate-500">Loading service orders…</p>
         ) : (
           <>
-            <DataTable columns={columns} data={paginatedItems} />
+            <DataTable
+              columns={columns}
+              data={paginatedItems}
+              onRowClick={(row) => navigate(`/technical/sof/${row.id}`)}
+            />
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
