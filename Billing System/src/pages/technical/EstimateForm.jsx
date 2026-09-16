@@ -5,10 +5,15 @@ import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import Can from '../../components/auth/Can';
 import { estimatesApi } from '../../api/technical';
-import { settingsApi } from '../../api/ops';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
 import { printElement } from '../../utils/printDocument';
+import {
+  ESTIMATE_COMPANY,
+  ESTIMATE_COMPANIES,
+  getEstimateCompanyProfile,
+  resolveEstimateCompany,
+} from '../../utils/estimateCompanies';
 
 const emptyLine = () => ({ description: '', qty: '', rate: '' });
 const LINE_COUNT = 8;
@@ -66,8 +71,6 @@ export default function EstimateForm() {
   const autoDownload = searchParams.get('download') === '1';
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(id));
-  const [vatEnabled, setVatEnabled] = useState(true);
-  const [vatRate, setVatRate] = useState(18);
   const [form, setForm] = useState({
     customerId: '',
     name: '',
@@ -77,27 +80,25 @@ export default function EstimateForm() {
     sofRef: '',
     machineModel: '',
     serialNo: '',
+    company: '',
     lines: Array.from({ length: 8 }, emptyLine),
   });
 
   useEffect(() => {
-    if (isCreate) {
-      estimatesApi.nextNumber()
-        .then((data) => {
-          if (data?.estimateNumber) {
-            setForm((prev) => ({ ...prev, estimateNumber: prev.estimateNumber || data.estimateNumber }));
-          }
-        })
-        .catch(() => {});
-    }
-    settingsApi.get()
-      .then((settings) => {
-        if (!isCreate) return;
-        setVatEnabled(Boolean(settings?.vatEnabled));
-        setVatRate(Number(settings?.vatRate) || 0);
+    if (!isCreate || !form.company) return;
+    let cancelled = false;
+    estimatesApi.nextNumber(form.company)
+      .then((data) => {
+        if (cancelled || !data?.estimateNumber) return;
+        setForm((prev) => (
+          prev.company === form.company
+            ? { ...prev, estimateNumber: data.estimateNumber }
+            : prev
+        ));
       })
       .catch(() => {});
-  }, [isCreate]);
+    return () => { cancelled = true; };
+  }, [isCreate, form.company]);
 
   useEffect(() => {
     if (!id) return;
@@ -107,8 +108,6 @@ export default function EstimateForm() {
       .then((item) => {
         if (cancelled) return;
         const customer = item.customer || {};
-        setVatEnabled(Boolean(item.vatEnabled));
-        setVatRate(Number(item.vatRate) || 0);
         setForm({
           customerId: item.customerId || '',
           name: customer.name || '',
@@ -118,6 +117,7 @@ export default function EstimateForm() {
           sofRef: item.sofRef || '',
           machineModel: item.machineModel || '',
           serialNo: item.serialNo || '',
+          company: resolveEstimateCompany(item.company),
           lines: padLines(item.lines),
         });
       })
@@ -158,6 +158,11 @@ export default function EstimateForm() {
     });
   };
 
+  const companyProfile = getEstimateCompanyProfile(form.company);
+  const vatEnabled = Boolean(companyProfile?.vatEnabled);
+  const vatRate = companyProfile?.vatRate || 0;
+  const hasCompany = Boolean(companyProfile);
+
   const totals = useMemo(() => {
     const subTotal = form.lines.reduce((sum, line) => sum + (lineAmount(line) || 0), 0);
     const vatAmount = vatEnabled ? Math.round(subTotal * vatRate / 100 * 100) / 100 : 0;
@@ -173,6 +178,10 @@ export default function EstimateForm() {
     if (isView) return;
     if (!form.name.trim()) {
       toast.error('Enter the customer name');
+      return;
+    }
+    if (!hasCompany) {
+      toast.error('Select Genius or Active24');
       return;
     }
 
@@ -201,6 +210,7 @@ export default function EstimateForm() {
         sofRef: form.sofRef.trim() || null,
         machineModel: form.machineModel.trim() || null,
         serialNo: form.serialNo.trim() || null,
+        company: resolveEstimateCompany(form.company),
         vatEnabled,
         vatRate: vatEnabled ? vatRate : 0,
         lines: form.lines,
@@ -232,7 +242,7 @@ export default function EstimateForm() {
     <div className="sof-page">
       <PageHeader
         title={isView ? `Estimate ${form.estimateNumber || ''}`.trim() : isEdit ? 'Edit Estimate' : 'Estimate'}
-        subtitle="Genius Associates estimate"
+        subtitle={hasCompany ? `${companyProfile.label} estimate` : 'Select Genius or Active24 to open the estimate'}
         actions={(
           <div className="sof-page-actions flex gap-2">
             <button type="button" className="btn-secondary" onClick={() => navigate('/technical/estimate-history')}>
@@ -245,10 +255,12 @@ export default function EstimateForm() {
                 </button>
               </Can>
             )}
-            <button type="button" className="btn-secondary" onClick={handlePrint}>
-              Download
-            </button>
-            {!isView && (
+            {hasCompany && (
+              <button type="button" className="btn-secondary" onClick={handlePrint}>
+                Download
+              </button>
+            )}
+            {!isView && hasCompany && (
               <button type="submit" form="est-print-content" className="btn-primary" disabled={saving}>
                 {saving ? 'Saving…' : isEdit ? 'Update estimate' : 'Save estimate'}
               </button>
@@ -261,15 +273,40 @@ export default function EstimateForm() {
         <p className="py-12 text-center text-slate-400">Loading estimate…</p>
       ) : (
       <div className="sof-doc-wrap">
+        <div className="est-company-picker no-print">
+          <p className="est-company-picker-label">Select company</p>
+          <div className="est-company-card-grid">
+            {Object.values(ESTIMATE_COMPANIES).map((option) => {
+              const selected = form.company === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  className={`est-company-card${selected ? ' is-selected' : ''}${isView ? ' is-readonly' : ''}`}
+                  disabled={isView}
+                  onClick={() => setForm((prev) => ({ ...prev, company: option.key }))}
+                >
+                  <span className="est-company-card-kicker">{option.label}</span>
+                  <h3>{option.name}</h3>
+                  {option.lines.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                  <span className={`est-company-card-vat${option.vatEnabled ? ' is-on' : ''}`}>
+                    {option.vatNote}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {hasCompany && (
         <form id="est-print-content" onSubmit={handleSubmit} className={`sof-doc est-doc${isView ? ' sof-readonly' : ''}`}>
           <div className="est-header">
             <div className="est-company">
-              <h1>Genius Associates (Pvt) Ltd</h1>
-              <p>No. 1,</p>
-              <p>Skelton Gardens,</p>
-              <p>Colombo 05.</p>
-              <p>Tel: 0115522266/7 , 0115656578</p>
-              <p>E-mail: technical1@geniuslanka.com</p>
+              <h1>{companyProfile.name}</h1>
+              {companyProfile.lines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
             </div>
             <div className="est-header-right">
               <h2 className="est-title">Estimate</h2>
@@ -434,15 +471,17 @@ export default function EstimateForm() {
             <div className="est-signoff">
               <p>Thank you</p>
               <p>Yours faith fully</p>
-              <p>Genius Associates (Pvt) Ltd</p>
+              <p>{companyProfile.signoffName}</p>
             </div>
             <div className="est-phones">
               <p>....................</p>
-              <p>0777 300210</p>
-              <p>0115656578/ 0115522266</p>
+              {companyProfile.phones.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
             </div>
           </div>
         </form>
+        )}
       </div>
       )}
     </div>

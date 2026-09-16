@@ -154,6 +154,15 @@ function normalizeEstimateLines(lines) {
     .filter((line) => line.description || line.qty || line.rate || line.amount);
 }
 
+function resolveEstimateCompany(value) {
+  return value === 'ACTIVE24' ? 'ACTIVE24' : 'GENIUS';
+}
+
+function vatFromCompany(company) {
+  if (company === 'GENIUS') return { vatEnabled: true, vatRate: 18 };
+  return { vatEnabled: false, vatRate: 0 };
+}
+
 function estimateTotals(lines, vatEnabled, vatRate) {
   const subTotal = (lines || []).reduce((sum, line) => sum + Number(line.amount || 0), 0);
   const rate = vatEnabled ? Number(vatRate) || 0 : 0;
@@ -205,16 +214,16 @@ export async function getEstimate(id) {
   return serializeEstimate(item);
 }
 
-export async function peekNextEstimateNumber() {
-  return { estimateNumber: await peekEstimateNumber() };
+export async function peekNextEstimateNumber(company) {
+  return { estimateNumber: await peekEstimateNumber(company) };
 }
 
 export async function createEstimate(data, userId) {
   await assertCustomer(data.customerId);
-  const estimateNumber = await nextEstimateNumber();
+  const company = resolveEstimateCompany(data.company);
+  const estimateNumber = await nextEstimateNumber(company);
   const lines = normalizeEstimateLines(data.lines);
-  const vatEnabled = Boolean(data.vatEnabled);
-  const vatRate = vatEnabled ? Number(data.vatRate) || 0 : 0;
+  const { vatEnabled, vatRate } = vatFromCompany(company);
   const totals = estimateTotals(lines, vatEnabled, vatRate);
   const created = await prisma.estimate.create({
     data: {
@@ -224,6 +233,7 @@ export async function createEstimate(data, userId) {
       sofRef: data.sofRef ?? null,
       machineModel: data.machineModel ?? null,
       serialNo: data.serialNo ?? null,
+      company,
       lines,
       description: summaryFromLines(lines, data.description ?? null),
       notes: data.notes ?? null,
@@ -241,18 +251,14 @@ export async function createEstimate(data, userId) {
 }
 
 export async function updateEstimate(id, data) {
-  await getEstimate(id);
+  const existing = await getEstimate(id);
   if (data.customerId) await assertCustomer(data.customerId);
-  const lines = data.lines !== undefined ? normalizeEstimateLines(data.lines) : undefined;
-  const vatEnabled = data.vatEnabled !== undefined ? Boolean(data.vatEnabled) : undefined;
-  const vatRate = data.vatRate !== undefined ? Number(data.vatRate) || 0 : undefined;
-  const amount = lines
-    ? estimateTotals(
-      lines,
-      vatEnabled ?? false,
-      vatRate ?? 0
-    ).total
-    : data.amount;
+  const lines = data.lines !== undefined ? normalizeEstimateLines(data.lines) : existing.lines;
+  const company = data.company !== undefined
+    ? resolveEstimateCompany(data.company)
+    : resolveEstimateCompany(existing.company);
+  const { vatEnabled, vatRate } = vatFromCompany(company);
+  const totals = estimateTotals(lines, vatEnabled, vatRate);
 
   const updated = await prisma.estimate.update({
     where: { id },
@@ -262,12 +268,13 @@ export async function updateEstimate(id, data) {
       ...(data.sofRef !== undefined ? { sofRef: data.sofRef } : {}),
       ...(data.machineModel !== undefined ? { machineModel: data.machineModel } : {}),
       ...(data.serialNo !== undefined ? { serialNo: data.serialNo } : {}),
-      ...(lines ? { lines, description: summaryFromLines(lines, data.description ?? null) } : {}),
-      ...(data.description !== undefined && !lines ? { description: data.description } : {}),
+      company,
+      ...(data.lines !== undefined ? { lines, description: summaryFromLines(lines, data.description ?? null) } : {}),
+      ...(data.description !== undefined && data.lines === undefined ? { description: data.description } : {}),
       ...(data.notes !== undefined ? { notes: data.notes } : {}),
-      ...(amount !== undefined ? { amount } : {}),
-      ...(vatRate !== undefined ? { vatRate } : {}),
-      ...(vatEnabled !== undefined ? { vatEnabled } : {}),
+      amount: totals.total,
+      vatRate,
+      vatEnabled,
       ...(data.preparedBy !== undefined ? { preparedBy: data.preparedBy } : {}),
       ...(data.customerSignature !== undefined ? { customerSignature: data.customerSignature } : {}),
       ...(data.status ? { status: data.status } : {}),

@@ -18,6 +18,9 @@ function serialize(settings, extra = {}) {
   const estimatePrefix = settings.estimatePrefix ?? '';
   const estimatePad = Math.max(1, settings.estimateNumberPad || 1);
   const estimateSeq = settings.estimateNextSeq || 1;
+  const estimateActive24Prefix = settings.estimateActive24Prefix ?? '';
+  const estimateActive24Pad = Math.max(1, settings.estimateActive24NumberPad || 1);
+  const estimateActive24Seq = settings.estimateActive24NextSeq || 1;
   return {
     ...settings,
     vatRate: Number(settings.vatRate),
@@ -25,6 +28,7 @@ function serialize(settings, extra = {}) {
     invoiceNumber: formatInvoiceNumber(prefix, seq, pad),
     sofNumber: formatInvoiceNumber(sofPrefix, sofSeq, sofPad),
     estimateNumber: formatInvoiceNumber(estimatePrefix, estimateSeq, estimatePad),
+    estimateActive24Number: formatInvoiceNumber(estimateActive24Prefix, estimateActive24Seq, estimateActive24Pad),
     ...extra,
   };
 }
@@ -72,9 +76,11 @@ export async function updateSettings(data) {
   const invoiceNumberInput = payload.invoiceNumber;
   const sofNumberInput = payload.sofNumber;
   const estimateNumberInput = payload.estimateNumber;
+  const estimateActive24NumberInput = payload.estimateActive24Number;
   delete payload.invoiceNumber;
   delete payload.sofNumber;
   delete payload.estimateNumber;
+  delete payload.estimateActive24Number;
 
   if (sofNumberInput != null && String(sofNumberInput).trim() !== '') {
     const parsedSof = parseSofNumberInput(sofNumberInput);
@@ -88,6 +94,13 @@ export async function updateSettings(data) {
     payload.estimatePrefix = parsedEstimate.prefix;
     payload.estimateNumberPad = parsedEstimate.pad;
     payload.estimateNextSeq = parsedEstimate.sequence;
+  }
+
+  if (estimateActive24NumberInput != null && String(estimateActive24NumberInput).trim() !== '') {
+    const parsedActive24 = parseEstimateNumberInput(estimateActive24NumberInput);
+    payload.estimateActive24Prefix = parsedActive24.prefix;
+    payload.estimateActive24NumberPad = parsedActive24.pad;
+    payload.estimateActive24NextSeq = parsedActive24.sequence;
   }
 
   let current = await prisma.settings.findUnique({ where: { id: 1 } });

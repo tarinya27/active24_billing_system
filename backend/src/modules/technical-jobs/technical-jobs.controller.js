@@ -31,8 +31,9 @@ export const listEstimates = asyncHandler(async (req, res) => {
   res.json({ data: result, error: null });
 });
 
-export const nextEstimate = asyncHandler(async (_req, res) => {
-  const item = await service.peekNextEstimateNumber();
+export const nextEstimate = asyncHandler(async (req, res) => {
+  const company = req.query.company === 'ACTIVE24' ? 'ACTIVE24' : 'GENIUS';
+  const item = await service.peekNextEstimateNumber(company);
   res.json({ data: item, error: null });
 });
 

@@ -49,6 +49,7 @@ export const createEstimateSchema = z.object({
   sofRef: optionalText,
   machineModel: optionalText,
   serialNo: optionalText,
+  company: z.enum(['GENIUS', 'ACTIVE24']).optional(),
   lines: z.array(z.object({
     description: optionalText,
     qty: z.preprocess(

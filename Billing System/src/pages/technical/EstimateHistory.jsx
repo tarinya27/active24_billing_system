@@ -20,6 +20,7 @@ export default function EstimateHistory() {
 
   const columns = [
     { key: 'estimateNumber', label: 'REF No.', render: (r) => <span className="font-semibold text-primary-600">{r.estimateNumber}</span> },
+    { key: 'company', label: 'Company', render: (r) => (r.company === 'ACTIVE24' ? 'Active24' : 'Genius') },
     { key: 'customer', label: 'Customer', render: (r) => r.customer?.name ? formatCustomerName(r.customer) : '—' },
     { key: 'sofRef', label: 'S.O.F No.', render: (r) => r.sofRef || '—' },
     { key: 'machineModel', label: 'Model', render: (r) => r.machineModel || '—' },

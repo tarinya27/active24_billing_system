@@ -262,7 +262,19 @@ export async function nextSofNumber() {
   return allocateSofNumber();
 }
 
-function estimateNumberFromSettings(settings) {
+function estimateNumberFromSettings(settings, company = 'GENIUS') {
+  if (company === 'ACTIVE24') {
+    const prefix = settings?.estimateActive24Prefix ?? '';
+    const pad = Math.max(1, settings?.estimateActive24NumberPad || 1);
+    const seq = settings?.estimateActive24NextSeq || 1;
+    return {
+      prefix,
+      pad,
+      seq,
+      formatted: formatInvoiceNumber(prefix, seq, pad),
+    };
+  }
+
   const prefix = settings?.estimatePrefix ?? '';
   const pad = Math.max(1, settings?.estimateNumberPad || 1);
   const seq = settings?.estimateNextSeq || 1;
@@ -274,22 +286,37 @@ function estimateNumberFromSettings(settings) {
   };
 }
 
-export async function peekEstimateNumber() {
+function estimateSequenceUpdate(company, prefix, pad, nextSeq) {
+  if (company === 'ACTIVE24') {
+    return {
+      estimateActive24Prefix: prefix,
+      estimateActive24NumberPad: pad,
+      estimateActive24NextSeq: nextSeq,
+    };
+  }
+  return {
+    estimatePrefix: prefix,
+    estimateNumberPad: pad,
+    estimateNextSeq: nextSeq,
+  };
+}
+
+export async function peekEstimateNumber(company = 'GENIUS') {
   let settings = await prisma.settings.findUnique({ where: { id: 1 } });
   if (!settings) {
     settings = await prisma.settings.create({ data: { id: 1 } });
   }
-  return estimateNumberFromSettings(settings).formatted;
+  return estimateNumberFromSettings(settings, company).formatted;
 }
 
-export async function allocateEstimateNumber(tx) {
+export async function allocateEstimateNumber(tx, company = 'GENIUS') {
   const db = tx || prisma;
   let settings = await db.settings.findUnique({ where: { id: 1 } });
   if (!settings) {
     settings = await db.settings.create({ data: { id: 1 } });
   }
 
-  let { prefix, pad, seq, formatted } = estimateNumberFromSettings(settings);
+  let { prefix, pad, seq, formatted } = estimateNumberFromSettings(settings, company);
   while (await db.estimate.findUnique({ where: { estimateNumber: formatted }, select: { id: true } })) {
     seq += 1;
     formatted = formatInvoiceNumber(prefix, seq, pad);
@@ -297,12 +324,12 @@ export async function allocateEstimateNumber(tx) {
 
   await db.settings.update({
     where: { id: 1 },
-    data: { estimatePrefix: prefix, estimateNumberPad: pad, estimateNextSeq: seq + 1 },
+    data: estimateSequenceUpdate(company, prefix, pad, seq + 1),
   });
 
   return formatted;
 }
 
-export async function nextEstimateNumber() {
-  return allocateEstimateNumber();
+export async function nextEstimateNumber(company = 'GENIUS') {
+  return allocateEstimateNumber(undefined, company);
 }

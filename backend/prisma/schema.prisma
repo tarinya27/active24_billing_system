@@ -577,6 +577,7 @@ model Estimate {
   sofRef             String?
   machineModel       String?
   serialNo           String?
+  company            Company             @default(GENIUS)
   lines              Json                @default("[]")
   description        String?
   amount             Decimal             @default(0) @db.Decimal(14, 2)
@@ -652,6 +653,9 @@ model Settings {
   estimatePrefix       String        @default("")
   estimateNextSeq      Int           @default(1)
   estimateNumberPad    Int           @default(1)
+  estimateActive24Prefix     String  @default("")
+  estimateActive24NextSeq    Int     @default(1)
+  estimateActive24NumberPad  Int     @default(1)
   updatedAt            DateTime      @updatedAt
 
   @@map("settings")

@@ -15,5 +15,6 @@ export const sofApi = {
 };
 export const estimatesApi = {
   ...createResource('/estimates'),
-  nextNumber: () => api.get('/estimates/next-number').then((r) => r.data.data),
+  nextNumber: (company) =>
+    api.get('/estimates/next-number', { params: company ? { company } : {} }).then((r) => r.data.data),
 };
