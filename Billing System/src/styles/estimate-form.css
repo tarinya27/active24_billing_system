@@ -215,6 +215,22 @@
   background: #fff;
 }
 
+.est-sof-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #64748b;
+}
+
+.est-sof-hint.is-found {
+  color: #15803d;
+}
+
+.est-sof-hint.is-missing {
+  color: #b91c1c;
+}
+
 .est-lines {
   width: 100%;
   border-collapse: collapse;

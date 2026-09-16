@@ -11,6 +11,11 @@ export const nextSof = asyncHandler(async (_req, res) => {
   res.json({ data: item, error: null });
 });
 
+export const lookupSof = asyncHandler(async (req, res) => {
+  const item = await service.getServiceOrderByNumber(req.query.sofNumber);
+  res.json({ data: item, error: null });
+});
+
 export const getSof = asyncHandler(async (req, res) => {
   const item = await service.getServiceOrder(req.params.id);
   res.json({ data: item, error: null });

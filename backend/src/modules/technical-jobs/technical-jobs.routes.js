@@ -13,6 +13,7 @@ const sofRouter = Router();
 sofRouter.use(authMiddleware);
 sofRouter.get('/', requirePermission('sof.view'), controller.listSof);
 sofRouter.get('/next-number', requirePermission('sof.view'), controller.nextSof);
+sofRouter.get('/lookup', requirePermission(['sof.view', 'estimates.view']), controller.lookupSof);
 sofRouter.get('/:id', requirePermission('sof.view'), controller.getSof);
 sofRouter.post('/', requirePermission('sof.create'), validate(createSofSchema), controller.createSof);
 sofRouter.patch('/:id', requirePermission('sof.edit'), validate(updateSofSchema), controller.updateSof);

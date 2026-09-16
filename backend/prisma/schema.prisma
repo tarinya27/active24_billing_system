@@ -554,6 +554,8 @@ model ServiceOrder {
   jobStatus          String?
   receivedBy         String?
   customerSignature  String?
+  machineModel       String?
+  serialNo           String?
   lines              Json                @default("[]")
   description        String?
   notes              String?

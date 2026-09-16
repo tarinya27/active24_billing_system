@@ -58,6 +58,55 @@ export async function getServiceOrder(id) {
   return item;
 }
 
+export async function getServiceOrderByNumber(sofNumber) {
+  const raw = String(sofNumber || '').trim();
+  if (!raw) throw ApiError.badRequest('SOF number is required');
+
+  const include = { customer: { select: customerSelect }, createdBy: { select: userSelect } };
+  const exact = await prisma.serviceOrder.findUnique({
+    where: { sofNumber: raw },
+    include,
+  });
+  if (exact) return withSofMachine(exact);
+
+  const match = await prisma.serviceOrder.findFirst({
+    where: { sofNumber: { equals: raw, mode: 'insensitive' } },
+    include,
+  });
+  if (match) return withSofMachine(match);
+
+  throw ApiError.notFound('Service order not found');
+}
+
+function parseMachineFromSofLines(lines) {
+  const descriptions = (Array.isArray(lines) ? lines : [])
+    .map((line) => String(line?.description || '').trim())
+    .filter(Boolean);
+  if (!descriptions.length) return { machineModel: null, serialNo: null };
+
+  const first = descriptions[0];
+  const serialMatch = first.match(/(?:^|[\s,;/|(])(?:s\/?n|serial(?:\s*no\.?| number)?)[:\s#-]+([A-Za-z0-9][A-Za-z0-9\-_/]*)/i);
+  if (serialMatch) {
+    const serialNo = serialMatch[1].trim() || null;
+    const machineModel = first
+      .replace(/(?:^|[\s,;/|(])(?:s\/?n|serial(?:\s*no\.?| number)?)[:\s#-]+[A-Za-z0-9][A-Za-z0-9\-_/]*/i, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{2,}/g, '\n')
+      .trim() || null;
+    return { machineModel, serialNo };
+  }
+
+  const firstLines = first.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (firstLines.length >= 2) {
+    return { machineModel: firstLines[0], serialNo: firstLines.slice(1).join(' ') };
+  }
+  return { machineModel: firstLines[0] || null, serialNo: null };
+}
+
+function withSofMachine(item) {
+  return { ...item, ...parseMachineFromSofLines(item.lines) };
+}
+
 function parseJobDate(value) {
   if (!value) return null;
   const date = new Date(value);

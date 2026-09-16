@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import CustomerSearchSelect from '../../components/billing/CustomerSearchSelect';
 import Can from '../../components/auth/Can';
-import { estimatesApi } from '../../api/technical';
+import { estimatesApi, sofApi } from '../../api/technical';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
 import { printElement } from '../../utils/printDocument';
@@ -59,6 +59,41 @@ function lineAmount(line) {
   return Math.round(safeQty * safeRate * 100) / 100;
 }
 
+function normalizeSofNumber(value) {
+  return String(value || '').trim();
+}
+
+function machineFromSof(sof) {
+  const descriptions = (Array.isArray(sof?.lines) ? sof.lines : [])
+    .map((line) => String(line?.description || '').trim())
+    .filter(Boolean);
+  if (!descriptions.length) {
+    return { machineModel: sof?.machineModel || '', serialNo: sof?.serialNo || '' };
+  }
+
+  const first = descriptions[0];
+  const serialMatch = first.match(/(?:^|[\s,;/|(])(?:s\/?n|serial(?:\s*no\.?| number)?)[:\s#-]+([A-Za-z0-9][A-Za-z0-9\-_/]*)/i);
+  if (serialMatch) {
+    return {
+      machineModel: first
+        .replace(/(?:^|[\s,;/|(])(?:s\/?n|serial(?:\s*no\.?| number)?)[:\s#-]+[A-Za-z0-9][A-Za-z0-9\-_/]*/i, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{2,}/g, '\n')
+        .trim(),
+      serialNo: serialMatch[1].trim(),
+    };
+  }
+
+  const firstLines = first.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (firstLines.length >= 2) {
+    return { machineModel: firstLines[0], serialNo: firstLines.slice(1).join(' ') };
+  }
+  return {
+    machineModel: firstLines[0] || sof?.machineModel || '',
+    serialNo: sof?.serialNo || '',
+  };
+}
+
 export default function EstimateForm() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,6 +118,8 @@ export default function EstimateForm() {
     company: '',
     lines: Array.from({ length: 8 }, emptyLine),
   });
+  const [sofLookup, setSofLookup] = useState({ status: 'idle', message: '' });
+  const lastSofLookupRef = useRef('');
 
   useEffect(() => {
     if (!isCreate || !form.company) return;
@@ -120,6 +157,7 @@ export default function EstimateForm() {
           company: resolveEstimateCompany(item.company),
           lines: padLines(item.lines),
         });
+        lastSofLookupRef.current = normalizeSofNumber(item.sofRef);
       })
       .catch((err) => {
         toast.error(getErrorMessage(err, 'Failed to load estimate'));
@@ -130,6 +168,53 @@ export default function EstimateForm() {
       });
     return () => { cancelled = true; };
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (isView || loading) return;
+    const sofNumber = normalizeSofNumber(form.sofRef);
+    if (!sofNumber) {
+      lastSofLookupRef.current = '';
+      setSofLookup({ status: 'idle', message: '' });
+      return undefined;
+    }
+    if (lastSofLookupRef.current === sofNumber) return undefined;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSofLookup({ status: 'loading', message: 'Looking up SOF…' });
+      try {
+        const sof = await sofApi.getByNumber(sofNumber);
+        if (cancelled) return;
+        const canonical = normalizeSofNumber(sof.sofNumber) || sofNumber;
+        const machine = machineFromSof(sof);
+        lastSofLookupRef.current = canonical;
+        setForm((prev) => {
+          if (normalizeSofNumber(prev.sofRef) !== sofNumber) return prev;
+          return {
+            ...prev,
+            sofRef: canonical,
+            machineModel: machine.machineModel,
+            serialNo: machine.serialNo,
+          };
+        });
+        setSofLookup({ status: 'found', message: `SOF ${canonical}` });
+      } catch (err) {
+        if (cancelled) return;
+        lastSofLookupRef.current = sofNumber;
+        const status = err?.response?.status;
+        if (status === 404) {
+          setSofLookup({ status: 'missing', message: 'SOF not found' });
+        } else {
+          setSofLookup({ status: 'idle', message: '' });
+        }
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.sofRef, isView, loading]);
 
   useEffect(() => {
     if (!autoDownload || loading || isCreate) return;
@@ -366,7 +451,11 @@ export default function EstimateForm() {
                     <input
                       value={form.sofRef}
                       onChange={(e) => setForm((prev) => ({ ...prev, sofRef: e.target.value }))}
+                      placeholder="Enter SOF number"
                     />
+                    {!isView && sofLookup.message && (
+                      <span className={`est-sof-hint no-print is-${sofLookup.status}`}>{sofLookup.message}</span>
+                    )}
                   </td>
                 </tr>
                 <tr>
