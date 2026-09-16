@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma.js';
 import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_API } from '../../utils/enums.js';
 import {
@@ -21,14 +22,16 @@ function serialize(settings, extra = {}) {
   const estimateActive24Prefix = settings.estimateActive24Prefix ?? '';
   const estimateActive24Pad = Math.max(1, settings.estimateActive24NumberPad || 1);
   const estimateActive24Seq = settings.estimateActive24NextSeq || 1;
+  const { invoiceDeletePasswordHash, ...safeSettings } = settings;
   return {
-    ...settings,
+    ...safeSettings,
     vatRate: Number(settings.vatRate),
     defaultPaymentMethod: PAYMENT_METHOD_LABEL[settings.defaultPaymentMethod] || settings.defaultPaymentMethod,
     invoiceNumber: formatInvoiceNumber(prefix, seq, pad),
     sofNumber: formatInvoiceNumber(sofPrefix, sofSeq, sofPad),
     estimateNumber: formatInvoiceNumber(estimatePrefix, estimateSeq, estimatePad),
     estimateActive24Number: formatInvoiceNumber(estimateActive24Prefix, estimateActive24Seq, estimateActive24Pad),
+    invoiceDeletePasswordSet: Boolean(invoiceDeletePasswordHash),
     ...extra,
   };
 }
@@ -77,10 +80,18 @@ export async function updateSettings(data) {
   const sofNumberInput = payload.sofNumber;
   const estimateNumberInput = payload.estimateNumber;
   const estimateActive24NumberInput = payload.estimateActive24Number;
+  const invoiceDeletePassword = payload.invoiceDeletePassword;
   delete payload.invoiceNumber;
   delete payload.sofNumber;
   delete payload.estimateNumber;
   delete payload.estimateActive24Number;
+  delete payload.invoiceDeletePassword;
+  delete payload.invoiceDeletePasswordHash;
+  delete payload.invoiceDeletePasswordSet;
+
+  if (invoiceDeletePassword != null && String(invoiceDeletePassword).trim() !== '') {
+    payload.invoiceDeletePasswordHash = await bcrypt.hash(String(invoiceDeletePassword).trim(), 10);
+  }
 
   if (sofNumberInput != null && String(sofNumberInput).trim() !== '') {
     const parsedSof = parseSofNumberInput(sofNumberInput);

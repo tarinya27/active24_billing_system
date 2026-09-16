@@ -27,6 +27,7 @@ export const invoicesApi = {
   update: (id, payload) => api.patch(`/invoices/${id}`, payload).then((r) => r.data.data),
   settle: (id, payload) => api.post(`/invoices/${id}/settle`, payload).then((r) => r.data.data),
   cancel: (id) => api.post(`/invoices/${id}/cancel`).then((r) => r.data.data),
+  remove: (id, password) => api.post(`/invoices/${id}/delete`, { password }).then((r) => r.data.data),
 };
 
 export const dashboardApi = {

@@ -38,4 +38,8 @@ export const updateSettingsSchema = z.object({
   lowStockThreshold: z.coerce.number().int().min(0).optional(),
   autoPrint: z.boolean().optional(),
   notificationsEnabled: z.boolean().optional(),
+  invoiceDeletePassword: z.union([
+    z.string().trim().min(4, 'Invoice delete password must be at least 4 characters').max(100),
+    z.literal(''),
+  ]).optional(),
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Printer, Pencil } from 'lucide-react';
+import { Eye, Printer, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/ui/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
@@ -17,6 +17,7 @@ import { useCustomers } from '../../context/CustomersContext';
 import { formatCurrency, formatDate, formatCustomerName } from '../../utils/helpers';
 import { PAYMENT_METHODS } from '../../utils/constants';
 import { printElement } from '../../utils/printDocument';
+import { usePermission } from '../../hooks/usePermission';
 
 function toYmd(date) {
   const y = date.getFullYear();
@@ -45,6 +46,8 @@ function rangeForPreset(preset) {
 export default function InvoiceHistory() {
   const navigate = useNavigate();
   const { customers } = useCustomers();
+  const { can } = usePermission();
+  const canDeleteInvoice = can('invoices.delete');
   const [settings, setSettings] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [datePreset, setDatePreset] = useState('all');
@@ -62,6 +65,9 @@ export default function InvoiceHistory() {
     status: 'All',
   });
   const [preview, setPreview] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch(() => {});
@@ -83,6 +89,7 @@ export default function InvoiceHistory() {
   const {
     items: invoices,
     loading,
+    reload,
     goToPage,
     total: totalItems,
     page,
@@ -193,6 +200,40 @@ export default function InvoiceHistory() {
     });
   };
 
+  const openDelete = (invoice) => {
+    setDeleteTarget(invoice);
+    setDeletePassword('');
+  };
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setDeleteTarget(null);
+    setDeletePassword('');
+  };
+
+  const handleDelete = async (e) => {
+    e?.preventDefault();
+    if (!deleteTarget) return;
+    if (!deletePassword.trim()) {
+      toast.error('Enter the invoice delete password');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const result = await invoicesApi.remove(deleteTarget.id, deletePassword);
+      toast.success(`${result.invoiceNumber || deleteTarget.invoiceNumber} deleted`);
+      setDeleteTarget(null);
+      setDeletePassword('');
+      if (preview?.id === deleteTarget.id) setPreview(null);
+      await reload();
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete invoice'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const columns = [
     {
       key: 'invoiceNumber',
@@ -270,6 +311,16 @@ export default function InvoiceHistory() {
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary-600 dark:hover:bg-slate-800"
             >
               <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDeleteInvoice && (
+            <button
+              type="button"
+              title="Delete invoice"
+              onClick={() => openDelete(row)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -415,6 +466,37 @@ export default function InvoiceHistory() {
             />
           </div>
         )}
+      </Modal>
+
+      <Modal isOpen={Boolean(deleteTarget)} onClose={closeDelete} title="Delete Invoice" size="sm">
+        <form onSubmit={handleDelete} className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Delete <span className="font-semibold text-slate-800 dark:text-slate-100">{deleteTarget?.invoiceNumber}</span> from history?
+            Stock on this invoice will be returned. This cannot be undone.
+          </p>
+          <div>
+            <label className="label">Invoice delete password</label>
+            <input
+              type="password"
+              className="input-field"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Enter the invoice delete password"
+              autoComplete="off"
+              autoFocus
+              disabled={deleting}
+            />
+            <p className="mt-1.5 text-xs text-slate-500">Set this password in Settings. It is not the login password.</p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" className="btn-secondary" onClick={closeDelete} disabled={deleting}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-danger" disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

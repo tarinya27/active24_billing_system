@@ -50,6 +50,7 @@ export const PERMISSIONS = [
   'invoices.create',
   'invoices.settle_credit',
   'invoices.cancel',
+  'invoices.delete',
   'reports.sales',
   'reports.stock',
   'reports.purchase',

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware, requirePermission } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
-import { createInvoiceSchema, updateInvoiceSchema, settleCreditSchema } from './invoices.validators.js';
+import { createInvoiceSchema, updateInvoiceSchema, settleCreditSchema, deleteInvoiceSchema } from './invoices.validators.js';
 import { invoiceCreateLimiter } from '../../middleware/rateLimit.js';
 import * as controller from './invoices.controller.js';
 
@@ -20,5 +20,6 @@ router.post(
   controller.settle
 );
 router.post('/:id/cancel', requirePermission('invoices.cancel'), controller.cancel);
+router.post('/:id/delete', requirePermission('invoices.delete'), validate(deleteInvoiceSchema), controller.remove);
 
 export default router;

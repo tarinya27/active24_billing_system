@@ -30,3 +30,8 @@ export const cancel = asyncHandler(async (req, res) => {
   const invoice = await service.cancelInvoice(req.params.id, req.user.id);
   res.json({ data: invoice, error: null });
 });
+
+export const remove = asyncHandler(async (req, res) => {
+  const result = await service.deleteInvoice(req.params.id, req.body.password, req.user);
+  res.json({ data: result, error: null });
+});

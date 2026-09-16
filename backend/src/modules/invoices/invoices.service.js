@@ -5,6 +5,7 @@ import { allocateInvoiceNumber } from '../../utils/documentNumbers.js';
 import { CREDIT_TERM_DAYS } from '../../utils/enums.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 import { resolvePoNumberFromUnits, resolveSupplierTinFromUnits, resolveCategoryNameFromUnit, resolveItemDescriptionFromUnit } from '../../utils/invoicePrintMeta.js';
+import bcrypt from 'bcryptjs';
 
 const invoiceInclude = {
   customer: true,
@@ -1079,4 +1080,76 @@ export async function cancelInvoice(id, userId) {
 
     return serializeInvoice(updated);
   });
+}
+
+export async function deleteInvoice(id, password, user) {
+  const account = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!account || !account.isActive) {
+    throw ApiError.unauthorized('Session is no longer valid');
+  }
+
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (!settings?.invoiceDeletePasswordHash) {
+    throw ApiError.badRequest('Set the invoice delete password in Settings first');
+  }
+
+  const passwordOk = await bcrypt.compare(String(password || ''), settings.invoiceDeletePasswordHash);
+  if (!passwordOk) {
+    throw ApiError.forbidden('Incorrect password');
+  }
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: {
+      items: {
+        include: {
+          productUnit: true,
+          units: { include: { productUnit: true } },
+        },
+      },
+    },
+  });
+  if (!invoice) throw ApiError.notFound('Invoice not found');
+
+  await prisma.$transaction(async (tx) => {
+    if (invoice.status !== 'CANCELLED') {
+      for (const item of invoice.items) {
+        if (item.itemType === 'SERVICE') continue;
+
+        const unitIds = itemUnitIds(item);
+        for (const productUnitId of unitIds) {
+          const linked = (item.units || []).find((u) => u.productUnitId === productUnitId);
+          const productId = linked?.productUnit?.productId || item.productId;
+          await tx.productUnit.update({
+            where: { id: productUnitId },
+            data: { status: 'IN_STOCK' },
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId,
+              productUnitId,
+              type: 'RETURN',
+              quantity: 1,
+              reference: `Delete ${invoice.invoiceNumber}`,
+              userId: user.id,
+            },
+          });
+        }
+      }
+    }
+
+    await tx.activity.create({
+      data: {
+        type: 'invoice',
+        title: `Invoice ${invoice.invoiceNumber} deleted`,
+        description: `Removed from invoice history — ${invoice.invoiceNumber}`,
+        amount: Number(invoice.grandTotal),
+        userId: user.id,
+      },
+    });
+
+    await tx.invoice.delete({ where: { id } });
+  });
+
+  return { id: invoice.id, invoiceNumber: invoice.invoiceNumber };
 }

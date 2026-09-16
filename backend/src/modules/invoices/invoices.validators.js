@@ -115,3 +115,7 @@ export const settleCreditSchema = z.object({
   method: z.enum(['CASH', 'CARD', 'BANK_TRANSFER']).default('CASH'),
   amount: z.coerce.number().positive().optional(),
 });
+
+export const deleteInvoiceSchema = z.object({
+  password: z.string().min(1, 'Password is required'),
+});

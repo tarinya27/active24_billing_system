@@ -658,6 +658,7 @@ model Settings {
   estimateActive24Prefix     String  @default("")
   estimateActive24NextSeq    Int     @default(1)
   estimateActive24NumberPad  Int     @default(1)
+  invoiceDeletePasswordHash  String?
   updatedAt            DateTime      @updatedAt
 
   @@map("settings")

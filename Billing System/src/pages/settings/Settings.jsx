@@ -23,6 +23,8 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [invoiceDeletePassword, setInvoiceDeletePassword] = useState('');
+  const [invoiceDeletePasswordConfirm, setInvoiceDeletePasswordConfirm] = useState('');
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch((err) => toast.error(getErrorMessage(err)));
@@ -32,6 +34,16 @@ export default function Settings() {
 
   const handleSave = async () => {
     if (!settings) return;
+    if (invoiceDeletePassword || invoiceDeletePasswordConfirm) {
+      if (invoiceDeletePassword.length < 4) {
+        toast.error('Invoice delete password must be at least 4 characters');
+        return;
+      }
+      if (invoiceDeletePassword !== invoiceDeletePasswordConfirm) {
+        toast.error('Invoice delete passwords do not match');
+        return;
+      }
+    }
     const previousNumber = settings.invoiceNumber;
     setSaving(true);
     try {
@@ -55,10 +67,15 @@ export default function Settings() {
         autoPrint: settings.autoPrint,
         notificationsEnabled: settings.notificationsEnabled,
       };
+      if (invoiceDeletePassword) payload.invoiceDeletePassword = invoiceDeletePassword;
       const updated = await settingsApi.update(payload);
       setSettings(updated);
+      setInvoiceDeletePassword('');
+      setInvoiceDeletePasswordConfirm('');
       const renumbered = Number(updated.invoicesRenumbered || 0);
-      if (renumbered > 0) {
+      if (invoiceDeletePassword) {
+        toast.success('Settings saved. Invoice delete password updated.');
+      } else if (renumbered > 0) {
         toast.success(`Settings saved. Renumbered ${renumbered} invoice(s). Next: ${updated.invoiceNumber}`);
       } else if (previousNumber !== updated.invoiceNumber) {
         toast.success(`Settings saved. Next invoice number: ${updated.invoiceNumber}`);
@@ -101,6 +118,42 @@ export default function Settings() {
               {t} Mode
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="mb-6 glass-card p-6">
+        <h3 className="mb-2 text-sm font-semibold">Invoice Delete Password</h3>
+        <p className="mb-4 text-xs text-slate-500">
+          Used only when deleting an invoice from history. This is not the login password.
+          {settings.invoiceDeletePasswordSet
+            ? ' A password is already set. Leave blank to keep it, or enter a new one to replace it.'
+            : ' No password is set yet. Set one before invoices can be deleted from history.'}
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              {settings.invoiceDeletePasswordSet ? 'New delete password' : 'Delete password'}
+            </label>
+            <input
+              type="password"
+              className="input-field"
+              value={invoiceDeletePassword}
+              onChange={(e) => setInvoiceDeletePassword(e.target.value)}
+              placeholder={settings.invoiceDeletePasswordSet ? 'Leave blank to keep current' : 'Min 4 characters'}
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-400">Confirm delete password</label>
+            <input
+              type="password"
+              className="input-field"
+              value={invoiceDeletePasswordConfirm}
+              onChange={(e) => setInvoiceDeletePasswordConfirm(e.target.value)}
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+            />
+          </div>
         </div>
       </div>
 
