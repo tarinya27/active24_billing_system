@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parsePagination, listResult } from '../../utils/pagination.js';
-import { calcGrnAutoSellingPrice } from '../../utils/pricing.js';
+import { calcGrnAutoSellingPrice, calcDnAutoPurchasePrice } from '../../utils/pricing.js';
 import { nextDnNumber } from '../../utils/documentNumbers.js';
 import { normalizeWarrantyMonths } from '../../utils/warranty.js';
 import { generateInventoryCode } from '../products/products.utils.js';
@@ -47,13 +47,24 @@ const dnInclude = {
 };
 
 function resolveSellingPrice(line) {
-  if (line.sellingPriceMode === 'MANUAL') {
-    if (line.sellingPrice === undefined || Number.isNaN(Number(line.sellingPrice))) {
-      throw ApiError.badRequest('Manual selling price is required');
-    }
+  if (line.sellingPrice !== undefined && line.sellingPrice !== null && !Number.isNaN(Number(line.sellingPrice))) {
     return Number(line.sellingPrice);
   }
+  if (line.sellingPriceMode === 'MANUAL') {
+    throw ApiError.badRequest('Selling price is required');
+  }
   return calcGrnAutoSellingPrice(line.purchasePrice);
+}
+
+function resolvePurchasePrice(line, sellingPrice) {
+  if (line.purchasePriceMode === 'AUTO') {
+    return calcDnAutoPurchasePrice(sellingPrice);
+  }
+  const purchasePrice = Number(line.purchasePrice);
+  if (Number.isNaN(purchasePrice)) {
+    throw ApiError.badRequest('Purchase price is required');
+  }
+  return purchasePrice;
 }
 
 /**
@@ -200,7 +211,7 @@ export async function createDeliveryNote(data, userId) {
 
     for (const line of data.lines) {
       const sellingPrice = resolveSellingPrice(line);
-      const purchasePrice = Number(line.purchasePrice);
+      const purchasePrice = resolvePurchasePrice(line, sellingPrice);
       const barcodes = line.barcodes.map((b) => String(b).trim());
       const warrantyMonths = normalizeWarrantyMonths(line.warrantyMonths);
       const description = String(line.description).trim();
@@ -222,7 +233,7 @@ export async function createDeliveryNote(data, userId) {
           purchasePrice,
           costExVat: purchasePrice,
           sellingPrice,
-          sellingPriceMode: line.sellingPriceMode || 'AUTO',
+          sellingPriceMode: 'MANUAL',
           units: barcodes.length,
           warrantyMonths,
         },
@@ -435,18 +446,30 @@ export async function updateDeliveryNote(id, data, userId) {
         patch.description = description || null;
       }
 
-      if (line.sellingPriceMode !== undefined || line.sellingPrice !== undefined) {
-        const sellingPriceMode = line.sellingPriceMode || existing.sellingPriceMode || 'AUTO';
-        const sellingPrice = sellingPriceMode === 'MANUAL'
-          ? Number(line.sellingPrice ?? existing.sellingPrice)
-          : calcGrnAutoSellingPrice(existing.purchasePrice);
-
+      if (
+        line.sellingPriceMode !== undefined
+        || line.sellingPrice !== undefined
+        || line.purchasePrice !== undefined
+        || line.purchasePriceMode !== undefined
+      ) {
+        const sellingPrice = Number(line.sellingPrice ?? existing.sellingPrice);
         if (Number.isNaN(sellingPrice)) {
-          throw ApiError.badRequest('Manual selling price is required');
+          throw ApiError.badRequest('Selling price is required');
+        }
+        let purchasePrice = Number(existing.purchasePrice);
+        if (line.purchasePriceMode === 'AUTO') {
+          purchasePrice = calcDnAutoPurchasePrice(sellingPrice);
+        } else if (line.purchasePriceMode === 'MANUAL' || line.purchasePrice !== undefined) {
+          purchasePrice = Number(line.purchasePrice ?? existing.purchasePrice);
+        }
+        if (Number.isNaN(purchasePrice)) {
+          throw ApiError.badRequest('Purchase price is required');
         }
 
-        patch.sellingPriceMode = sellingPriceMode;
+        patch.sellingPriceMode = 'MANUAL';
         patch.sellingPrice = sellingPrice;
+        patch.purchasePrice = purchasePrice;
+        patch.costExVat = purchasePrice;
       }
 
       if (!Object.keys(patch).length) continue;
@@ -456,13 +479,16 @@ export async function updateDeliveryNote(id, data, userId) {
         data: patch,
       });
 
-      if (patch.sellingPrice !== undefined) {
+      if (patch.sellingPrice !== undefined || patch.purchasePrice !== undefined) {
         await tx.productUnit.updateMany({
           where: {
             deliveryNoteItemId: line.id,
             status: 'IN_STOCK',
           },
-          data: { sellingPrice: patch.sellingPrice },
+          data: {
+            ...(patch.sellingPrice !== undefined ? { sellingPrice: patch.sellingPrice } : {}),
+            ...(patch.purchasePrice !== undefined ? { costPrice: patch.purchasePrice } : {}),
+          },
         });
       }
     }

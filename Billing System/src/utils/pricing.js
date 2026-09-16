@@ -49,3 +49,13 @@ export function calcAutoSellingPrice(costExVat) {
 export function calcGrnAutoSellingPrice(purchasePrice) {
   return round2(Number(purchasePrice) * 1.3);
 }
+
+/** Delivery note default: Purchase Price = Selling Price × 90% */
+export function calcDnAutoPurchasePrice(sellingPrice) {
+  return round2(Number(sellingPrice) * 0.9);
+}
+
+export function inferDnPurchasePriceMode(purchasePrice, sellingPrice) {
+  const auto = calcDnAutoPurchasePrice(sellingPrice);
+  return Math.abs(Number(purchasePrice) - auto) < 0.015 ? 'AUTO' : 'MANUAL';
+}

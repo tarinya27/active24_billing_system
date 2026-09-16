@@ -8,14 +8,15 @@ import { deliveryNotesApi } from '../../api/procurement';
 import { categoriesApi, suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
 import { useCustomers } from '../../context/CustomersContext';
-import { calcGrnAutoSellingPrice } from '../../utils/pricing';
+import { calcDnAutoPurchasePrice } from '../../utils/pricing';
 import { formatCurrency } from '../../utils/helpers';
 
 const emptyLine = () => ({
   categoryId: '',
   description: '',
   purchasePrice: 0,
-  sellingPriceMode: 'AUTO',
+  purchasePriceMode: 'AUTO',
+  sellingPriceMode: 'MANUAL',
   sellingPrice: 0,
   warrantyMonths: '',
   barcodes: [],
@@ -50,12 +51,11 @@ export default function DeliveryNoteForm() {
 
   const updateLine = (index, patch) => {
     const lines = [...form.lines];
-    lines[index] = { ...lines[index], ...patch };
-    if (patch.purchasePrice !== undefined || patch.sellingPriceMode !== undefined) {
-      if (lines[index].sellingPriceMode === 'AUTO') {
-        lines[index].sellingPrice = calcGrnAutoSellingPrice(lines[index].purchasePrice);
-      }
+    const next = { ...lines[index], ...patch };
+    if (next.purchasePriceMode === 'AUTO' && (patch.sellingPrice !== undefined || patch.purchasePriceMode !== undefined)) {
+      next.purchasePrice = calcDnAutoPurchasePrice(next.sellingPrice);
     }
+    lines[index] = next;
     setForm({ ...form, lines });
   };
 
@@ -138,10 +138,11 @@ export default function DeliveryNoteForm() {
           categoryId: l.categoryId,
           description: String(l.description).replace(/^\s+|\s+$/g, ''),
           purchasePrice: Number(l.purchasePrice),
+          purchasePriceMode: l.purchasePriceMode,
           units: l.barcodes.length,
           barcodes: l.barcodes,
-          sellingPriceMode: l.sellingPriceMode,
-          sellingPrice: l.sellingPriceMode === 'MANUAL' ? Number(l.sellingPrice) : undefined,
+          sellingPriceMode: 'MANUAL',
+          sellingPrice: Number(l.sellingPrice),
           warrantyMonths: l.warrantyMonths === '' || l.warrantyMonths == null
             ? null
             : Number(l.warrantyMonths),
@@ -259,47 +260,47 @@ export default function DeliveryNoteForm() {
                     />
                   </div>
                   <div>
+                    <label className="label">Selling Price <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input-field"
+                      value={line.sellingPrice}
+                      onChange={(e) => updateLine(index, { sellingPrice: e.target.value })}
+                    />
+                  </div>
+                  <div>
                     <label className="label">Qty (from scans)</label>
                     <p className="input-field bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
                       {line.barcodes.length}
                     </p>
                   </div>
                   <div>
-                    <label className="label">Purchase Price</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="input-field"
-                      value={line.purchasePrice}
-                      onChange={(e) => updateLine(index, { purchasePrice: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Sell Mode</label>
+                    <label className="label">Purchase Mode</label>
                     <select
                       className="select-field"
-                      value={line.sellingPriceMode}
-                      onChange={(e) => updateLine(index, { sellingPriceMode: e.target.value })}
+                      value={line.purchasePriceMode}
+                      onChange={(e) => updateLine(index, { purchasePriceMode: e.target.value })}
                     >
-                      <option value="AUTO">Auto (×1.30)</option>
+                      <option value="AUTO">Auto (×90%)</option>
                       <option value="MANUAL">Manual</option>
                     </select>
                   </div>
                   <div>
-                    <label className="label">Selling Price</label>
-                    {line.sellingPriceMode === 'MANUAL' ? (
+                    <label className="label">Purchase Price</label>
+                    {line.purchasePriceMode === 'MANUAL' ? (
                       <input
                         type="number"
                         min="0"
                         step="0.01"
                         className="input-field"
-                        value={line.sellingPrice}
-                        onChange={(e) => updateLine(index, { sellingPrice: e.target.value })}
+                        value={line.purchasePrice}
+                        onChange={(e) => updateLine(index, { purchasePrice: e.target.value })}
                       />
                     ) : (
                       <p className="input-field bg-emerald-50 font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-                        {formatCurrency(line.sellingPrice)}
+                        {formatCurrency(line.purchasePrice)}
                       </p>
                     )}
                   </div>

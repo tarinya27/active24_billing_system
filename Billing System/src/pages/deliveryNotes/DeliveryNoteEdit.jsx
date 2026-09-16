@@ -6,8 +6,8 @@ import PageHeader from '../../components/ui/PageHeader';
 import { deliveryNotesApi } from '../../api/procurement';
 import { suppliersApi } from '../../api/masters';
 import { getErrorMessage } from '../../api/client';
-import { formatCurrency, formatDate } from '../../utils/helpers';
-import { calcGrnAutoSellingPrice } from '../../utils/pricing';
+import { formatDate } from '../../utils/helpers';
+import { calcDnAutoPurchasePrice, inferDnPurchasePriceMode } from '../../utils/pricing';
 
 export default function DeliveryNoteEdit() {
   const { id } = useParams();
@@ -50,16 +50,21 @@ export default function DeliveryNoteEdit() {
         setCreatedAt(dn.createdAt);
         setSupplierId(dn.supplierId || dn.supplier?.id || '');
         setNotes(dn.notes || '');
-        setLines((dn.items || []).map((item) => ({
-          id: item.id,
-          productCode: item.product?.code || '',
-          categoryName: item.category?.name || '',
-          description: item.description || '',
-          purchasePrice: Number(item.purchasePrice) || 0,
-          sellingPriceMode: item.sellingPriceMode || 'AUTO',
-          sellingPrice: Number(item.sellingPrice) || 0,
-          units: Number(item.units) || 0,
-        })));
+        setLines((dn.items || []).map((item) => {
+          const purchasePrice = Number(item.purchasePrice) || 0;
+          const sellingPrice = Number(item.sellingPrice) || 0;
+          return {
+            id: item.id,
+            productCode: item.product?.code || '',
+            categoryName: item.category?.name || '',
+            description: item.description || '',
+            purchasePrice,
+            purchasePriceMode: inferDnPurchasePriceMode(purchasePrice, sellingPrice),
+            sellingPriceMode: 'MANUAL',
+            sellingPrice,
+            units: Number(item.units) || 0,
+          };
+        }));
       })
       .catch((err) => {
         toast.error(getErrorMessage(err, 'Failed to load delivery note'));
@@ -76,8 +81,8 @@ export default function DeliveryNoteEdit() {
     setLines((prev) => prev.map((line) => {
       if (line.id !== lineId) return line;
       const next = { ...line, ...patch };
-      if (patch.sellingPriceMode === 'AUTO') {
-        next.sellingPrice = calcGrnAutoSellingPrice(next.purchasePrice);
+      if (next.purchasePriceMode === 'AUTO' && (patch.sellingPrice !== undefined || patch.purchasePriceMode !== undefined)) {
+        next.purchasePrice = calcDnAutoPurchasePrice(next.sellingPrice);
       }
       return next;
     }));
@@ -98,8 +103,10 @@ export default function DeliveryNoteEdit() {
         items: lines.map((line) => ({
           id: line.id,
           description: line.description.replace(/^\s+|\s+$/g, '') || null,
-          sellingPriceMode: line.sellingPriceMode,
+          sellingPriceMode: 'MANUAL',
           sellingPrice: Number(line.sellingPrice) || 0,
+          purchasePriceMode: line.purchasePriceMode,
+          purchasePrice: Number(line.purchasePrice) || 0,
         })),
       });
       toast.success('Delivery note updated');
@@ -169,7 +176,7 @@ export default function DeliveryNoteEdit() {
                       {line.productCode || 'Item'}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {line.units} unit{line.units === 1 ? '' : 's'} · Purchase {formatCurrency(line.purchasePrice)}
+                      {line.units} unit{line.units === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>
@@ -187,18 +194,6 @@ export default function DeliveryNoteEdit() {
                   </div>
 
                   <div>
-                    <label className="label">Selling Price Mode</label>
-                    <select
-                      className="select-field"
-                      value={line.sellingPriceMode}
-                      onChange={(e) => updateLine(line.id, { sellingPriceMode: e.target.value })}
-                    >
-                      <option value="AUTO">Auto (Purchase × 1.30)</option>
-                      <option value="MANUAL">Manual</option>
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="label">Selling Price</label>
                     <input
                       type="number"
@@ -206,10 +201,34 @@ export default function DeliveryNoteEdit() {
                       step="0.01"
                       className="input-field"
                       value={line.sellingPrice}
-                      disabled={line.sellingPriceMode === 'AUTO'}
+                      onChange={(e) => updateLine(line.id, { sellingPrice: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label">Purchase Mode</label>
+                    <select
+                      className="select-field"
+                      value={line.purchasePriceMode}
+                      onChange={(e) => updateLine(line.id, { purchasePriceMode: e.target.value })}
+                    >
+                      <option value="AUTO">Auto (×90%)</option>
+                      <option value="MANUAL">Manual</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label">Purchase Price</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input-field"
+                      value={line.purchasePrice}
+                      disabled={line.purchasePriceMode === 'AUTO'}
                       onChange={(e) => updateLine(line.id, {
-                        sellingPriceMode: 'MANUAL',
-                        sellingPrice: e.target.value,
+                        purchasePriceMode: 'MANUAL',
+                        purchasePrice: e.target.value,
                       })}
                     />
                   </div>

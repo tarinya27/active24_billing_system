@@ -15,6 +15,11 @@ export function calcGrnAutoSellingPrice(purchasePrice) {
   return round2(Number(purchasePrice) * 1.3);
 }
 
+/** Delivery note default: Purchase Price = Selling Price × 90% */
+export function calcDnAutoPurchasePrice(sellingPrice) {
+  return round2(Number(sellingPrice) * 0.9);
+}
+
 /** Per-line VAT on top: VAT = (unitPrice × units × rate) / 100 */
 export function calcPurchaseInvoiceLine(unitPrice, units, vatEnabled, vatRate = 0) {
   const price = Number(unitPrice) || 0;

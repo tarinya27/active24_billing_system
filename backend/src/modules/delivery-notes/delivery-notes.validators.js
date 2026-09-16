@@ -10,7 +10,8 @@ const dnLineSchema = z.object({
     .max(2000)
     .refine((value) => value.replace(/^\s+|\s+$/g, '').length > 0, 'Description is required'),
   purchasePrice: z.coerce.number().nonnegative(),
-  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('AUTO'),
+  purchasePriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
+  sellingPriceMode: z.enum(['AUTO', 'MANUAL']).default('MANUAL'),
   sellingPrice: z.coerce.number().nonnegative().optional(),
   /** Optional when barcodes are provided — qty is derived from scanned barcodes */
   units: z.coerce.number().int().positive().optional(),
@@ -67,6 +68,8 @@ const updateDnLineSchema = z.object({
     .or(z.literal('')),
   sellingPriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
   sellingPrice: z.coerce.number().nonnegative().optional(),
+  purchasePriceMode: z.enum(['AUTO', 'MANUAL']).optional(),
+  purchasePrice: z.coerce.number().nonnegative().optional(),
 });
 
 export const updateDeliveryNoteSchema = z.object({
