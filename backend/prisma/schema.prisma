@@ -25,6 +25,12 @@ enum TechnicalJobStatus {
   CANCELLED
 }
 
+enum SofBillingDocType {
+  NONE
+  INVOICE
+  DN
+}
+
 enum Company {
   GENIUS
   ACTIVE24
@@ -560,6 +566,8 @@ model ServiceOrder {
   description        String?
   notes              String?
   status             TechnicalJobStatus  @default(OPEN)
+  billingDocType     SofBillingDocType   @default(NONE)
+  billingDocNumber   String?
   createdById        String?
   createdBy          User?               @relation("SofCreatedBy", fields: [createdById], references: [id])
   createdAt          DateTime            @default(now())

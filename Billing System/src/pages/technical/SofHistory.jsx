@@ -9,6 +9,7 @@ import Pagination from '../../components/ui/Pagination';
 import Can from '../../components/auth/Can';
 import HistoryActions from '../../components/technical/HistoryActions';
 import JobStatusSelect, { toJobStatus } from '../../components/technical/JobStatusSelect';
+import SofBillingSelect, { displayedBillingType, isBillingLocked, savedBillingNumber, SofDocNumberInput } from '../../components/technical/SofBillingSelect';
 import { usePagination, useSearch } from '../../hooks/usePagination';
 import { useResourceList } from '../../hooks/useResourceList';
 import { usePermission } from '../../hooks/usePermission';
@@ -21,7 +22,7 @@ export default function SofHistory() {
   const { can } = usePermission();
   const canEdit = can('sof.edit');
   const { items, setItems, loading } = useResourceList(sofApi);
-  const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['sofNumber', 'description', 'customer.name', 'invoiceNumber']);
+  const { searchQuery, setSearchQuery, filteredItems } = useSearch(items, ['sofNumber', 'description', 'customer.name', 'invoiceNumber', 'billingDocNumber']);
   const { currentPage, totalPages, paginatedItems, goToPage, totalItems, itemsPerPage } = usePagination(filteredItems);
   const [savingId, setSavingId] = useState('');
 
@@ -33,6 +34,22 @@ export default function SofHistory() {
       setItems((prev) => prev.map((item) => (item.id === row.id ? { ...item, status: updated.status } : item)));
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to update status'));
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  const updateBilling = async (row, payload) => {
+    if (isBillingLocked(row)) return;
+    setSavingId(row.id);
+    try {
+      const updated = await sofApi.update(row.id, payload);
+      setItems((prev) => prev.map((item) => (item.id === row.id ? { ...item, ...updated } : item)));
+      if (payload.billingDocNumber !== undefined) {
+        toast.success(payload.billingDocNumber ? 'Document number saved' : 'Document number cleared');
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update invoiced status'));
     } finally {
       setSavingId('');
     }
@@ -57,24 +74,46 @@ export default function SofHistory() {
       key: 'invoiced',
       label: 'Invoiced',
       render: (r) => (
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-          r.invoiced
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400'
-            : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
-        }`}
-        >
-          {r.invoiced ? 'Yes' : 'No'}
-        </span>
+        <SofBillingSelect
+          row={r}
+          disabled={!canEdit || savingId === r.id}
+          onChange={(billingDocType) => {
+            if (isBillingLocked(r) || displayedBillingType(r) === billingDocType) return;
+            updateBilling(r, {
+              billingDocType,
+              ...(billingDocType === 'NONE' ? { billingDocNumber: null } : {}),
+            });
+          }}
+        />
       ),
     },
     {
       key: 'invoiceNumber',
-      label: 'Invoice No.',
-      render: (r) => (
-        r.invoiceNumber
-          ? <span className="font-semibold text-primary-600">{(r.invoiceNumbers || [r.invoiceNumber]).join(', ')}</span>
-          : '—'
-      ),
+      label: 'Invoice / DN No.',
+      render: (r) => {
+        const type = displayedBillingType(r);
+        const number = savedBillingNumber(r);
+        if (isBillingLocked(r)) {
+          return number
+            ? <span className="font-semibold text-primary-600">{number}</span>
+            : '—';
+        }
+        if (type === 'NONE') return '—';
+        if (!canEdit) {
+          return number
+            ? <span className="font-semibold text-primary-600">{number}</span>
+            : '—';
+        }
+        return (
+          <SofDocNumberInput
+            value={r.billingDocNumber || r.invoiceNumber || ''}
+            placeholder={type === 'DN' ? 'DN Number' : 'Invoice Number'}
+            disabled={savingId === r.id}
+            saving={savingId === r.id}
+            onSave={(billingDocNumber) => updateBilling(r, { billingDocNumber: billingDocNumber || null })}
+          />
+        );
+      },
     },
     { key: 'createdAt', label: 'Date', render: (r) => formatDate(r.createdAt) },
     { key: 'createdBy', label: 'Created person', render: (r) => r.createdPerson || r.createdBy?.name || '—' },

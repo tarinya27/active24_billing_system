@@ -38,10 +38,26 @@ export const createSofSchema = z.object({
   status,
 });
 
-export const updateSofSchema = createSofSchema.partial().refine(
-  (data) => Object.keys(data).length > 0,
-  { message: 'No fields to update' }
-);
+const optionalDocNumber = z
+  .string()
+  .max(60)
+  .optional()
+  .nullable()
+  .transform((value) => {
+    const text = value != null ? String(value).trim() : '';
+    return text || null;
+  });
+
+export const updateSofSchema = createSofSchema
+  .extend({
+    billingDocType: z.enum(['NONE', 'INVOICE', 'DN']).optional(),
+    billingDocNumber: optionalDocNumber,
+  })
+  .partial()
+  .refine(
+    (data) => Object.keys(data).length > 0,
+    { message: 'No fields to update' }
+  );
 
 export const createEstimateSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),

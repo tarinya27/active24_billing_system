@@ -29,6 +29,7 @@ export async function listServiceOrders(query) {
       { sofNumber: { contains: query.search, mode: 'insensitive' } },
       { description: { contains: query.search, mode: 'insensitive' } },
       { createdPerson: { contains: query.search, mode: 'insensitive' } },
+      { billingDocNumber: { contains: query.search, mode: 'insensitive' } },
       { customer: { name: { contains: query.search, mode: 'insensitive' } } },
     ];
   }
@@ -49,11 +50,35 @@ export async function listServiceOrders(query) {
   return listResult(await attachInvoiceInfo(items), total, { page, pageSize });
 }
 
+function mergeSofBilling(item, autoInvoiceNumbers) {
+  if (autoInvoiceNumbers.length > 0) {
+    return {
+      ...item,
+      invoiced: true,
+      billingSource: 'auto',
+      invoiceNumber: autoInvoiceNumbers[0] || null,
+      invoiceNumbers: autoInvoiceNumbers,
+    };
+  }
+
+  const type = item.billingDocType === 'INVOICE' || item.billingDocType === 'DN'
+    ? item.billingDocType
+    : 'NONE';
+  const number = String(item.billingDocNumber || '').trim() || null;
+  return {
+    ...item,
+    invoiced: type !== 'NONE',
+    billingSource: type === 'NONE' ? 'none' : 'manual',
+    invoiceNumber: number,
+    invoiceNumbers: number ? [number] : [],
+  };
+}
+
 async function attachInvoiceInfo(items) {
   if (!items.length) return items;
   const numbers = [...new Set(items.map((item) => String(item.sofNumber || '').trim()).filter(Boolean))];
   if (!numbers.length) {
-    return items.map((item) => ({ ...item, invoiced: false, invoiceNumber: null, invoiceNumbers: [] }));
+    return items.map((item) => mergeSofBilling(item, []));
   }
 
   const invoices = await prisma.invoice.findMany({
@@ -76,12 +101,7 @@ async function attachInvoiceInfo(items) {
 
   return items.map((item) => {
     const invoiceNumbers = bySof.get(String(item.sofNumber || '').trim().toLowerCase()) || [];
-    return {
-      ...item,
-      invoiced: invoiceNumbers.length > 0,
-      invoiceNumber: invoiceNumbers[0] || null,
-      invoiceNumbers,
-    };
+    return mergeSofBilling(item, invoiceNumbers);
   });
 }
 
@@ -199,10 +219,20 @@ export async function createServiceOrder(data, userId) {
 }
 
 export async function updateServiceOrder(id, data) {
-  await getServiceOrder(id);
+  const existing = await getServiceOrder(id);
   if (data.customerId) await assertCustomer(data.customerId);
+  const wantsBillingChange = data.billingDocType !== undefined || data.billingDocNumber !== undefined;
+  if (wantsBillingChange) {
+    const [enriched] = await attachInvoiceInfo([existing]);
+    const alreadySaved = Boolean(String(existing.billingDocNumber || '').trim());
+    if (enriched.billingSource === 'auto' || alreadySaved) {
+      throw ApiError.badRequest('Invoiced document cannot be changed after it is saved');
+    }
+  }
   const lines = data.lines !== undefined ? normalizeLines(data.lines) : undefined;
-  return prisma.serviceOrder.update({
+  const billingDocType = data.billingDocType;
+  const billingDocNumber = billingDocType === 'NONE' ? null : data.billingDocNumber;
+  const updated = await prisma.serviceOrder.update({
     where: { id },
     data: {
       ...(data.customerId ? { customerId: data.customerId } : {}),
@@ -217,9 +247,12 @@ export async function updateServiceOrder(id, data) {
       ...(data.description !== undefined && !lines ? { description: data.description } : {}),
       ...(data.notes !== undefined ? { notes: data.notes } : {}),
       ...(data.status ? { status: data.status } : {}),
+      ...(billingDocType !== undefined ? { billingDocType } : {}),
+      ...(billingDocType === 'NONE' || data.billingDocNumber !== undefined ? { billingDocNumber } : {}),
     },
     include: { customer: { select: customerSelect }, createdBy: { select: userSelect } },
   });
+  return (await attachInvoiceInfo([updated]))[0];
 }
 
 function normalizeEstimateLines(lines) {
